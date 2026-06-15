@@ -18,9 +18,11 @@ Dada a impossibilidade inicial de ler o vetor de posição do Mario na RAM, dese
 
 1. **Vetor de Momento (Optical Flow):** Utilizou-se o algoritmo de *Farneback* para calcular o fluxo óptico denso entre quadros consecutivos. Movimentos convergentes que simulam deslocamento para frente geram recompensas contínuas positivas.
 2. **Alinhamento de Rota (Template Matching com ORB):** O algoritmo ORB (*Oriented FAST and Rotated BRIEF*) é aplicado para detectar o padrão visual de moedas (`coins.png`). O cálculo da distância euclidiana entre a distribuição das moedas e o eixo central do agente converte-se em um bônus de alinhamento, estabilizando a rota.
+   - *Nota de Engenharia (Computer Vision):* Para evitar falsos-positivos decorrentes de ruído e assimetria de escalas (que geravam vitórias prematuras e "políticas degeneradas"), as imagens de *ground-truth* sofrem *downsampling* (256x192) na ingestão. O *matching* em tempo real cruza os dados vetoriais usando *k-Nearest Neighbors* (`k=2`), rigidamente filtrados pelo **Lowe's Ratio Test**, descartando distorções estatísticas.
 3. **Detecção de Estado Terminal:** 
     - *Falha (Morte):* Uma operação rápida de limiarização (*Thresholding*) identifica telas predominantemente pretas, encerrando o episódio com punição aguda ($-50.0$).
-    - *Sucesso (Vitória):* Assinaturas pré-computadas de frames de vitória são comparadas, gerando recompensa terminal massiva ($+100.0$) e interrompendo o ciclo iterativo.
+    - *Falha (Timeout):* Caso o agente exceda o limite global de frames (`max_steps`) sem atingir a linha de chegada, o ciclo sofre interrupção (truncation) aliada a uma penalidade severa ($-50.0$), forçando o modelo a evitar a inércia de movimentos.
+    - *Sucesso (Vitória):* Assinaturas pré-computadas de frames de vitória são comparadas via ORB + Lowe's Ratio Test, gerando recompensa terminal massiva ($+100.0$) e finalizando com glória o ciclo iterativo.
 
 ### 2.3. Algoritmo de Treinamento
 Foi adotado o algoritmo **PPO** (Proximal Policy Optimization) implementado na biblioteca `stable-baselines3`, acoplado a uma arquitetura `CnnPolicy` (Nature CNN). O PPO foi escolhido devido ao seu alto balanço entre a complexidade de amostragem de episódios e estabilidade da política, lidando eficientemente com espaços contínuos de imagens.

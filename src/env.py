@@ -32,7 +32,7 @@ class Mario64DSEnv(gym.Env):
         self.orb = cv2.ORB_create(nfeatures=200)
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
         
-        self.victory_des = []
+        self.victory_templates = []
         for i in range(1, 4):
             v_path = os.path.join(base_dir, 'images', f'victory{i}.png')
             if os.path.exists(v_path):
@@ -40,19 +40,21 @@ class Mario64DSEnv(gym.Env):
                 if img is not None:
                     # Resize to emulator scale to avoid thousands of noisy ORB features
                     img = cv2.resize(img, (256, 192), interpolation=cv2.INTER_AREA)
-                    _, des = self.orb.detectAndCompute(img, None)
-                    if des is not None:
-                        self.victory_des.append(des)
+                    kp, des = self.orb.detectAndCompute(img, None)
+                    if des is not None and len(des) >= 2:
+                        self.victory_templates.append((kp, des))
                         print(f"Loaded {v_path} template.")
         
-        self.des_coins = None
+        self.coins_template = None
         coins_path = os.path.join(base_dir, 'images', 'coins.png')
         if os.path.exists(coins_path):
             c_img = cv2.imread(coins_path, cv2.IMREAD_GRAYSCALE)
             if c_img is not None:
                 c_img = cv2.resize(c_img, (256, 192), interpolation=cv2.INTER_AREA)
-                _, self.des_coins = self.orb.detectAndCompute(c_img, None)
-                print(f"Loaded {coins_path} template.")
+                kp, des = self.orb.detectAndCompute(c_img, None)
+                if des is not None and len(des) >= 2:
+                    self.coins_template = (kp, des)
+                    print(f"Loaded {coins_path} template.")
 
         # Initialize Emulator
         try:
@@ -91,19 +93,22 @@ class Mario64DSEnv(gym.Env):
             
             reward_flow = 0.0
             if self.prev_gray is not None:
-                # Calculate Optical Flow
-                flow = cv2.calcOpticalFlowFarneback(self.prev_gray, resized, None, 
-                                                    0.5, 3, 15, 3, 5, 1.2, 0)
+                # Calculate Dense Optical Flow (Farneback)
+                flow = cv2.calcOpticalFlowFarneback(self.prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
                 
-                # In a slide, moving forward means background pixels move UP the screen (negative Y)
-                median_flow_y = np.median(flow[..., 1])
+                # Analisar apenas a metade inferior da tela (o chão do Mario)
+                bottom_half_flow_y = flow[192//2:, :, 1]
+                mean_flow_y = np.mean(bottom_half_flow_y)
+
+                # Se o Mario se move para frente, o chão "desce" na tela, o que significa Y positivo na imagem
+                if mean_flow_y > 1.0:
+                    reward_flow = mean_flow_y * 0.1
+                elif mean_flow_y < -1.0:
+                    reward_flow = mean_flow_y * 0.05 # Punir moderadamente andar para trás/câmera subindo
+                else:
+                    reward_flow = -0.1 # Punição de inércia (não deixar ele bater na parede e ficar parado)
                 
-                if median_flow_y < -0.5:  
-                    reward_flow = abs(median_flow_y) * 0.1 # Reward moving forward
-                elif median_flow_y > 0.5:
-                    reward_flow = -abs(median_flow_y) * 0.05 # Small penalty for moving backward/sliding up
-                
-            self.prev_gray = resized.copy()
+            self.prev_gray = gray.copy()
             self.last_reward_flow = reward_flow
             
             return np.expand_dims(resized, axis=-1)
@@ -166,8 +171,7 @@ class Mario64DSEnv(gym.Env):
             if des_obs is not None and len(des_obs) >= 2:
                 # Check Victory
                 if not done:
-                    for v_des in self.victory_des:
-                        if v_des is None or len(v_des) < 2: continue
+                    for v_kp, v_des in self.victory_templates:
                         matches = self.bf.knnMatch(v_des, des_obs, k=2)
                         
                         # Lowe's Ratio Test
@@ -179,14 +183,23 @@ class Mario64DSEnv(gym.Env):
                                     good.append(m)
                                     
                         if len(good) > 10:
-                            done = True
-                            reward += 100.0
-                            print("Victory detected!")
-                            break
+                            # Homografia RANSAC: Garante consistência geométrica da imagem (não apenas pontos soltos no céu)
+                            src_pts = np.float32([v_kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+                            dst_pts = np.float32([kp_obs[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+                            
+                            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+                            if mask is not None:
+                                matchesMask = mask.ravel().tolist()
+                                if sum(matchesMask) > 10: # Só aceita a vitória se pelo menos 10 pontos formarem a imagem
+                                    done = True
+                                    reward += 100.0
+                                    print("Victory detected! (Homography passed)")
+                                    break
                             
                 # Coin Tracking / Guidance
-                if not done and self.des_coins is not None and len(self.des_coins) >= 2:
-                    matches = self.bf.knnMatch(self.des_coins, des_obs, k=2)
+                if not done and self.coins_template is not None:
+                    c_kp, c_des = self.coins_template
+                    matches = self.bf.knnMatch(c_des, des_obs, k=2)
                     
                     good = []
                     for m_n in matches:
