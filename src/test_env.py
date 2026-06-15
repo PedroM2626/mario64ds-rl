@@ -1,9 +1,9 @@
 import os
 import pytest
 import numpy as np
-from env import Mario64DSEnv
+from src.env import Mario64DSEnv
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def env():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     rom_path = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).nds")

@@ -2,3 +2,6 @@ Desmume/
 venv/
 *pytest*
 *pyc
+mlruns/
+*.db
+*tensorboard*
