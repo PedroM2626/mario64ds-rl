@@ -6,7 +6,7 @@ opencv-python==4.9.0.80
 numpy==1.24.4
 torch==2.2.2+cu121
 torchvision==0.17.2+cu121
-tensorboard==2.16.2
+tensorboard==2.14.0
 setuptools==69.1.1
 sb3-contrib==2.2.1
 pytest==8.1.1

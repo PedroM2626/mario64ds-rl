@@ -60,6 +60,7 @@ class Mario64DSEnv(gym.Env):
         except Exception as e:
             print(f"Failed to initialize emulator: {e}")
             self.has_emulator = False
+            raise e
 
         # Action space: 0: Noop, 1: Left, 2: Right, 3: Up (Accelerate), 4: Down (Decelerate), 5: Jump(B)
         self.action_space = spaces.Discrete(6)

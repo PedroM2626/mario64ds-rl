@@ -4,7 +4,7 @@ import mlflow
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack
-from env import Mario64DSEnv
+from src.env import Mario64DSEnv
 
 class MLflowCallback(BaseCallback):
     def __init__(self, verbose=0):
