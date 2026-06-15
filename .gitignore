@@ -1,1 +1,4 @@
 Desmume/
+venv/
+*pytest*
+*pyc
