@@ -30,7 +30,7 @@ class Mario64DSEnv(gym.Env):
         
         # Load ORB for template matching
         self.orb = cv2.ORB_create(nfeatures=200)
-        self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
         
         self.victory_des = []
         for i in range(1, 4):
@@ -38,6 +38,8 @@ class Mario64DSEnv(gym.Env):
             if os.path.exists(v_path):
                 img = cv2.imread(v_path, cv2.IMREAD_GRAYSCALE)
                 if img is not None:
+                    # Resize to emulator scale to avoid thousands of noisy ORB features
+                    img = cv2.resize(img, (256, 192), interpolation=cv2.INTER_AREA)
                     _, des = self.orb.detectAndCompute(img, None)
                     if des is not None:
                         self.victory_des.append(des)
@@ -48,6 +50,7 @@ class Mario64DSEnv(gym.Env):
         if os.path.exists(coins_path):
             c_img = cv2.imread(coins_path, cv2.IMREAD_GRAYSCALE)
             if c_img is not None:
+                c_img = cv2.resize(c_img, (256, 192), interpolation=cv2.INTER_AREA)
                 _, self.des_coins = self.orb.detectAndCompute(c_img, None)
                 print(f"Loaded {coins_path} template.")
 
@@ -146,6 +149,8 @@ class Mario64DSEnv(gym.Env):
         
         if self.episode_steps >= self.max_steps:
             truncated = True
+            reward -= 50.0  # Timeout penalty
+            print("Timeout detected!")
 
         # Death Check: Black screen
         obs_2d = np.squeeze(obs)
@@ -158,23 +163,39 @@ class Mario64DSEnv(gym.Env):
         if hasattr(self, 'last_top_screen_gray') and self.last_top_screen_gray is not None:
             kp_obs, des_obs = self.orb.detectAndCompute(self.last_top_screen_gray, None)
             
-            if des_obs is not None:
+            if des_obs is not None and len(des_obs) >= 2:
                 # Check Victory
                 if not done:
                     for v_des in self.victory_des:
-                        matches = self.bf.match(v_des, des_obs)
-                        good = [m for m in matches if m.distance < 50]
-                        if len(good) > 15:
+                        if v_des is None or len(v_des) < 2: continue
+                        matches = self.bf.knnMatch(v_des, des_obs, k=2)
+                        
+                        # Lowe's Ratio Test
+                        good = []
+                        for m_n in matches:
+                            if len(m_n) == 2:
+                                m, n = m_n
+                                if m.distance < 0.75 * n.distance:
+                                    good.append(m)
+                                    
+                        if len(good) > 10:
                             done = True
                             reward += 100.0
                             print("Victory detected!")
                             break
                             
                 # Coin Tracking / Guidance
-                if not done and self.des_coins is not None:
-                    matches = self.bf.match(self.des_coins, des_obs)
-                    good = [m for m in matches if m.distance < 50]
-                    if len(good) > 5:
+                if not done and self.des_coins is not None and len(self.des_coins) >= 2:
+                    matches = self.bf.knnMatch(self.des_coins, des_obs, k=2)
+                    
+                    good = []
+                    for m_n in matches:
+                        if len(m_n) == 2:
+                            m, n = m_n
+                            if m.distance < 0.75 * n.distance:
+                                good.append(m)
+                                
+                    if len(good) > 3:
                         # Found coins! Get their X coordinates in the observation
                         # queryIdx is coin img, trainIdx is obs
                         pts = np.float32([kp_obs[m.trainIdx].pt for m in good]).reshape(-1, 2)

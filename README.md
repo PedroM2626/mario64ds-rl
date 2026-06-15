@@ -1,60 +1,92 @@
-# Mario 64 DS - Reinforcement Learning Agent
+# Super Mario 64 DS: Autonomous Navigation via Proximal Policy Optimization and Computer Vision
 
-Este projeto implementa um agente de Reinforcement Learning (RL) usando PPO (via `stable-baselines3`) para jogar e completar as 3 fases de escorregar no Super Mario 64 DS.
+## 1. Resumo do Projeto (Abstract)
+Este repositório documenta a implementação de um agente autônomo baseado em Aprendizado por Reforço (Reinforcement Learning) capaz de navegar em estágios tridimensionais complexos do jogo *Super Mario 64 DS*. O projeto une técnicas modernas de Visão Computacional Clássica (Optical Flow, Feature Matching) para a modelagem de recompensas (*Reward Shaping*) com o estado da arte em RL contínuo, utilizando o algoritmo Proximal Policy Optimization (PPO).
 
-## Características
-- **Ambiente Customizado (Gymnasium):** O jogo é rodado usando o emulador `py-desmume`, modificado para interpretar as regras do Mario 64 DS a 30 FPS (`frameskip = 4`).
-- **Visão Computacional Avançada:** 
-  - *Optical Flow* para recompensar o progresso na fase (movimento contínuo para a frente/baixo).
-  - *Template Matching (ORB)* das moedas presentes na tela para guiar o Mario a se manter centralizado horizontalmente em relação às moedas (`coins.png`).
-  - *Detecção de Tela Preta* para identificar Game Over ou Queda (Mario morre).
-  - *Detecção de Vitória* ao identificar as imagens das estrelas ou finais de fase (`victory1.png`, `victory2.png`, `victory3.png`).
-- **MLOps:** Todo o treinamento, configurações, hyperparâmetros, gráficos e modelos são registrados automaticamente via MLflow.
+A finalidade deste estudo é demonstrar a viabilidade de treinar redes neurais profundas (CNNs) interligadas a emuladores em tempo real, mitigando problemas de "esparsidade de recompensa" (Sparse Rewards) sem depender de manipulação direta da memória (RAM) do jogo, extraindo o estado unicamente pelos frames renderizados.
 
-## Como Executar
+## 2. Arquitetura do Sistema e Metodologia
 
-### Pré-requisitos
-Certifique-se de que possui as ROMs e os Savestates na pasta `data/`:
-- ROM: `data/Super Mario 64 DS (USA) (Rev 1).nds`
-- Savestates: `data/Super Mario 64 DS (USA) (Rev 1).ds1`, `.ds2`, `.ds3`
+### 2.1. O Ambiente (Environment)
+O sistema encapsula o emulador `py-desmume` dentro de uma interface padrão `Gymnasium`. O simulador roda de forma otimizada utilizando *Frame Skipping* (1 ação a cada 4 quadros, operando a efetivos 7.5 Hz lógicos frente aos 30 FPS nativos) para agilizar a convergência.
 
-### 1. Usando Docker (Recomendado)
-Para garantir que as dependências gráficas do OpenCV funcionem corretamente:
+- **Espaço de Ação (Action Space):** Discreto ($N=6$), mapeando botões essenciais: *Noop*, *Left*, *Right*, *Up* (Acelerar), *Down* (Desacelerar) e *Jump* (B).
+- **Espaço de Observação (Observation Space):** O agente enxerga exclusivamente recortes da tela superior do Nintendo DS. Os frames são convertidos para *Grayscale* e redimensionados para matrizes de tensores $84 \times 84 \times 1$.
+
+### 2.2. Modelagem de Recompensa (Reward Shaping) com Visão Computacional
+Dada a impossibilidade inicial de ler o vetor de posição do Mario na RAM, desenvolveu-se um sistema robusto de pontuação visual:
+
+1. **Vetor de Momento (Optical Flow):** Utilizou-se o algoritmo de *Farneback* para calcular o fluxo óptico denso entre quadros consecutivos. Movimentos convergentes que simulam deslocamento para frente geram recompensas contínuas positivas.
+2. **Alinhamento de Rota (Template Matching com ORB):** O algoritmo ORB (*Oriented FAST and Rotated BRIEF*) é aplicado para detectar o padrão visual de moedas (`coins.png`). O cálculo da distância euclidiana entre a distribuição das moedas e o eixo central do agente converte-se em um bônus de alinhamento, estabilizando a rota.
+3. **Detecção de Estado Terminal:** 
+    - *Falha (Morte):* Uma operação rápida de limiarização (*Thresholding*) identifica telas predominantemente pretas, encerrando o episódio com punição aguda ($-50.0$).
+    - *Sucesso (Vitória):* Assinaturas pré-computadas de frames de vitória são comparadas, gerando recompensa terminal massiva ($+100.0$) e interrompendo o ciclo iterativo.
+
+### 2.3. Algoritmo de Treinamento
+Foi adotado o algoritmo **PPO** (Proximal Policy Optimization) implementado na biblioteca `stable-baselines3`, acoplado a uma arquitetura `CnnPolicy` (Nature CNN). O PPO foi escolhido devido ao seu alto balanço entre a complexidade de amostragem de episódios e estabilidade da política, lidando eficientemente com espaços contínuos de imagens.
+
+### 2.4. MLOps e Rastreabilidade
+A infraestrutura inclui instrumentação avançada de Machine Learning Operations via **MLflow**.
+- Rastreio rigoroso de hiperparâmetros (Learning Rate, Gamma, Batch Size).
+- Monitoramento de métricas temporais (*ep_rew_mean*, *ep_len_mean*, *fps*).
+- Salvamento automático de artefatos do modelo em cada *run* de experimento, permitindo fácil reversão e deploy de pesos de rede treinados.
+
+---
+
+## 3. Estrutura do Repositório
+
+- `data/`: Armazena a ROM e os *savestates* (.ds1, .ds2, .ds3) correspondentes aos 3 estágios do jogo.
+- `images/`: Imagens-alvo utilizadas como *ground-truth* pelos algoritmos de Visão Computacional (moedas e vitórias).
+- `models/`: Diretório persistente onde o MLflow e scripts salvam o modelo neural (`.zip`).
+- `src/`: Core do projeto.
+  - `env.py`: Wrapper Gymnasium + Lógica do Emulador.
+  - `train.py`: Pipeline de ingestão, paralelização (SubprocVecEnv) e Loop de treinamento PPO com Callback MLflow.
+  - `play.py`: Avaliação estocástica, carrega o modelo em modo renderizado (*Human Mode*) passando sequencialmente pelas 3 fases.
+  - `test_env.py`: Bateria de Testes (`pytest`) de estabilidade.
+
+---
+
+## 4. Como Instalar e Executar
+
+### 4.1. Instalação e Dependências
+Certifique-se de usar Python 3.10 a 3.13.
 
 ```bash
-docker build -t mario64ds-rl .
-docker run -v $(pwd):/app -it mario64ds-rl
-```
+# Recomendado o uso de um ambiente virtual
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate # Linux/Mac
 
-### 2. Usando Ambiente Local (Python)
-Crie um ambiente virtual (ex: `venv` ou `conda`) e instale as dependências:
-
-```bash
 pip install -r requirements.txt
 ```
 
-#### Executando Testes
-Antes de treinar, verifique se a comunicação com o emulador e Gym estão funcionando:
-```bash
-pytest src/test_env.py
-```
+*Nota: Os arquivos ROM e Savestates originais devem estar posicionados na pasta `data/` conforme arquitetura supracitada.*
 
-#### Iniciando o Treinamento
-Para iniciar o treinamento e registrar tudo no MLflow:
+### 4.2. Visualização Estocástica (Assistir a IA jogando)
+O script `play.py` invoca o artefato preditivo e demonstra a política aprendida pelas 3 fases continuamente:
 
 ```bash
-python src/train.py --timesteps 1000000 --num-envs 4
+python -m src.play
 ```
 
-Se quiser testar apenas se o pipeline funciona, sem esperar horas, use a tag `--test-run`:
+### 4.3. Pipeline de Treinamento
+O treinamento pode ser despachado no cluster local da máquina, registrando no painel do MLflow:
+
 ```bash
-python src/train.py --test-run
+# Treinamento integral (Padrão 1M de passos)
+python -m src.train --timesteps 1000000 --num-envs 4
+
+# Teste Sanity Check (Validação rápida de pipeline)
+python -m src.train --test-run
 ```
 
-### Visualizando os Resultados (MLflow)
-Abra o servidor do MLflow para visualizar as métricas de Recompensa (Reward), Duração dos episódios (Episode Length) e fazer download dos modelos gerados:
+### 4.4. Dashboard MLflow (MLOps)
+Execute a UI local para analisar os gráficos de desempenho e log de instâncias:
 
 ```bash
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
-Abra `http://localhost:5000` em seu navegador.
+Acesse `http://localhost:5000` ou `http://127.0.0.1:5000`.
+
+---
+*Este projeto é mantido sob rigorosos padrões globais de Qualidade e MLOps.*
