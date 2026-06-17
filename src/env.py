@@ -46,15 +46,6 @@ class Mario64DSEnv(gym.Env):
                         print(f"Loaded {v_path} template.")
         
         self.coins_template = None
-        coins_path = os.path.join(base_dir, 'images', 'coins.png')
-        if os.path.exists(coins_path):
-            c_img = cv2.imread(coins_path, cv2.IMREAD_GRAYSCALE)
-            if c_img is not None:
-                c_img = cv2.resize(c_img, (256, 192), interpolation=cv2.INTER_AREA)
-                kp, des = self.orb.detectAndCompute(c_img, None)
-                if des is not None and len(des) >= 2:
-                    self.coins_template = (kp, des)
-                    print(f"Loaded {coins_path} template.")
 
         # Initialize Emulator
         try:
@@ -90,6 +81,28 @@ class Mario64DSEnv(gym.Env):
             gray = cv2.cvtColor(top_screen, cv2.COLOR_RGB2GRAY)
             self.last_top_screen_gray = gray.copy()
             resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
+            
+            # Coin Tracking / Guidance using HSV Color Thresholding
+            hsv = cv2.cvtColor(top_screen, cv2.COLOR_RGB2HSV)
+            # Yellow/Gold coins in Mario 64 DS
+            lower_yellow = np.array([15, 100, 100])
+            upper_yellow = np.array([40, 255, 255])
+            mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+            
+            # Find contours
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            coin_reward = 0.0
+            if contours:
+                c = max(contours, key=cv2.contourArea)
+                if cv2.contourArea(c) > 5:
+                    M = cv2.moments(c)
+                    if M["m00"] != 0:
+                        mean_x = int(M["m10"] / M["m00"])
+                        # Center of screen is 128
+                        dist = abs(mean_x - 128.0)
+                        coin_reward = max(0, (128.0 - dist) / 128.0 * 0.5)
+                        
+            self.last_coin_reward = coin_reward
             
             reward_flow = 0.0
             if self.prev_gray is not None:
@@ -196,29 +209,9 @@ class Mario64DSEnv(gym.Env):
                                     print("Victory detected! (Homography passed)")
                                     break
                             
-                # Coin Tracking / Guidance
-                if not done and self.coins_template is not None:
-                    c_kp, c_des = self.coins_template
-                    matches = self.bf.knnMatch(c_des, des_obs, k=2)
-                    
-                    good = []
-                    for m_n in matches:
-                        if len(m_n) == 2:
-                            m, n = m_n
-                            if m.distance < 0.75 * n.distance:
-                                good.append(m)
-                                
-                    if len(good) > 3:
-                        # Found coins! Get their X coordinates in the observation
-                        # queryIdx is coin img, trainIdx is obs
-                        pts = np.float32([kp_obs[m.trainIdx].pt for m in good]).reshape(-1, 2)
-                        mean_x = np.mean(pts[:, 0]) # X is in [0, 256] (width of original frame)
-                        
-                        # Center of screen is ~128. Reward for being aligned with coins
-                        # Distance from center
-                        dist = abs(mean_x - 128.0)
-                        alignment_reward = max(0, (128.0 - dist) / 128.0 * 0.5)
-                        reward += alignment_reward
+                # Coin Tracking / Guidance via HSV
+                if not done and hasattr(self, 'last_coin_reward'):
+                    reward += self.last_coin_reward
 
         info = self._get_info()
         

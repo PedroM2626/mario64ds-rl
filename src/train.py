@@ -54,20 +54,34 @@ def main():
         mlflow.log_param("frameskip", 4)
         mlflow.log_param("num_envs", args.num_envs)
         
-        env_fns = [make_env(rom_full, state_full, i) for i in range(args.num_envs)]
+        state_ds1 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds1")
+        state_ds3 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds3")
+        
+        env_fns = []
+        for i in range(args.num_envs):
+            if i % 2 == 0:
+                env_fns.append(make_env(rom_full, state_ds1, i))
+            else:
+                env_fns.append(make_env(rom_full, state_ds3, i))
+                
         env = SubprocVecEnv(env_fns)
         env = VecFrameStack(env, n_stack=4)
 
-        model = PPO("CnnPolicy", env, verbose=1, tensorboard_log=os.path.join(base_dir, "tensorboard_logs"))
+        models_dir = os.path.join(base_dir, 'models')
+        os.makedirs(models_dir, exist_ok=True)
+        model_path = os.path.join(models_dir, args.run_id)
+
+        if os.path.exists(model_path + ".zip"):
+            print(f"Loading existing model from {model_path}.zip...")
+            model = PPO.load(model_path, env=env, tensorboard_log=os.path.join(base_dir, "tensorboard_logs"))
+        else:
+            model = PPO("CnnPolicy", env, verbose=1, tensorboard_log=os.path.join(base_dir, "tensorboard_logs"))
         
         mlflow.log_param("learning_rate", model.learning_rate)
         mlflow.log_param("batch_size", model.batch_size)
 
         print("Starting training...")
         timesteps = 1000 if args.test_run else args.timesteps
-        
-        models_dir = os.path.join(base_dir, 'models')
-        os.makedirs(models_dir, exist_ok=True)
         
         checkpoint_callback = CheckpointCallback(
             save_freq=10000,
