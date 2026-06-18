@@ -88,29 +88,9 @@ class Mario64DSEnv(gym.Env):
                         
             self.last_coin_reward = coin_reward
             
-            reward_flow = 0.0
-            if self.prev_gray is not None:
-                # Calculate Dense Optical Flow (Farneback)
-                flow = cv2.calcOpticalFlowFarneback(self.prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-                
-                # Analisar apenas a metade inferior da tela (o chão do Mario)
-                bottom_half_flow_y = flow[192//2:, :, 1]
-                mean_flow_y = np.mean(bottom_half_flow_y)
-
-                # Se o Mario se move para frente, o chão "desce" na tela, o que significa Y positivo na imagem
-                if mean_flow_y > 1.0:
-                    reward_flow = mean_flow_y * 0.1
-                elif mean_flow_y < -1.0:
-                    reward_flow = mean_flow_y * 0.05 # Punir moderadamente andar para trás/câmera subindo
-                else:
-                    reward_flow = -0.1 # Punição de inércia (não deixar ele bater na parede e ficar parado)
-                
-            self.prev_gray = gray.copy()
-            self.last_reward_flow = reward_flow
-            
             return np.expand_dims(resized, axis=-1)
         except Exception:
-            self.last_reward_flow = 0.0
+            self.last_coin_reward = 0.0
             return np.zeros((84, 84, 1), dtype=np.uint8)
 
     def _get_info(self):
@@ -142,30 +122,38 @@ class Mario64DSEnv(gym.Env):
         obs = self._get_obs()
         self.episode_steps += 1
         
-        # Base reward
-        time_penalty = -0.01
-        reward = self.last_reward_flow + time_penalty
+        # Base reward consists only of coin reward (added below) and punishments (if dead)
+        reward = 0.0
         
         done = False 
         truncated = False
         
         if self.episode_steps >= self.max_steps:
             truncated = True
-            reward -= 50.0  # Timeout penalty
+            # Sem punição de timeout: não existe linha de chegada, apenas morte.
             print("Timeout detected!")
 
         # Death Check: Black screen
         obs_2d = np.squeeze(obs)
         if np.mean(obs_2d < 10) > 0.95:
             done = True
-            reward -= 50.0  
+            reward -= 50.0  # Death penalty (must be worse than timeout to prevent suicide)
             print("Death detected! (Black Screen)")
                 
-        # O sistema de Vitória visual foi removido.
-        # Foco total em maximizar a coleta direcional de moedas em 30 segundos.
         # Coin Tracking / Guidance via HSV
         if not done and hasattr(self, 'last_coin_reward'):
             reward += self.last_coin_reward
+
+        # Optical Flow (Fast 32x32)
+        if not done and not truncated:
+            curr_gray_small = cv2.resize(obs_2d, (32, 32), interpolation=cv2.INTER_AREA)
+            if self.prev_gray is not None:
+                flow = cv2.calcOpticalFlowFarneback(self.prev_gray, curr_gray_small, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+                flow_y = flow[..., 1]
+                # Positive flow_y means pixels are moving down -> Mario is moving forward
+                flow_reward = np.clip(np.mean(flow_y), 0, None) * 0.5
+                reward += flow_reward
+            self.prev_gray = curr_gray_small
 
         info = self._get_info()
         

@@ -29,7 +29,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train Mario 64 DS RL Agent with Tianshou Rainbow")
     parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds", help="Path to NDS ROM")
     parser.add_argument("--state", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).ds1", help="Path to Savestate")
-    parser.add_argument("--timesteps", type=int, default=100000, help="Total timesteps to train")
+    parser.add_argument("--timesteps", type=int, default=500000, help="Total timesteps to train")
     parser.add_argument("--test-run", action="store_true", help="Run a short test to verify environment")
     parser.add_argument("--run-id", type=str, default="rainbow_mario64ds", help="Name/ID for this training run")
     args = parser.parse_args()
@@ -64,14 +64,14 @@ def main():
     num_atoms = 51
     
     # Nossa rede RainbowNet com NoisyLinear e Dueling
-    model = RainbowNet(feature_net, action_shape, num_atoms, noisy_std=0.1).to(device)
+    model = RainbowNet(feature_net, action_shape, num_atoms, noisy_std=0.5).to(device)
     
     # Tianshou 2.0 API separa a politica (Network) do Algorithm (Loop logic)
     policy = C51Policy(
         model=model,
         action_space=train_envs.action_space[0],
         num_atoms=num_atoms,
-        v_min=-50.0,
+        v_min=-100.0,
         v_max=100.0
     )
     
@@ -86,7 +86,8 @@ def main():
     )
 
     # Buffer de Prioridade (PER - Prioritized Experience Replay) nativo do Tianshou!
-    buffer = PrioritizedVectorReplayBuffer(total_size=50000, buffer_num=len(env_fns), alpha=0.6, beta=0.4)
+    # O tamanho foi reduzido para 20000 para evitar estouro de memória (OOM) no deepcopy interno do Tianshou.
+    buffer = PrioritizedVectorReplayBuffer(total_size=20000, buffer_num=len(env_fns), alpha=0.6, beta=0.4)
     
     train_collector = Collector(algorithm, train_envs, buffer, exploration_noise=True)
     test_collector = Collector(algorithm, test_envs, exploration_noise=False)
