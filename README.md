@@ -1,94 +1,91 @@
-# Super Mario 64 DS: Autonomous Navigation via Proximal Policy Optimization and Computer Vision
+# Mario 64 DS - Reinforcement Learning (Cool Cool Mountain Slide)
 
-## 1. Resumo do Projeto (Abstract)
-Este repositório documenta a implementação de um agente autônomo baseado em Aprendizado por Reforço (Reinforcement Learning) capaz de navegar em estágios tridimensionais complexos do jogo *Super Mario 64 DS*. O projeto une técnicas modernas de Visão Computacional Clássica (Optical Flow, Feature Matching) para a modelagem de recompensas (*Reward Shaping*) com o estado da arte em RL contínuo, utilizando o algoritmo Proximal Policy Optimization (PPO).
+Este projeto é uma implementação de Aprendizado por Reforço Profundo (Deep Reinforcement Learning) que ensina uma Inteligência Artificial a pilotar o Mário na descida de gelo da fase *Cool Cool Mountain* no jogo Super Mario 64 DS, rodando nativamente através de um emulador de Nintendo DS.
 
-A finalidade deste estudo é demonstrar a viabilidade de treinar redes neurais profundas (CNNs) interligadas a emuladores em tempo real, mitigando problemas de "esparsidade de recompensa" (Sparse Rewards) sem depender de manipulação direta da memória (RAM) do jogo, extraindo o estado unicamente pelos frames renderizados.
+## 🎯 Objetivo
+O objetivo do agente é sobreviver o maior tempo possível na pista de gelo sem cair no abismo, movendo-se para frente e coletando moedas ao longo do caminho, utilizando apenas o feed visual da tela (pixels) como observação.
 
-## 2. Arquitetura do Sistema e Metodologia
-
-### 2.1. O Ambiente (Environment)
-O sistema encapsula o emulador `py-desmume` dentro de uma interface padrão `Gymnasium`. O simulador roda de forma otimizada utilizando *Frame Skipping* (1 ação a cada 4 quadros, operando a efetivos 7.5 Hz lógicos frente aos 30 FPS nativos) para agilizar a convergência.
-
-- **Espaço de Ação (Action Space):** Discreto ($N=6$), mapeando botões essenciais: *Noop*, *Left*, *Right*, *Up* (Acelerar), *Down* (Desacelerar) e *Jump* (B).
-- **Espaço de Observação (Observation Space):** O agente enxerga exclusivamente recortes da tela superior do Nintendo DS. Os frames são convertidos para *Grayscale* e redimensionados para matrizes de tensores $84 \times 84 \times 1$.
-
-### 2.2. Modelagem de Recompensa (Reward Shaping) com Visão Computacional
-Dada a impossibilidade inicial de ler o vetor de posição do Mario na RAM, desenvolveu-se um sistema robusto de pontuação visual:
-
-1. **Vetor de Momento (Optical Flow):** Utilizou-se o algoritmo de *Farneback* para calcular o fluxo óptico denso entre quadros consecutivos. Movimentos convergentes que simulam deslocamento para frente geram recompensas contínuas positivas.
-2. **Alinhamento de Rota (Template Matching com ORB):** O algoritmo ORB (*Oriented FAST and Rotated BRIEF*) é aplicado para detectar o padrão visual de moedas (`coins.png`). O cálculo da distância euclidiana entre a distribuição das moedas e o eixo central do agente converte-se em um bônus de alinhamento, estabilizando a rota.
-   - *Nota de Engenharia (Computer Vision):* Para evitar falsos-positivos decorrentes de ruído e assimetria de escalas (que geravam vitórias prematuras e "políticas degeneradas"), as imagens de *ground-truth* sofrem *downsampling* (256x192) na ingestão. O *matching* em tempo real cruza os dados vetoriais usando *k-Nearest Neighbors* (`k=2`), rigidamente filtrados pelo **Lowe's Ratio Test**, descartando distorções estatísticas.
-3. **Detecção de Estado Terminal:** 
-    - *Falha (Morte):* Uma operação rápida de limiarização (*Thresholding*) identifica telas predominantemente pretas, encerrando o episódio com punição aguda ($-50.0$).
-    - *Falha (Timeout):* Caso o agente exceda o limite global de frames (`max_steps`) sem atingir a linha de chegada, o ciclo sofre interrupção (truncation) aliada a uma penalidade severa ($-50.0$), forçando o modelo a evitar a inércia de movimentos.
-    - *Sucesso (Vitória):* Assinaturas pré-computadas de frames de vitória são comparadas via ORB + Lowe's Ratio Test, gerando recompensa terminal massiva ($+100.0$) e finalizando com glória o ciclo iterativo.
-
-### 2.3. Algoritmo de Treinamento
-Foi adotado o algoritmo **PPO** (Proximal Policy Optimization) implementado na biblioteca `stable-baselines3`, acoplado a uma arquitetura `CnnPolicy` (Nature CNN). O PPO foi escolhido devido ao seu alto balanço entre a complexidade de amostragem de episódios e estabilidade da política, lidando eficientemente com espaços contínuos de imagens.
-
-### 2.4. MLOps e Rastreabilidade
-A infraestrutura inclui instrumentação avançada de Machine Learning Operations via **MLflow**.
-- Rastreio rigoroso de hiperparâmetros (Learning Rate, Gamma, Batch Size).
-- Monitoramento de métricas temporais (*ep_rew_mean*, *ep_len_mean*, *fps*).
-- Salvamento automático de artefatos do modelo em cada *run* de experimento, permitindo fácil reversão e deploy de pesos de rede treinados.
+## 🧠 Arquitetura do Projeto
+- **Emulador**: `py-desmume` (Wrapper Python para o emulador de C++ DeSmuME).
+- **Ambiente RL**: Custom `gymnasium.Env` (`src/env.py`).
+- **Observação**: Imagens em Tons de Cinza (Grayscale) redimensionadas para `84x84`, com `FrameStack` de 4 quadros sucessivos para prover noção de movimento à rede neural.
+- **Modelos Treinados**:
+  - **Rainbow DQN** (via Tianshou) com uma rede extratora de features **IMPALA CNN** customizada (`src/impala_cnn.py`).
+  - **PPO - Proximal Policy Optimization** (via Stable-Baselines3) utilizando **NatureCNN** (`src/train_ppo.py`).
+- **Tracking**: `MLflow` integrado aos logs do `Tensorboard`.
 
 ---
 
-## 3. Estrutura do Repositório
+## 🚀 Nossa Trajetória: Dificuldades e Soluções
 
-- `data/`: Armazena a ROM e os *savestates* (.ds1, .ds2, .ds3) correspondentes aos 3 estágios do jogo.
-- `images/`: Imagens-alvo utilizadas como *ground-truth* pelos algoritmos de Visão Computacional (moedas e vitórias).
-- `models/`: Diretório persistente onde o MLflow e scripts salvam o modelo neural (`.zip`).
-- `src/`: Core do projeto.
-  - `env.py`: Wrapper Gymnasium + Lógica do Emulador.
-  - `train.py`: Pipeline de ingestão, paralelização (SubprocVecEnv) e Loop de treinamento PPO com Callback MLflow.
-  - `play.py`: Avaliação estocástica, carrega o modelo em modo renderizado (*Human Mode*) passando sequencialmente pelas 3 fases.
-  - `test_env.py`: Bateria de Testes (`pytest`) de estabilidade.
+A jornada para fazer o Mário deslizar inteligentemente pelo gelo passou por diversas gerações, bugs interessantes e ajustes de lógica (Reward Shaping). Aqui estão os principais obstáculos e como os vencemos:
 
----
+### 1. O Problema da Violação de Acesso (Memória do Emulador)
+**A Dificuldade:** Algoritmos como o PPO exigem múltiplos ambientes rodando em paralelo para coletar dados rapidamente. Porém, o emulador DeSmuME (feito em C++) não foi projetado para ter múltiplas instâncias rodando na mesma thread do Python, o que causava `Access Violation` e fechava o programa bruscamente.
+**A Solução:** Implementamos `SubprocVecEnv` (tanto no Tianshou quanto no SB3). Isso força o Python a alocar cada ambiente (e cada emulador) em um processo e espaço de memória completamente separado, comunicando-se via Pipes. 
 
-## 4. Como Instalar e Executar
+### 2. O Estouro de Memória do Buffer (OOM)
+**A Dificuldade:** Ao iniciar o treinamento do Rainbow DQN, o Buffer de Prioridade (`PrioritizedVectorReplayBuffer`) do Tianshou começou a devorar gigabytes de memória RAM descontroladamente, travando a máquina durante as cópias internas de arrays de imagens (`FrameStack`).
+**A Solução:** Otimizamos severamente o tamanho do Replay Buffer (reduzindo de 100k para `20.000` transições) e delegamos o pré-processamento pesado para o momento exato em que a imagem é extraída, mantendo a memória estável em cerca de ~1.5 GB.
 
-### 4.1. Instalação e Dependências
-Certifique-se de usar Python 3.10 a 3.13.
+### 3. A Lerdeza Extrema do Optical Flow
+**A Dificuldade:** Queríamos recompensar o Mário por ir para a frente. Para o computador "saber" que a tela está avançando, usamos Fluxo Óptico (`cv2.calcOpticalFlowFarneback`). No entanto, rodar isso em 84x84 derrubou o FPS do treinamento para um nível inaceitável.
+**A Solução:** Removemos temporariamente o Optical Flow. (O que gerou a Dificuldade #4). Mais tarde, reimplementamos um "Optical Flow Otimizado", fazendo um *downscale extremo* da imagem apenas no cálculo matemático para a resolução minúscula de `32x32`. Isso manteve o FPS alto e devolveu a noção de avanço para a IA.
 
-```bash
-# Recomendado o uso de um ambiente virtual
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate # Linux/Mac
+### 4. A Estratégia do Muro (Local Optimum & Sparse Rewards)
+**A Dificuldade:** Quando removemos o Optical Flow (Dificuldade #3), as recompensas do Mário passaram a ser apenas "coletar moedas". Como moedas são raras (Sparse Reward), a rede neural não conseguia associar botões ao progresso. O modelo chegou à seguinte "brilhante" conclusão: *Se eu andar reto, demoro para morrer e tomo `-50`. Mas se eu for virar para a esquerda imediatamente, eu caio logo, recolho meia dúzia de moedas perto da borda e fecho com `-28`.* Ele viciou em se jogar para a esquerda (Ótimo Local).
+**A Solução:** Retornamos o Optical Flow ultrarrápido (+0.5 de recompensa contínua por rolar a tela para baixo), dando a ele um incentivo constante para ir para a frente em vez de bater na parede.
 
-pip install -r requirements.txt
-```
+### 5. O Paradoxo do Suicídio
+**A Dificuldade:** Em dado momento, configuramos que o tempo esgotado (Timeout da fase) dava uma punição de `-100`, enquanto cair no abismo (Death) dava `-50`. O resultado? Ao chegar na base da montanha (onde demoraria para o tempo acabar), a Inteligência Artificial começou a se jogar ativamente do precipício para tomar `-50` e fugir do castigo maior de `-100`!
+**A Solução:** Mudamos a lógica de punição. Removemos completamente a penalidade de Timeout (já que não há linha de chegada oficial detectada, o Timeout significa apenas sucesso em sobreviver). Ao mesmo tempo, a punição por cair no abismo foi fixada no doloroso `-100`.
 
-*Nota: Os arquivos ROM e Savestates originais devem estar posicionados na pasta `data/` conforme arquitetura supracitada.*
-
-### 4.2. Visualização Estocástica (Assistir a IA jogando)
-O script `play.py` invoca o artefato preditivo e demonstra a política aprendida pelas 3 fases continuamente:
-
-```bash
-python -m src.play
-```
-
-### 4.3. Pipeline de Treinamento
-O treinamento pode ser despachado no cluster local da máquina, registrando no painel do MLflow:
-
-```bash
-# Treinamento integral (Padrão 1M de passos)
-python -m src.train --timesteps 1000000 --num-envs 4
-
-# Teste Sanity Check (Validação rápida de pipeline)
-python -m src.train --test-run
-```
-
-### 4.4. Dashboard MLflow (MLOps)
-Execute a UI local para analisar os gráficos de desempenho e log de instâncias:
-
-```bash
-mlflow ui --backend-store-uri sqlite:///mlflow.db
-```
-Acesse `http://localhost:5000` ou `http://127.0.0.1:5000`.
+### 6. Bug de Visão no Visualizador
+**A Dificuldade:** O script de visualização (`play.py`) estava entregando a imagem da tela num formato (shape) de 5 dimensões em vez de 4. A rede neural, acostumada com a formatação de treinamento, recebia ruído puro e a IA passava o vídeo inteiro apertando um único botão, cega.
+**A Solução:** Refatoramos o script para utilizar os wrappers oficiais (`DummyVectorEnv`) para encapsular o emulador exatamente como é feito na pipeline de treino, normalizando a matriz de entrada.
 
 ---
-*Este projeto é mantido sob rigorosos padrões globais de Qualidade e MLOps.*
+
+## 📊 Resultados Finais
+
+Após resolvermos todos os impasses, disparamos dois treinamentos paralelos. O baseline utilizando o **PPO (Proximal Policy Optimization)** aliado ao **NatureCNN** com 8 ambientes em paralelo brilhou.
+
+Ao atingir os **500.000 passos**, a IA entregou os seguintes números na pista primária:
+- **Sobrevivência:** `449 / 450` passos (Praticamente 100% de aproveitamento de tempo).
+- **Recompensa Final:** `+48.10` pontos positivos (Significa que a IA coletou mais de `+148 pontos` em moedas e avanço antes de sofrer a punição fatal no final).
+
+O agente que no início não sobrevivia mais do que 4 segundos se atirando para a esquerda, agora domina o centro da pista, faz o balanço fino nos analógicos e busca moedas ativamente pela ladeira!
+
+## 🛠 Como Executar
+
+### Pré-requisitos
+O emulador necessita que as Roms e Savestates estejam nomeadas corretamente na pasta `data/`:
+- `data/Super Mario 64 DS (USA) (Rev 1).nds`
+- `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Início da ladeira central)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Início de outra ladeira)
+
+### Treinando Novos Modelos
+Para iniciar um novo treinamento do zero, escolha sua arma:
+
+**PPO Baseline (Rápido, 4 instâncias paralelas):**
+```bash
+python -m src.train_ppo --run-id ppo_mario64ds_novo --n-envs 4
+```
+
+**Rainbow DQN (Focado em Off-Policy):**
+```bash
+python -m src.train --run-id rainbow_mario64ds_novo
+```
+
+### Visualizando Agentes Treinados
+O script auto-detectará o modelo mais recente de acordo com o algoritmo escolhido.
+
+**Ver o Mário jogar usando PPO:**
+```bash
+python -m src.play --algo ppo
+```
+
+**Ver o Mário jogar usando Rainbow:**
+```bash
+python -m src.play --algo rainbow
+```
