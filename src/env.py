@@ -28,23 +28,7 @@ class Mario64DSEnv(gym.Env):
         # Determine paths relative to this file
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
-        # Load ORB for template matching
-        self.orb = cv2.ORB_create(nfeatures=200)
-        self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-        
-        self.victory_templates = []
-        for i in range(1, 4):
-            v_path = os.path.join(base_dir, 'images', f'victory{i}.png')
-            if os.path.exists(v_path):
-                img = cv2.imread(v_path, cv2.IMREAD_GRAYSCALE)
-                if img is not None:
-                    # Resize to emulator scale to avoid thousands of noisy ORB features
-                    img = cv2.resize(img, (256, 192), interpolation=cv2.INTER_AREA)
-                    kp, des = self.orb.detectAndCompute(img, None)
-                    if des is not None and len(des) >= 2:
-                        self.victory_templates.append((kp, des))
-                        print(f"Loaded {v_path} template.")
-        
+        # HSV Tracking is handled in _get_obs()
         self.coins_template = None
 
         # Initialize Emulator
@@ -67,7 +51,7 @@ class Mario64DSEnv(gym.Env):
         self.prev_gray = None
         self.frameskip = 4 # 30 FPS adjustment (30/4 = 7.5 Hz)
         self.episode_steps = 0
-        self.max_steps = 2000
+        self.max_steps = 450 # 30 seconds sprint for maximum sampling efficiency
 
     def _get_obs(self):
         if not self.has_emulator:
@@ -177,41 +161,11 @@ class Mario64DSEnv(gym.Env):
             reward -= 50.0  
             print("Death detected! (Black Screen)")
                 
-        # Computer Vision matching
-        if hasattr(self, 'last_top_screen_gray') and self.last_top_screen_gray is not None:
-            kp_obs, des_obs = self.orb.detectAndCompute(self.last_top_screen_gray, None)
-            
-            if des_obs is not None and len(des_obs) >= 2:
-                # Check Victory
-                if not done:
-                    for v_kp, v_des in self.victory_templates:
-                        matches = self.bf.knnMatch(v_des, des_obs, k=2)
-                        
-                        # Lowe's Ratio Test
-                        good = []
-                        for m_n in matches:
-                            if len(m_n) == 2:
-                                m, n = m_n
-                                if m.distance < 0.75 * n.distance:
-                                    good.append(m)
-                                    
-                        if len(good) > 10:
-                            # Homografia RANSAC: Garante consistência geométrica da imagem (não apenas pontos soltos no céu)
-                            src_pts = np.float32([v_kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-                            dst_pts = np.float32([kp_obs[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-                            
-                            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-                            if mask is not None:
-                                matchesMask = mask.ravel().tolist()
-                                if sum(matchesMask) > 10: # Só aceita a vitória se pelo menos 10 pontos formarem a imagem
-                                    done = True
-                                    reward += 100.0
-                                    print("Victory detected! (Homography passed)")
-                                    break
-                            
-                # Coin Tracking / Guidance via HSV
-                if not done and hasattr(self, 'last_coin_reward'):
-                    reward += self.last_coin_reward
+        # O sistema de Vitória visual foi removido.
+        # Foco total em maximizar a coleta direcional de moedas em 30 segundos.
+        # Coin Tracking / Guidance via HSV
+        if not done and hasattr(self, 'last_coin_reward'):
+            reward += self.last_coin_reward
 
         info = self._get_info()
         
