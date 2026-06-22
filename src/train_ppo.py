@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--timesteps", type=int, default=500000, help="Total timesteps to train")
     parser.add_argument("--run-id", type=str, default="ppo_mario64ds_baseline", help="Name/ID for this training run")
     parser.add_argument("--n-envs", type=int, default=4, help="Number of parallel environments")
+    parser.add_argument("--resume", type=str, default=None, help="Path to a previous model (.zip) to resume training")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,22 +87,26 @@ def main():
         render=False
     )
     
-    # PPO com NatureCNN (policy_kwargs padrão do SB3 para imagens)
-    model = PPO(
-        "CnnPolicy",  # NatureCNN é o padrão do SB3 para observações de imagem
-        train_envs,
-        verbose=1,
-        tensorboard_log=log_path,
-        learning_rate=3e-4,
-        n_steps=256,
-        batch_size=64,
-        n_epochs=4,
-        gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.2,
-        ent_coef=0.01,  # Incentiva exploração
-        device="auto"
-    )
+    if args.resume:
+        print(f"Resuming training from {args.resume}...")
+        model = PPO.load(args.resume, env=train_envs, device="auto", custom_objects={"tensorboard_log": log_path})
+    else:
+        # PPO com NatureCNN (policy_kwargs padrão do SB3 para imagens)
+        model = PPO(
+            "CnnPolicy",  # NatureCNN é o padrão do SB3 para observações de imagem
+            train_envs,
+            verbose=1,
+            tensorboard_log=log_path,
+            learning_rate=3e-4,
+            n_steps=256,
+            batch_size=64,
+            n_epochs=4,
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=0.01,  # Incentiva exploração
+            device="auto"
+        )
 
     print(f"Starting PPO training with {args.n_envs} parallel environments...")
     print(f"Total timesteps: {args.timesteps}")
@@ -120,7 +125,8 @@ def main():
             model.learn(
                 total_timesteps=args.timesteps,
                 callback=[eval_callback, MLflowCallback()],
-                progress_bar=True
+                progress_bar=True,
+                reset_num_timesteps=not bool(args.resume)
             )
         finally:
             train_envs.close()

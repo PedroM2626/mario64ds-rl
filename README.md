@@ -48,13 +48,20 @@ A jornada para fazer o Mário deslizar inteligentemente pelo gelo passou por div
 
 ## 📊 Resultados Finais
 
-Após resolvermos todos os impasses, disparamos dois treinamentos paralelos. O baseline utilizando o **PPO (Proximal Policy Optimization)** aliado ao **NatureCNN** com 8 ambientes em paralelo brilhou.
+Após resolvermos todos os impasses, disparamos treinamentos usando o **PPO (Proximal Policy Optimization)** aliado ao **NatureCNN**. A jornada do modelo até a perfeição foi épica:
 
-Ao atingir os **500.000 passos**, a IA entregou os seguintes números na pista primária:
-- **Sobrevivência:** `449 / 450` passos (Praticamente 100% de aproveitamento de tempo).
-- **Recompensa Final:** `+48.10` pontos positivos (Significa que a IA coletou mais de `+148 pontos` em moedas e avanço antes de sofrer a punição fatal no final).
+### O Ponto de Virada (500.000 Passos)
+Com 500k passos usando 8 instâncias paralelas, a IA começou a brilhar:
+- **Sobrevivência:** `449 / 450` passos.
+- **Recompensa:** `+48.10` pontos positivos (coletou `+148 pontos` antes de sofrer a punição de morte de `-100` caindo na reta final).
 
-O agente que no início não sobrevivia mais do que 4 segundos se atirando para a esquerda, agora domina o centro da pista, faz o balanço fino nos analógicos e busca moedas ativamente pela ladeira!
+### A Maestria Absoluta (1.000.000 de Passos)
+Decidimos fazer um *fine-tuning* do modelo usando uma flag customizada de `--resume` e treinamos por mais 500k passos (totalizando **1 Milhão de passos de experiência**). O resultado foi a **perfeição absoluta**:
+- **Sobrevivência (Pista 1 e 2):** `450 / 450` passos (Tempo esgotado: **Timeout detected!**).
+- **Recompensa Final (Pista 1):** `+144.24`
+- **Recompensa Final (Pista 2):** `+102.85`
+
+A IA finalmente conseguiu **dominar a física do gelo**. Ela sobrevive 100% do tempo de simulação sem cair no abismo, fazendo curvas precisas para evitar a morte e otimizando a própria velocidade enquanto busca moedas na descida. O que antes era um pinguim se jogando da montanha, agora é um piloto profissional.
 
 ## 🛠 Como Executar
 
