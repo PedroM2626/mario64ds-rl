@@ -25,7 +25,7 @@ if __name__ == "__main__":
         model=model,
         action_space=envs.action_space[0],
         num_atoms=51,
-        v_min=-50.0,
+        v_min=-100.0,
         v_max=100.0
     )
     

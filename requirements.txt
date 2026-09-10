@@ -108,6 +108,7 @@ sympy==1.14.0
 tensorboard==2.20.0
 tensorboard-data-server==0.7.2
 threadpoolctl==3.6.0
+tianshou==2.0.1
 torch==2.12.0
 torchvision==0.27.0
 tqdm==4.68.2

@@ -81,6 +81,49 @@ class ImpalaCNN(nn.Module):
             observations = observations.float() / 255.0
         return self.linear(self.cnn(observations)), state
 
+
+class TianshouNatureCNN(nn.Module):
+    """NatureCNN (Mnih et al., 2015) adaptada para o Tianshou.
+
+    Mesma arquitetura do ``CnnPolicy`` padrão do SB3, para comparação justa
+    Rainbow+NatureCNN vs PPO+NatureCNN. Aceita os mesmos formatos HWC/5D
+    que ``ImpalaCNN`` e expõe ``output_dim``.
+    """
+
+    def __init__(self, c=4, h=84, w=84, features_dim: int = 512):
+        super().__init__()
+        self.cnn = nn.Sequential(
+            nn.Conv2d(c, 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+        with torch.no_grad():
+            n_flatten = self.cnn(torch.zeros(1, c, h, w)).shape[1]
+        self.linear = nn.Sequential(
+            nn.Linear(n_flatten, features_dim),
+            nn.ReLU(),
+        )
+        self.output_dim = features_dim
+
+    def forward(self, observations: torch.Tensor, state=None, info={}):
+        if not isinstance(observations, torch.Tensor):
+            observations = torch.as_tensor(
+                observations, dtype=torch.float32, device=next(self.parameters()).device
+            )
+        if observations.dim() == 5 and observations.shape[-1] == 1:
+            observations = observations.squeeze(-1)
+        elif observations.dim() == 4 and observations.shape[-1] in [1, 3, 4]:
+            observations = observations.permute(0, 3, 1, 2)
+        elif observations.dim() == 3 and observations.shape[-1] in [1, 3, 4]:
+            observations = observations.permute(2, 0, 1).unsqueeze(0)
+        if observations.max() > 1.0:
+            observations = observations.float() / 255.0
+        return self.linear(self.cnn(observations)), state
+
 from tianshou.utils.net.discrete import NoisyLinear
 
 class RainbowNet(nn.Module):

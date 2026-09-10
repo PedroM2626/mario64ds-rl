@@ -1,7 +1,24 @@
 Desmume/
 venv/
-*pytest*
-*pyc
+__pycache__/
+*.pyc
+.pytest_cache/
 mlruns/
 *.db
 *tensorboard*
+# Pesos treinados (grandes, gerados localmente)
+models/*.zip
+models/*.pth
+models/*/best_model.zip
+# ROMs e savestates (arquivos com copyright / gerados localmente)
+data/*.nds
+data/*.ds1
+data/*.ds2
+data/*.ds3
+data/*.dsv
+data/*.sav
+data/Desmume/
+# Imagens de debug locais
+images/test_*.png
+# Logs de execução das grades (verbosos, grandes, regeneráveis)
+logs/

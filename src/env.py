@@ -18,12 +18,20 @@ except ImportError:
 class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
 
-    def __init__(self, rom_path, state_path, render_mode=None):
+    def __init__(self, rom_path, state_path, render_mode=None, max_steps=450, frameskip=4,
+                 death_penalty=100.0, timeout_penalty=0.0):
         super(Mario64DSEnv, self).__init__()
         
         self.rom_path = rom_path
         self.state_path = state_path
         self.render_mode = render_mode
+        self.max_steps = max_steps
+        self.frameskip = frameskip
+        # Convenção de recompensa (ver README §5 "Paradoxo do Suicídio"):
+        # timeout = sobrevivência -> sem punição; morte no abismo -> -100.
+        # Manter death_penalty > timeout_penalty, senão o agente aprende a se suicidar.
+        self.death_penalty = death_penalty
+        self.timeout_penalty = timeout_penalty
         
         # Determine paths relative to this file
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,9 +57,7 @@ class Mario64DSEnv(gym.Env):
         self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
 
         self.prev_gray = None
-        self.frameskip = 4 # 30 FPS adjustment (30/4 = 7.5 Hz)
         self.episode_steps = 0
-        self.max_steps = 450 # 30 seconds sprint for maximum sampling efficiency
 
     def _get_obs(self):
         if not self.has_emulator:
@@ -130,15 +136,16 @@ class Mario64DSEnv(gym.Env):
         
         if self.episode_steps >= self.max_steps:
             truncated = True
-            # Sem punição de timeout: não existe linha de chegada, apenas morte.
+            # Timeout = sobrevivência (não há linha de chegada detectada).
+            reward -= self.timeout_penalty
             print("Timeout detected!")
 
         # Death Check: Black screen
         obs_2d = np.squeeze(obs)
         if np.mean(obs_2d < 10) > 0.95:
             done = True
-            reward -= 50.0  # Death penalty (must be worse than timeout to prevent suicide)
-            print("Death detected! (Black Screen)")
+            reward -= self.death_penalty
+            print(f"Death detected! (Black Screen, penalty=-{self.death_penalty:g})")
                 
         # Coin Tracking / Guidance via HSV
         if not done and hasattr(self, 'last_coin_reward'):

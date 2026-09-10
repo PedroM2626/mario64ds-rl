@@ -1,0 +1,19 @@
+run_id,algo,features,seed,timesteps,train_status,train_seconds,savestate,episode,reward,steps,survived,eval_csv
+grid_ppo_nature_s0_500k,ppo,nature,0,500000,ok,13869,Super Mario 64 DS (USA) (Rev 1).ds1,0,100.35600370494649,450,True,eval_grid_ppo_nature_s0_500k_ds0.csv
+grid_ppo_nature_s0_500k,ppo,nature,0,500000,ok,13869,Super Mario 64 DS (USA) (Rev 1).ds1,1,100.35600370494649,450,True,eval_grid_ppo_nature_s0_500k_ds0.csv
+grid_ppo_nature_s0_500k,ppo,nature,0,500000,ok,13869,Super Mario 64 DS (USA) (Rev 1).ds1,2,100.35600370494649,450,True,eval_grid_ppo_nature_s0_500k_ds0.csv
+grid_ppo_nature_s0_500k,ppo,nature,0,500000,ok,13869,Super Mario 64 DS (USA) (Rev 1).ds3,0,55.07419048043084,450,True,eval_grid_ppo_nature_s0_500k_ds1.csv
+grid_ppo_nature_s0_500k,ppo,nature,0,500000,ok,13869,Super Mario 64 DS (USA) (Rev 1).ds3,1,55.07419048043084,450,True,eval_grid_ppo_nature_s0_500k_ds1.csv
+grid_ppo_nature_s0_500k,ppo,nature,0,500000,ok,13869,Super Mario 64 DS (USA) (Rev 1).ds3,2,55.07419048043084,450,True,eval_grid_ppo_nature_s0_500k_ds1.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,partial-379k/500k (timeout 22h; best epoca 293),79200,Super Mario 64 DS (USA) (Rev 1).ds1,0,93.184218,450,True,eval_grid_rainbow_nature_s0_500k_ds0.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,partial-379k/500k (timeout 22h; best epoca 293),79200,Super Mario 64 DS (USA) (Rev 1).ds1,1,93.184218,450,True,eval_grid_rainbow_nature_s0_500k_ds0.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,partial-379k/500k (timeout 22h; best epoca 293),79200,Super Mario 64 DS (USA) (Rev 1).ds1,2,93.184218,450,True,eval_grid_rainbow_nature_s0_500k_ds0.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,partial-379k/500k (timeout 22h; best epoca 293),79200,Super Mario 64 DS (USA) (Rev 1).ds3,0,-44.0,330,False,eval_grid_rainbow_nature_s0_500k_ds1.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,partial-379k/500k (timeout 22h; best epoca 293),79200,Super Mario 64 DS (USA) (Rev 1).ds3,1,-44.0,330,False,eval_grid_rainbow_nature_s0_500k_ds1.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,partial-379k/500k (timeout 22h; best epoca 293),79200,Super Mario 64 DS (USA) (Rev 1).ds3,2,-44.0,330,False,eval_grid_rainbow_nature_s0_500k_ds1.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,ok,99195,Super Mario 64 DS (USA) (Rev 1).ds1,0,94.70962373068323,450,True,eval_grid_rainbow_nature_s0_500k_ds0.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,ok,99195,Super Mario 64 DS (USA) (Rev 1).ds1,1,94.70962373068323,450,True,eval_grid_rainbow_nature_s0_500k_ds0.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,ok,99195,Super Mario 64 DS (USA) (Rev 1).ds1,2,94.70962373068323,450,True,eval_grid_rainbow_nature_s0_500k_ds0.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,ok,99195,Super Mario 64 DS (USA) (Rev 1).ds3,0,-74.25536016188562,122,False,eval_grid_rainbow_nature_s0_500k_ds1.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,ok,99195,Super Mario 64 DS (USA) (Rev 1).ds3,1,-74.25536016188562,122,False,eval_grid_rainbow_nature_s0_500k_ds1.csv
+grid_rainbow_nature_s0_500k,rainbow,nature,0,500000,ok,99195,Super Mario 64 DS (USA) (Rev 1).ds3,2,-74.25536016188562,122,False,eval_grid_rainbow_nature_s0_500k_ds1.csv

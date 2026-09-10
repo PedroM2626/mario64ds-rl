@@ -10,9 +10,12 @@ O objetivo do agente é sobreviver o maior tempo possível na pista de gelo sem 
 - **Ambiente RL**: Custom `gymnasium.Env` (`src/env.py`).
 - **Observação**: Imagens em Tons de Cinza (Grayscale) redimensionadas para `84x84`, com `FrameStack` de 4 quadros sucessivos para prover noção de movimento à rede neural.
 - **Modelos Treinados**:
-  - **Rainbow DQN** (via Tianshou) com uma rede extratora de features **IMPALA CNN** customizada (`src/impala_cnn.py`).
-  - **PPO - Proximal Policy Optimization** (via Stable-Baselines3) utilizando **NatureCNN** (`src/train_ppo.py`).
-- **Tracking**: `MLflow` integrado aos logs do `Tensorboard`.
+  - **Rainbow DQN** (via Tianshou, `src/train.py`) com **IMPALA CNN** (`src/impala_cnn.py`) ou **NatureCNN** (`--features nature`).
+  - **PPO** (via Stable-Baselines3, `src/train_ppo.py`) com **NatureCNN** (default) ou **IMPALA** (`--features impala`, `src/sb3_impala.py`).
+  - **QR-DQN** (via sb3-contrib, `src/train_qrdqn.py`) com **NatureCNN** ou **IMPALA**.
+- **Tracking**: `MLflow` (sqlite `mlflow.db`) + `Tensorboard` (`tensorboard_logs/<run-id>`).
+- **Avaliação justa**: `src/eval.py` (N episódios, seed, CSV).
+- **Relatório acadêmico**: `docs/RELATORIO_ACADEMICO.md` (método formal, grade 100k completa, discussão, limitações).
 
 ---
 
@@ -63,6 +66,205 @@ Decidimos fazer um *fine-tuning* do modelo usando uma flag customizada de `--res
 
 A IA finalmente conseguiu **dominar a física do gelo**. Ela sobrevive 100% do tempo de simulação sem cair no abismo, fazendo curvas precisas para evitar a morte e otimizando a própria velocidade enquanto busca moedas na descida. O que antes era um pinguim se jogando da montanha, agora é um piloto profissional.
 
+> ⚠️ **Nota de reproducibilidade (de onde vêm +144.24 / +102.85?)**
+> Esses números vieram de `python -m src.play --algo ppo` manual: 1 episódio
+> por savestate (`ds1`, `ds3`), política **estocástica** (`deterministic=False`),
+> **sem seed fixada** e sem log em MLflow/TensorBoard. Ou seja: não são média
+> com desvio, e variam a cada execução.
+> Para reproduzir de forma justa, use agora:
+> ```bash
+> python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 5 --deterministic --seed 0
+> ```
+> Isso gera `eval_ppo.csv` com recompensa/passo/sobrevivência por episódio.
+> Curvas de treino: `tensorboard --logdir tensorboard_logs/ppo_mario64ds_continued_4_envs`
+> e `mlflow ui --backend-store-uri sqlite:///mlflow.db`.
+
+## ⚖️ Comparação justa: PPO vs Rainbow vs QR-DQN
+
+Antes PPO usava NatureCNN e Rainbow usava IMPALA — comparação injusta
+(arquitetura confundida com algoritmo). Agora ambos suportam ambos:
+
+```bash
+# PPO + Nature (baseline original) vs PPO + IMPALA
+python -m src.train_ppo --run-id ppo_nature --features nature --n-envs 4 --seed 0
+python -m src.train_ppo --run-id ppo_impala --features impala --n-envs 4 --seed 0
+
+# Rainbow + IMPALA (original) vs Rainbow + Nature
+python -m src.train --run-id rainbow_impala --features impala --seed 0
+python -m src.train --run-id rainbow_nature --features nature --seed 0
+
+# QR-DQN (script faltante versionado em src/train_qrdqn.py)
+python -m src.train_qrdqn --run-id qrdqn_nature --features nature --n-envs 4
+python -m src.train_qrdqn --run-id qrdqn_impala --features impala --n-envs 4
+```
+
+Avalie todos com o mesmo protocolo (`--n-episodes 5 --deterministic --seed 0`):
+
+```bash
+python -m src.eval --algo ppo --model models/ppo_nature_best.zip --n-episodes 5 --deterministic --out eval_ppo_nature.csv
+python -m src.eval --algo rainbow --model models/rainbow_impala_best.pth --features impala --n-episodes 5 --out eval_rainbow_impala.csv
+python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 5 --deterministic --out eval_qrdqn.csv
+```
+
+| Modelo (checkpoint) | Algo + Extrator | Recompensa (média ± dp)* | Passos | Sobrevivência |
+|---|---|---|---|---|
+| `ppo_mario64ds_continued_4_envs_best.zip` | PPO + NatureCNN, 1M passos (2×500k, `--resume`) | +144.24 / +102.85 (1 ep manual, estocástico — não reproduzível) | 450/450 (manual) | 2/2 timeouts (manual) |
+| `ppo_mario64ds_8_envs_best.zip` | PPO + NatureCNN, 500k passos, 8 envs | `eval_ppo8_ds1.csv`: -82.85 ± 0.00 (det., ds1, 2 eps) | 144.0 | 0/2 |
+| `qrdqn_mario64ds.zip` | QR-DQN + IMPALA legado (`src.impala_cnn.ImpalaCNN`, ver `src/train_qrdqn.py` + patch em `src/eval.py`) | `eval_qrdqn_ds1.csv`: +88.75 ± 0.00 (det., ds1, 2 eps); `eval_qrdqn_ds3.csv`: -75.54 ± 0.00 (det., ds3, 2 eps) | 450.0 / 126.0 | 2/2 (ds1), 0/2 (ds3) |
+| `rainbow_mario64ds_1h_best.pth` | Rainbow + IMPALA, ~1h | `eval_rainbow_ds1.csv`: -82.84 ± 0.00 (ds1, 2 eps) | 195.0 | 0/2 |
+
+\* Números manuais do `play.py` ≠ `eval.py`. Ver seção de resultados reproduzíveis abaixo.
+
+### 📊 Resultados reproduzíveis (2026-09-07, `src/eval.py`, CPU, `seed=0`)
+
+Protocolo: 1 processo por savestate (`--savestate-idx`), `SubprocVecEnv`
+(o DeSmuME dá `access violation` com 2 emuladores no mesmo processo).
+Determinístico = `model.predict(..., deterministic=True)` (SB3) /
+greedy C51 (Rainbow). Recompensa inclui `-100` por morte, `0` por timeout.
+
+| Checkpoint | Savestate | Modo | Eps | Recompensa média ± dp | Passos médios | Sobrevivência | CSV |
+|---|---|---|---|---|---|---|---|
+| `ppo_mario64ds_continued_4_envs_best.zip` (PPO+Nature, 1M) | ds1 | det. | 2 | -33.13 ± 0.00 | 351.0 | 0/2 | `eval_ppo_ds1.csv` |
+| idem | ds3 | det. | 2 | -55.92 ± 0.00 | 203.0 | 0/2 | `eval_ppo_ds3.csv` |
+| idem | ds1 | estoc. | 3 | +23.09 ± 55.44 (-18.68, -13.49, **+101.44**) | 420.0 | 1/3 | `eval_ppo_ds1_stoch.csv` |
+| `ppo_mario64ds_8_envs_best.zip` (PPO+Nature, 500k) | ds1 | det. | 2 | -82.85 ± 0.00 | 144.0 | 0/2 | `eval_ppo8_ds1.csv` |
+| `qrdqn_mario64ds.zip` (QR-DQN+IMPALA, legado) | ds1 | det. | 2 | **+88.75 ± 0.00** | 450.0 | **2/2** | `eval_qrdqn_ds1.csv` |
+| idem | ds3 | det. | 2 | -75.54 ± 0.00 | 126.0 | 0/2 | `eval_qrdqn_ds3.csv` |
+| `rainbow_mario64ds_1h_best.pth` (Rainbow+IMPALA) | ds1 | greedy | 2 | -82.84 ± 0.00 | 195.0 | 0/2 | `eval_rainbow_ds1.csv` |
+
+Leitura:
+- O `+144.24` do README original **não se reproduz no modo determinístico**.
+  No estocástico, 1 de 3 episódios deu `+101.44/450` (timeout) — mesma
+  ordem de grandeza, confirmando que o número original foi um rollout
+  sortudo, não média.
+- **QR-DQN é o melhor em ds1 determinístico** (+88.75, 2/2 timeouts),
+  mas colapsa em ds3 (-75.54, morte em ~126 passos): overfit à pista 1.
+- **PPO 1M > PPO 500k/8envs** em ds1 (-33 vs -82): o fine-tuning com
+  `--resume` ajudou, mas ainda morre no determinístico.
+- **Rainbow 1h é o pior em ds1** (-82.84, 195 passos): precisa de mais
+  timesteps / tuning (buffer 20k, `target_update_freq=500`).
+- Nenhum modelo sobrevive ds3 no determinístico — próxima fronteira.
+
+Comandos usados (1 por savestate para isolar o DeSmuME):
+```bash
+python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 0 --out eval_ppo_ds1.csv
+python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 1 --out eval_ppo_ds3.csv
+python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 3 --seed 0 --savestate-idx 0 --out eval_ppo_ds1_stoch.csv
+python -m src.eval --algo ppo --model models/ppo_mario64ds_8_envs_best.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 0 --out eval_ppo8_ds1.csv
+python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 0 --out eval_qrdqn_ds1.csv
+python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 1 --out eval_qrdqn_ds3.csv
+python -m src.eval --algo rainbow --model models/rainbow_mario64ds_1h_best.pth --features impala --n-episodes 2 --seed 0 --savestate-idx 0 --out eval_rainbow_ds1.csv
+```
+
+### 🧪 Smoke-train (validação dos pipelines pós-refactor, 2026-09-07, CPU)
+
+| Pipeline | Comando | Resultado |
+|---|---|---|
+| PPO+Nature | `python -m src.train_ppo --run-id smoke_ppo_nature --features nature --n-envs 2 --timesteps 1024 --seed 0` | OK, ~20s, 53 it/s, `ep_rew_mean` -60.2 → -64.8 |
+| PPO+IMPALA | `python -m src.train_ppo --run-id smoke_ppo_impala --features impala --n-envs 2 --timesteps 1024 --seed 0` | OK, ~23s, 45 it/s, novo `ImpalaFeaturesExtractor` treina |
+| Rainbow+Nature | `python -m src.train --run-id smoke_rainbow_nature --features nature --test-run --seed 0` | OK, 1000 steps, ~48s, `test_reward` -89.45 |
+| QR-DQN+Nature | `python -m src.train_qrdqn --run-id smoke_qrdqn --features nature --n-envs 2 --timesteps 1024 --seed 0` | OK após fix `buffer_size=20000` (default 1M estourava 26 GiB), ~21s, 47 it/s |
+
+### 🏁 Grade 100k (2026-09-08 a 2026-09-11, CPU-only — ver nota GPU abaixo)
+
+Protocolo: `(PPO, Rainbow, QR-DQN) × (nature, impala) × seeds {0,1,2}` =
+18 treinos de 100k steps, `n-envs=2`, em sequência (`run_grid_100k.py`).
+Eval: 3 eps determinísticos por savestate (6 eps/run), `seed` igual ao treino.
+Consolidado em `results_grid_100k.csv` (+ `eval_grid_*_ds?.csv`).
+
+> **100k basta?** Para *eficiência amostral e estabilidade*: sim.
+> Para *maestria*: não — nenhum run de 100k sobrevive ds3 de forma
+> consistente, e a variância entre seeds é enorme (ver desfecho por seed).
+> 100k separa “quem aprende rápido” de “quem nem roda”, mas o 1M continua
+> necessário para pilotagem robusta.
+
+| Algo × Features @100k (3 seeds) | Reward médio ± dp (média das 6 eps, depois média das seeds) | Sobrevivência média | Tempo treino/run (CPU) | Status |
+|---|---|---|---|---|
+| Rainbow + Nature | **+7.20 ± 2.99** (único positivo) | **0.50** (3/6 em *todas* as seeds) | ~4.2–4.7h | 3/3 ok |
+| PPO + Nature | -47.03 ± 32.68 | 0.17 (só s0: 3/6) | ~35min | 3/3 ok |
+| PPO + IMPALA | -53.62 ± 36.74 | 0.17 (só s1: 3/6) | ~52min | 3/3 ok |
+| QR-DQN + IMPALA | -46.55 ± 24.05 | 0.17 (só s1: 3/6) | ~60min | 3/3 ok |
+| QR-DQN + Nature | -62.28 ± 8.98 | 0.00 | ~40min | 3/3 ok |
+| Rainbow + IMPALA | -75.83 ± 0.07 (≈ política aleatória) | 0.00 | OOM após 5–40min | **0/3 — `ArrayMemoryError` no `hasnull()/deepcopy` do PER** |
+
+Por run (média das 6 eps; surv = fração dos 6 eps com timeout):
+
+| run_id | ds1 (3 eps det.) | ds3 (3 eps det.) | surv total |
+|---|---|---|---|
+| `grid_ppo_nature_s0_100k` | +68.42, 450, 3/3 | -70.80, 191, 0/3 | 0.50 |
+| `grid_ppo_nature_s1_100k` | -83.23, 126, 0/3 | -46.32, 335, 0/3 | 0.00 |
+| `grid_ppo_nature_s2_100k` | -80.37, 166, 0/3 | -69.86, 295, 0/3 | 0.00 |
+| `grid_ppo_impala_s0_100k` | -91.36, 67, 0/3 | -80.91, 113, 0/3 | 0.00 |
+| `grid_ppo_impala_s1_100k` | -73.48, 222, 0/3 | +68.97, 450, 3/3 | 0.50 |
+| `grid_ppo_impala_s2_100k` | -85.37, 128, 0/3 | -59.55, 238, 0/3 | 0.00 |
+| `grid_qrdqn_nature_s0_100k` | -25.15, 227, 0/3 | -78.91, 59, 0/3 | 0.00 |
+| `grid_qrdqn_nature_s1_100k` | -40.20, 212, 0/3 | -81.65, 45, 0/3 | 0.00 |
+| `grid_qrdqn_nature_s2_100k` | -62.91, 140, 0/3 | -84.90, 48, 0/3 | 0.00 |
+| `grid_qrdqn_impala_s0_100k` | -64.13, 215, 0/3 | -73.96, 68, 0/3 | 0.00 |
+| `grid_qrdqn_impala_s1_100k` | -69.88, 226, 0/3 | +43.46, 450, 3/3 | 0.50 |
+| `grid_qrdqn_impala_s2_100k` | -33.88, 252, 0/3 | -80.94, 54, 0/3 | 0.00 |
+| `grid_rainbow_nature_s0_100k` | +92.14, 450, 3/3 | -69.87, 205, 0/3 | 0.50 |
+| `grid_rainbow_nature_s1_100k` | +88.75, 450, 3/3 | -75.54, 126, 0/3 | 0.50 |
+| `grid_rainbow_nature_s2_100k` | +92.49, 450, 3/3 | -84.73, 24, 0/3 | 0.50 |
+| `grid_rainbow_impala_*_100k` (s0/s1/s2) | −71.7/−78.7/−71.7, ~124–134, 0/3 | −79.9/−73.2/−79.9, ~127–161, 0/3 | 0.00 (treino falhou) |
+
+Leitura da grade:
+- **Rainbow+Nature é o mais estável a 100k**: 3/3 seeds dão timeout em ds1
+  (+88 a +92) e morrem em ds3. Consistência que PPO/QR-DQN não têm.
+- **PPO e QR-DQN são loteria de seed a 100k**: 1 seed em 3 “acerta” uma
+  pista (3/3 timeouts nela) e as outras 2 zeram. Overfit a *uma* savestate,
+  nunca às duas. Nature vs IMPALA não decide — a seed decide.
+- **Rainbow+IMPALA é inviável em CPU**: OOM no `PrioritizedVectorReplayBuffer`
+  (`hasnull()` → `deepcopy` de `(1680,4,84,84,1)` uint8) nas 3 seeds,
+  mesmo com `total_size=20000`. O extrator maior + PER + `n_step=3` estoura
+  a RAM após minutos/horas. Em GPU o update acelera, mas o buffer continua
+  em RAM — precisa reduzir buffer, `batch_size`, ou usar `VecReplayBuffer`
+  sem `hasnull` a cada step.
+- **Todas as 15 runs ok overfitam**: timeout em ds1 ⇒ morte em ds3, ou o
+  inverso. Nenhuma passa nas duas. Generalização entre pistas segue aberta.
+
+Reproduzir:
+```bash
+python run_grid_100k.py --timesteps 100000 --n-envs 2 --n-episodes 3
+python run_grid_100k.py --timesteps 100000 --n-envs 2 --n-episodes 3 --skip-done --only qrdqn
+```
+
+### 🏆 Escala 500k — generalização (2026-09-11/12, env novo `-100`, seed 0)
+
+Para testar se 500k quebra o overfit de pista única, rodamos 1× PPO+Nature e
+1× Rainbow+Nature a 500k steps (`results_grid_500k.csv`):
+
+| run_id | ds1 (3 eps det.) | ds3 (3 eps det.) | surv |
+|---|---|---|---|
+| `grid_ppo_nature_s0_500k` (ok, 500k, ~3,8h) | **+100,36 · 450 · 3/3** | **+55,07 · 450 · 3/3** | **6/6** |
+| `grid_rainbow_nature_s0_500k` (parcial 379k/500k, timeout 22h, best época 293) | +93,18 · 450 · 3/3 | −44,00 · 330 · 0/3 | 3/6 |
+
+- **PPO 500k generaliza**: primeiro modelo do projeto com timeout
+  determinístico nas **duas** pistas (6/6). Mais steps curaram o overfit.
+- **Rainbow parcial (379k) ainda overfita** ds1, mas ds3 evoluiu de 24–205
+  passos (100k) para 330 (−44): trajetória rumo à generalização, faltou tempo.
+- Nota de incidente: o PPO 500k foi treinado 2× concorrente por engano
+  (processo background sobreviveu ao `kill` da ferramenta; 2 runs MLflow
+  homônimas, mesmos hiperparâmetros/seed). O artefato avaliado é válido
+  (500k steps, load+eval ok) e o CSV foi dedupado para 6 linhas.
+
+#### Nota GPU (por que a grade rodou em CPU)
+
+A máquina tem RTX 3060 6GB (`nvidia-smi` OK), mas o torch instalado é
+`2.12.0+cpu` (`torch.cuda.is_available() == False`), então `device="auto"`
+caiu para CPU em todos os treinos/evals. Para usar a GPU:
+```bash
+venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"
+```
+Ganho esperado é parcial: o gargalo é o DeSmuME (emulador, CPU-bound —
+PPO fez ~50 it/s, Rainbow+Nature ~6.5 it/s de update). A GPU acelera o
+update da CNN, não o rollout. O OOM do Rainbow+IMPALA é de RAM (buffer),
+não de VRAM — GPU não o corrige sozinha.
+
+Nota: sem full-train (500k steps ≈ horas em CPU). Os checkpoints avaliados
+acima são os pré-existentes em `models/`.
+
 ## 🛠 Como Executar
 
 ### Pré-requisitos
@@ -79,9 +281,24 @@ Para iniciar um novo treinamento do zero, escolha sua arma:
 python -m src.train_ppo --run-id ppo_mario64ds_novo --n-envs 4
 ```
 
+**PPO + IMPALA (comparação justa com Rainbow):**
+```bash
+python -m src.train_ppo --run-id ppo_impala_novo --features impala --n-envs 4 --seed 0
+```
+
 **Rainbow DQN (Focado em Off-Policy):**
 ```bash
 python -m src.train --run-id rainbow_mario64ds_novo
+```
+
+**Rainbow + NatureCNN (comparação justa com PPO):**
+```bash
+python -m src.train --run-id rainbow_nature_novo --features nature --seed 0
+```
+
+**QR-DQN (SB3-Contrib):**
+```bash
+python -m src.train_qrdqn --run-id qrdqn_novo --n-envs 4
 ```
 
 ### Visualizando Agentes Treinados
@@ -96,3 +313,46 @@ python -m src.play --algo ppo
 ```bash
 python -m src.play --algo rainbow
 ```
+
+**Ver usando QR-DQN, determinístico (reproduzível):**
+```bash
+python -m src.play --algo qrdqn --deterministic
+```
+
+### Avaliação reproduzível
+```bash
+python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 5 --deterministic --seed 0
+```
+
+### Testes
+```bash
+python -m pytest tests/ -v
+```
+Testes unitários sem emulador (`tests/test_env_logic.py`, `tests/test_features.py`).
+`src/test_env.py` é smoke test manual (precisa de ROM).
+
+### MLflow e TensorBoard
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+# abrir http://localhost:5000 -> experimento Mario64_NDS_RL
+
+tensorboard --logdir tensorboard_logs --port 6006
+# abrir http://localhost:6006
+# ou por run: tensorboard --logdir tensorboard_logs/ppo_mario64ds_continued_4_envs
+```
+
+### Docker (CPU e GPU)
+```bash
+# CPU
+docker build -t mario64ds-rl .
+docker run -v ${PWD}/data:/app/data mario64ds-rl
+
+# GPU (requer nvidia-container-toolkit; imagem base já com torch cu124 via requirements)
+docker build -t mario64ds-rl .
+docker run --gpus all -v ${PWD}/data:/app/data mario64ds-rl python -m src.train_ppo --n-envs 4 --timesteps 500000
+
+# Avaliar dentro do container
+docker run -v ${PWD}/models:/app/models -v ${PWD}/data:/app/data mario64ds-rl python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 3
+```
+Nota: `CMD` padrão agora é PPO (o que convergiu), não Rainbow. ROM/savestates
+em `data/` não vão para a imagem via Git (ver `.gitignore`) — monte via volume.
