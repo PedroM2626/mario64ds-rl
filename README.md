@@ -234,15 +234,18 @@ python run_grid_100k.py --timesteps 100000 --n-envs 2 --n-episodes 3 --skip-done
 Para testar se 500k quebra o overfit de pista única, rodamos 1× PPO+Nature e
 1× Rainbow+Nature a 500k steps (`results_grid_500k.csv`):
 
-| run_id | ds1 (3 eps det.) | ds3 (3 eps det.) | surv |
-|---|---|---|---|
-| `grid_ppo_nature_s0_500k` (ok, 500k, ~3,8h) | **+100,36 · 450 · 3/3** | **+55,07 · 450 · 3/3** | **6/6** |
-| `grid_rainbow_nature_s0_500k` (parcial 379k/500k, timeout 22h, best época 293) | +93,18 · 450 · 3/3 | −44,00 · 330 · 0/3 | 3/6 |
+| run_id | ds1 (3 eps det.) | ds2 (3 eps det.) | ds3 (3 eps det.) | surv |
+|---|---|---|---|---|
+| `grid_ppo_nature_s0_500k` (ok, 500k, ~3,8h) | **+100,36 · 450 · 3/3** | 440/450 morte (98%) | **+55,07 · 450 · 3/3** | 6/6 |
+| `rainbow_500k_completed_1009` (500k completo, run background concorrente finalizada em 10/09 — ver nota abaixo) | +90,77 · 450 · 3/3 | −63,41 · 201 · 0/3 | −37,78 · 357 · 0/3 | 3/9 |
 
 - **PPO 500k generaliza**: primeiro modelo do projeto com timeout
-  determinístico nas **duas** pistas (6/6). Mais steps curaram o overfit.
-- **Rainbow parcial (379k) ainda overfita** ds1, mas ds3 evoluiu de 24–205
-  passos (100k) para 330 (−44): trajetória rumo à generalização, faltou tempo.
+  determinístico nas **duas** pistas de treino (6/6). Mais steps curaram o overfit.
+- **Rainbow 500k completo**: sobrevive 100% de ds1 e 79% de ds3 (357/450),
+  mas não ds2. Nota: o run foi dado como "parcial 379k" antes, mas descobrimos
+  que a tentativa background concorrente (mesmo padrão do incidente do PPO)
+  completou os 500k em 10/09 e salvou o final.pth — preservado como
+  `rainbow_500k_completed_1009.pth` e reavaliado acima.
 - Nota de incidente: o PPO 500k foi treinado 2× concorrente por engano
   (processo background sobreviveu ao `kill` da ferramenta; 2 runs MLflow
   homônimas, mesmos hiperparâmetros/seed). O artefato avaliado é válido
