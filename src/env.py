@@ -190,6 +190,14 @@ class Mario64DSEnv(gym.Env):
         elif self.render_mode == 'rgb_array':
             return self._get_obs()
 
+    def get_screen_rgb(self):
+        """Tela superior real do jogo em RGB (256x192), para gravação de vídeo."""
+        if not self.has_emulator:
+            return np.zeros((192, 256, 3), dtype=np.uint8)
+        frame = self.emu.display_buffer_as_rgbx()
+        frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
+        return frame[:192, :, :3]
+
     def close(self):
         if self.has_emulator:
             self.emu.destroy()
