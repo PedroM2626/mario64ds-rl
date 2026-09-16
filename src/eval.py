@@ -22,6 +22,7 @@ import torch
 def _savestates(base_dir, only=None):
     all_states = [
         os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds1"),
+        os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds2"),
         os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds3"),
     ]
     if only is not None:
@@ -149,7 +150,7 @@ def main():
     parser.add_argument("--n-episodes", type=int, default=5)
     parser.add_argument("--deterministic", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--savestate-idx", type=int, default=None, choices=[0, 1])
+    parser.add_argument("--savestate-idx", type=int, default=None, choices=[0, 1, 2])
     parser.add_argument("--out", type=str, default=None, help="CSV de saída (default: eval_<algo>.csv)")
     args = parser.parse_args()
 

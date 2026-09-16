@@ -67,6 +67,8 @@ def main():
     parser.add_argument("--features", type=str, default="nature", choices=["nature", "impala"],
                         help="Extrator visual: 'nature' (baseline SB3) ou 'impala' (comparação justa com Rainbow)")
     parser.add_argument("--seed", type=int, default=0, help="Seed para reproducibilidade")
+    parser.add_argument("--states", type=str, default="ds1,ds3",
+                        help="Savestates no mix de treino (ex.: 'ds1,ds2,ds3' para generalizar nas 3 pistas)")
     parser.add_argument("--max-steps", type=int, default=450, help="Passos máximos por episódio (deve bater com env)")
     parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
     args = parser.parse_args()
@@ -78,12 +80,13 @@ def main():
     mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
     mlflow.set_experiment("Mario64_NDS_RL")
 
-    state_ds1 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds1")
-    state_ds3 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds3")
-
-    # PPO permite múltiplas instâncias paralelas via SubprocVecEnv
-    # Isso acelera drasticamente a coleta de experiências
-    savestates = [state_ds1, state_ds3]
+    savestates = [
+        os.path.join(base_dir, "data", f"Super Mario 64 DS (USA) (Rev 1).{s.strip()}")
+        for s in args.states.split(",") if s.strip()
+    ]
+    for sp in savestates:
+        if not os.path.exists(sp):
+            raise FileNotFoundError(f"Savestate não encontrado: {sp}")
     env_fns = []
     for i in range(args.n_envs):
         state = savestates[i % len(savestates)]
@@ -96,8 +99,8 @@ def main():
     # (B, 84, 84, 4) HWC -> (B, 4, 84, 84) CHW para a CNN.
     train_envs = VecTransposeImage(train_envs)
 
-    # Eval env (1 instância, savestate principal ds1)
-    eval_env = SubprocVecEnv([make_env(rom_full, state_ds1, rank=1000, seed=args.seed,
+    # Eval env (1 instância, savestate principal = primeiro do mix)
+    eval_env = SubprocVecEnv([make_env(rom_full, savestates[0], rank=1000, seed=args.seed,
                                        max_steps=args.max_steps, frameskip=args.frameskip)])
     eval_env = VecFrameStack(eval_env, n_stack=4)
     eval_env = VecTransposeImage(eval_env)

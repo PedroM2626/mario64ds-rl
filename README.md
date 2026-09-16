@@ -269,41 +269,62 @@ Regravar os vídeos:
 python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
 ```
 
+### 🧗 Generalização 3 pistas (ds1+ds2+ds3) — tentativas e resultado (2026-09-12)
+
+Três experimentos com a arquitetura vencedora (PPO+Nature), agora com a GPU
+ativa (torch `2.6.0+cu124` instalado — o índice cu124 não tem 2.12):
+
+| Experimento | ds1 | ds2 | ds3 | Veredito |
+|---|---|---|---|---|
+| **A. Fine-tune** do 2-way 500k com ds2 no mix (200k, `ppo_ft_ds123`) | ✗ 0/3 (−76,99 · 156) | **✓ 3/3** (+34,90) | **✓ 3/3** (+60,34) | **Esquecimento catastrófico de ds1** |
+| **B. Run fresca** 3-way 500k, 3 envs (`ppo_ds123_500k`) | ✗ 0/2 (−74,59 · 221) | ✗ 0/2 (−44,03 · 287) | ✗ 0/2 (−74,93 · 142) | Sub-treinado (~167k/pista) |
+| **C. Continuação** até 1M total, 3 envs (`ppo_ds123_1m`) | ✗ 0/3 (−60,33 · 223) | ✗ 0/3 (−45,94 · 422) | ✗ 0/3 (−62,87 · 115) | Eval estocástico +1,12 ±77,9, mas determinístico 0/3 |
+| C-best (escolhido pela eval em ds1, t=770k) | ✗ 0/2 (−81,90 · 129) | ✗ 0/2 (−67,09 · 250) | ✗ 0/2 (−71,46 · 89) | Confirma o padrão |
+
+Leitura científica:
+- **O fine-tune fechou a lacuna do ds2** (3/3) e manteve ds3, mas esqueceu
+  ds1 completamente — esquecimento catastrófico clássico em fine-tuning.
+- **3-way é qualitativamente mais difícil que 2-way**: nem 1M steps
+  (~333k/pista) alcança sobrevivência determinística nas 3 pistas, enquanto
+  o 2-way conseguiu com 250k/pista. A interferência entre as geometrias das
+  3 pistas com uma CNN pequena parece ser o gargalo, não a exposição.
+- **Melhor modelo único continua sendo o 2-way** (`grid_ppo_nature_s0_500k`):
+  ds1 ✓✓, ds3 ✓✓, ds2 440/450 (98%). Entre o 2-way e o fine-tuned (A), as
+  3 pistas estão cobertas — mas por modelos diferentes.
+- Próximos passos se quiser fechar de verdade: mais steps (2M+), mais envs
+  (6+), reward por velocidade real, ou replay balanceado entre pistas.
+
 #### Limitações conhecidas
 
 - **Confusão treino-legado:** checkpoints de 1M/500k antigos foram treinados
   com morte `-50`; a grade usou `-100`. A grade é justa internamente.
 - **3 seeds:** suficiente para triagem, insuficiente para significância
   estatística (recomendado ≥5 + IC bootstrap).
-- **Torch CPU-only** na máquina (`2.12.0+cpu`, RTX 3060 ociosa): tempos e o
-  OOM do Rainbow+IMPALA podem mudar com CUDA.
 - **Heurísticas de recompensa:** morte = tela preta (>95% pixels <10),
   moedas por HSV e fluxo óptico 32×32 são proxies frágeis.
 - **Eval curto:** 3 eps/pista tem alta variância nas caudas.
 
-#### Nota GPU (por que a grade rodou em CPU)
+#### Nota GPU
 
-A máquina tem RTX 3060 6GB (`nvidia-smi` OK), mas o torch instalado é
-`2.12.0+cpu` (`torch.cuda.is_available() == False`), então `device="auto"`
-caiu para CPU em todos os treinos/evals. Para usar a GPU:
+A máquina tem RTX 3060 6GB. Os treinos da grade 100k rodaram em CPU porque o
+torch era `2.12.0+cpu`. Em 2026-09-12 instalamos o build CUDA
+(`torch 2.6.0+cu124` — o índice cu124 não tem 2.12):
 ```bash
-venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"
+venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 --force-reinstall --no-deps
+venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"  # True
 ```
-Ganho esperado é parcial: o gargalo é o DeSmuME (emulador, CPU-bound —
-PPO fez ~50 it/s, Rainbow+Nature ~6.5 it/s de update). A GPU acelera o
-update da CNN, não o rollout. O OOM do Rainbow+IMPALA é de RAM (buffer),
-não de VRAM — GPU não o corrige sozinha.
-
-Nota: sem full-train (500k steps ≈ horas em CPU). Os checkpoints avaliados
-acima são os pré-existentes em `models/`.
+Os experimentos 3-way acima já rodaram com `device=cuda`. Ganho é parcial:
+o gargalo é o DeSmuME (emulador, CPU-bound) — a GPU acelera o update da
+CNN, não o rollout. O OOM do Rainbow+IMPALA é de RAM (buffer), não de VRAM.
 
 ## 🛠 Como Executar
 
 ### Pré-requisitos
-O emulador necessita que as Roms e Savestates estejam nomeadas corretamente na pasta `data/`:
+O emulador necessita que as Roms e Savestates estejam nomeadas corretamente na pasta `data/`
+(não vão para o git — ver `.gitignore`):
 - `data/Super Mario 64 DS (USA) (Rev 1).nds`
 - `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Início da ladeira central)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Outra ladeira)
 - `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Início de outra ladeira)
 
 ### Treinando Novos Modelos
