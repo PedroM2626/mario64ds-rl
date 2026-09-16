@@ -95,13 +95,15 @@ def main():
     model = RainbowNet(feature_net, action_shape, num_atoms, noisy_std=0.5).to(device)
 
     # Tianshou 2.0 API separa a politica (Network) do Algorithm (Loop logic)
+    # .to(device) é OBRIGATÓRIO: o C51Policy guarda o buffer `support` na CPU,
+    # e sem isso o treino em CUDA explode com device mismatch (cuda:0 vs cpu).
     policy = C51Policy(
         model=model,
         action_space=train_envs.action_space[0],
         num_atoms=num_atoms,
         v_min=V_MIN,
         v_max=V_MAX
-    )
+    ).to(device)
 
     optim_factory = TorchOptimizerFactory(torch.optim.Adam, lr=1e-4)
 

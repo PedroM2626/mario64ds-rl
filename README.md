@@ -317,6 +317,11 @@ Os experimentos 3-way acima já rodaram com `device=cuda`. Ganho é parcial:
 o gargalo é o DeSmuME (emulador, CPU-bound) — a GPU acelera o update da
 CNN, não o rollout. O OOM do Rainbow+IMPALA é de RAM (buffer), não de VRAM.
 
+> **Fix CUDA no Rainbow:** o `C51Policy` do Tianshou guarda o buffer
+> `support` na CPU; sem `policy.to(device)` (`src/train.py`) o treino em
+> GPU explode com device mismatch (`cuda:0 vs cpu`). Corrigido — e com a
+> GPU o Rainbow saltou de ~6,5 it/s (CPU) para ~15 it/s (~3× mais rápido).
+
 ## 🛠 Como Executar
 
 ### Pré-requisitos
