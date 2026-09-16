@@ -15,7 +15,7 @@ O objetivo do agente é sobreviver o maior tempo possível na pista de gelo sem 
   - **QR-DQN** (via sb3-contrib, `src/train_qrdqn.py`) com **NatureCNN** ou **IMPALA**.
 - **Tracking**: `MLflow` (sqlite `mlflow.db`) + `Tensorboard` (`tensorboard_logs/<run-id>`).
 - **Avaliação justa**: `src/eval.py` (N episódios, seed, CSV).
-- **Relatório acadêmico**: `docs/RELATORIO_ACADEMICO.md` (método formal, grade 100k completa, discussão, limitações).
+- **Vídeos**: `record_phases.py` (grava o agente jogando ds1/ds2/ds3 em MP4).
 
 ---
 
@@ -247,6 +247,39 @@ Para testar se 500k quebra o overfit de pista única, rodamos 1× PPO+Nature e
   (processo background sobreviveu ao `kill` da ferramenta; 2 runs MLflow
   homônimas, mesmos hiperparâmetros/seed). O artefato avaliado é válido
   (500k steps, load+eval ok) e o CSV foi dedupado para 6 linhas.
+
+### 📹 Vídeos de demonstração — ds1, ds2 e ds3 (2026-09-12)
+
+Gravados com `record_phases.py` usando o `grid_ppo_nature_s0_500k_best.zip`
+(1 episódio determinístico por fase, tela real do jogo em cores 256×192,
+tempo real, `videos/phase_ds*.mp4`):
+
+| Fase | Recompensa | Passos | Resultado | Vídeo |
+|---|---|---|---|---|
+| ds1 | +100,36 | **450/450** | ⏱ TIMEOUT (sobreviveu) | `videos/phase_ds1.mp4` |
+| ds2 | −52,53 | **440/450** | ☠ morte no fim (98% de sobrevivência) | `videos/phase_ds2.mp4` |
+| ds3 | +47,85 | **450/450** | ⏱ TIMEOUT (sobreviveu) | `videos/phase_ds3.mp4` |
+
+**Este é o primeiro teste real do projeto na pista ds2** (o eval anterior só
+cobria ds1/ds3): o modelo, treinado apenas com ds1+ds3, sobrevive 98% da
+pista inédita e morre quase no final — generalização real, não memorização.
+
+Regravar os vídeos:
+```bash
+python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
+```
+
+#### Limitações conhecidas
+
+- **Confusão treino-legado:** checkpoints de 1M/500k antigos foram treinados
+  com morte `-50`; a grade usou `-100`. A grade é justa internamente.
+- **3 seeds:** suficiente para triagem, insuficiente para significância
+  estatística (recomendado ≥5 + IC bootstrap).
+- **Torch CPU-only** na máquina (`2.12.0+cpu`, RTX 3060 ociosa): tempos e o
+  OOM do Rainbow+IMPALA podem mudar com CUDA.
+- **Heurísticas de recompensa:** morte = tela preta (>95% pixels <10),
+  moedas por HSV e fluxo óptico 32×32 são proxies frágeis.
+- **Eval curto:** 3 eps/pista tem alta variância nas caudas.
 
 #### Nota GPU (por que a grade rodou em CPU)
 
