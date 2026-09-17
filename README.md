@@ -272,9 +272,9 @@ Regravar os vídeos:
 python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
 ```
 
-### 🧗 Generalização 3 pistas (ds1+ds2+ds3) — tentativas e resultado (2026-09-12)
+### 🧗 Generalização 3 pistas (ds1+ds2+ds3) — tentativas e resultado (2026-09-12/17)
 
-Três experimentos com a arquitetura vencedora (PPO+Nature), agora com a GPU
+Quatro experimentos com a arquitetura vencedora (PPO+Nature), agora com a GPU
 ativa (torch `2.6.0+cu124` instalado — o índice cu124 não tem 2.12):
 
 | Experimento | ds1 | ds2 | ds3 | Veredito |
@@ -282,20 +282,35 @@ ativa (torch `2.6.0+cu124` instalado — o índice cu124 não tem 2.12):
 | **A. Fine-tune** do 2-way 500k com ds2 no mix (200k, `ppo_ft_ds123`) | ✗ 0/3 (−76,99 · 156) | **✓ 3/3** (+34,90) | **✓ 3/3** (+60,34) | **Esquecimento catastrófico de ds1** |
 | **B. Run fresca** 3-way 500k, 3 envs (`ppo_ds123_500k`) | ✗ 0/2 (−74,59 · 221) | ✗ 0/2 (−44,03 · 287) | ✗ 0/2 (−74,93 · 142) | Sub-treinado (~167k/pista) |
 | **C. Continuação** até 1M total, 3 envs (`ppo_ds123_1m`) | ✗ 0/3 (−60,33 · 223) | ✗ 0/3 (−45,94 · 422) | ✗ 0/3 (−62,87 · 115) | Eval estocástico +1,12 ±77,9, mas determinístico 0/3 |
+| **D. Continuação até 2M** total, 3 envs (`ppo_ds123_2m`, fila automática) | best: 420/450 (93%); final: 110 | ✗ (273/313) | ✗ (203/106) | **0/3 — hipótese "só mais steps" falsificada** |
 | C-best (escolhido pela eval em ds1, t=770k) | ✗ 0/2 (−81,90 · 129) | ✗ 0/2 (−67,09 · 250) | ✗ 0/2 (−71,46 · 89) | Confirma o padrão |
+
+**Rainbow+Nature 500k (2 runs independentes, mesma seed, CUDA):**
+
+| Run | ds1 | ds2 | ds3 |
+|---|---|---|---|
+| `rainbow_500k_completed_1009` (run background concorrente, finalizado em 10/09) | **✓ 3/3** (+90,77) | ✗ 0/3 (201) | ✗ 357/450 (79%) |
+| `grid_rainbow_nature_s0_500k_final` (fresca, 21,5h, finalizada 17/09 15:11) | ✗ 0/3 (225) | **✓ 3/3** (+47,94) | ✗ 0/3 (101) |
 
 Leitura científica:
 - **O fine-tune fechou a lacuna do ds2** (3/3) e manteve ds3, mas esqueceu
   ds1 completamente — esquecimento catastrófico clássico em fine-tuning.
-- **3-way é qualitativamente mais difícil que 2-way**: nem 1M steps
-  (~333k/pista) alcança sobrevivência determinística nas 3 pistas, enquanto
-  o 2-way conseguiu com 250k/pista. A interferência entre as geometrias das
-  3 pistas com uma CNN pequena parece ser o gargalo, não a exposição.
+- **A hipótese "só mais steps" está falsificada**: o experimento D rodou até
+  2M total (~667k/pista) e continua 0/3 no determinístico (o ds1-best chegou
+  a 420/450 — 93% — e morre no fim). Com 333k/pista (1M) já era 0/3; dobrar
+  a exposição não convergiu.
+- **3-way é qualitativamente mais difícil que 2-way**: o 2-way convergiu com
+  250k/pista; o 3-way falha com 667k/pista. O gargalo é a interferência
+  entre as geometrias das pistas na CNN compartilhada, não a exposição.
+- **O Rainbow 500k também especializa em pista única** — mas cada run escolhe
+  uma pista diferente (1009: ds1; fresca: ds2): alta variância entre runs
+  (mesma seed, CUDA muda o fluxo aleatório), mesmo padrão de especialização.
 - **Melhor modelo único continua sendo o 2-way** (`grid_ppo_nature_s0_500k`):
   ds1 ✓✓, ds3 ✓✓, ds2 440/450 (98%). Entre o 2-way e o fine-tuned (A), as
   3 pistas estão cobertas — mas por modelos diferentes.
-- Próximos passos se quiser fechar de verdade: mais steps (2M+), mais envs
-  (6+), reward por velocidade real, ou replay balanceado entre pistas.
+- Próximos passos se quiser fechar de verdade: **curriculum** (treinar pista
+  por pista com replay das antigas), **2 envs por pista** (6 envs), reward
+  por velocidade real, ou multi-task com cabeças por pista.
 
 #### Limitações conhecidas
 
