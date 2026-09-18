@@ -55,7 +55,8 @@ def _load_sb3_with_legacy_patch(Algo, model_path, device="auto"):
             src.impala_cnn.ImpalaCNN = orig
 
 
-def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, seed):
+def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, seed,
+             max_steps=900):
     # NOTA: usa SubprocVecEnv (não DummyVecEnv) porque o DeSmuME dá
     # "access violation" ao criar 2 emuladores no mesmo processo.
     from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
@@ -93,7 +94,7 @@ def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, 
                 ep_rew += float(rews[0])
                 steps += 1
                 done = bool(dones[0])
-            survived = steps >= 450  # max_steps default
+            survived = steps >= max_steps
             rows.append({"savestate": os.path.basename(sp), "episode": ep,
                          "reward": ep_rew, "steps": steps, "survived": survived})
             print(f"[{algo} {os.path.basename(sp)} ep={ep}] reward={ep_rew:.2f} steps={steps}")
@@ -101,7 +102,8 @@ def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, 
     return rows
 
 
-def eval_rainbow(model_path, features, savestates, rom_path, n_episodes, seed, device):
+def eval_rainbow(model_path, features, savestates, rom_path, n_episodes, seed, device,
+                 max_steps=900):
     import gymnasium as gym
     from gymnasium.wrappers import FrameStackObservation
     from tianshou.data import Batch
@@ -136,7 +138,7 @@ def eval_rainbow(model_path, features, savestates, rom_path, n_episodes, seed, d
                 steps += 1
                 done = bool(term[0] or trunc[0])
             rows.append({"savestate": os.path.basename(sp), "episode": ep,
-                         "reward": ep_rew, "steps": steps, "survived": steps >= 450})
+                         "reward": ep_rew, "steps": steps, "survived": steps >= max_steps})
             print(f"[rainbow-{features} {os.path.basename(sp)} ep={ep}] reward={ep_rew:.2f} steps={steps}")
         env.close()
     return rows
@@ -151,6 +153,8 @@ def main():
     parser.add_argument("--deterministic", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--savestate-idx", type=int, default=None, choices=[0, 1, 2])
+    parser.add_argument("--max-steps", type=int, default=900,
+                        help="Limite de passos (sobrevivência = steps >= max-steps)")
     parser.add_argument("--out", type=str, default=None, help="CSV de saída (default: eval_<algo>.csv)")
     args = parser.parse_args()
 
@@ -160,11 +164,13 @@ def main():
 
     if args.algo in ("ppo", "qrdqn"):
         rows = eval_sb3(args.algo, args.model, savestates, rom_path,
-                        args.n_episodes, args.deterministic, args.seed)
+                        args.n_episodes, args.deterministic, args.seed,
+                        max_steps=args.max_steps)
     else:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         rows = eval_rainbow(args.model, args.features, savestates, rom_path,
-                            args.n_episodes, args.seed, device)
+                            args.n_episodes, args.seed, device,
+                            max_steps=args.max_steps)
 
     out = args.out or f"eval_{args.algo}.csv"
     with open(out, "w", newline="") as f:

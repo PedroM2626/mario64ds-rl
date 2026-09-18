@@ -23,7 +23,7 @@ from stable_baselines3.common.monitor import Monitor
 from src.env import Mario64DSEnv
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=450, frameskip=4):
+def make_env(rom_path, state_path, rank=0, seed=0, max_steps=900, frameskip=4):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
@@ -72,7 +72,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--max-steps", type=int, default=450)
+    parser.add_argument("--max-steps", type=int, default=900)
     parser.add_argument("--frameskip", type=int, default=4)
     args = parser.parse_args()
 

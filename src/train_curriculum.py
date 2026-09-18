@@ -42,7 +42,7 @@ from src.train_ppo import MLflowCallback
 PHASES_DEFAULT = "200000:1e-4,200000:5e-5,200000:2.5e-5"
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=450, frameskip=4):
+def make_env(rom_path, state_path, rank=0, seed=0, max_steps=900, frameskip=4):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
@@ -65,14 +65,14 @@ def build_vec(rom_path, states, rank0, seed, max_steps, frameskip, n_stack=4):
     return vec
 
 
-def eval_pistas(model_path, rom_path, states, seed, n_eps=3):
+def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=900):
     """Eval determinístico por pista (SubprocVecEnv sequencial — seguro)."""
     from src.eval import _load_sb3_with_legacy_patch
     model = _load_sb3_with_legacy_patch(PPO, model_path, device="auto")
 
     rows = []
     for s_idx, sp in enumerate(states):
-        vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, 450, 4)
+        vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, max_steps, 4)
         for ep in range(n_eps):
             obs = vec.reset()
             done, ep_rew, steps = False, 0.0, 0
@@ -84,7 +84,7 @@ def eval_pistas(model_path, rom_path, states, seed, n_eps=3):
                 done = bool(dones[0])
             rows.append({"pista": f"ds{s_idx + 1}", "episode": ep,
                          "reward": ep_rew, "steps": steps,
-                         "survived": steps >= 450})
+                         "survived": steps >= max_steps})
         vec.close()
     return rows
 
@@ -183,7 +183,8 @@ def main():
                 print(f"FASE {i}: best_model.zip não encontrado; pulando eval", flush=True)
                 continue
 
-            rows = eval_pistas(phase_best, rom_full, states, args.seed, n_eps=3)
+            rows = eval_pistas(phase_best, rom_full, states, args.seed, n_eps=3,
+                               max_steps=900)
             pista_means = {}
             for pista in sorted(set(r["pista"] for r in rows)):
                 vv = [r for r in rows if r["pista"] == pista]

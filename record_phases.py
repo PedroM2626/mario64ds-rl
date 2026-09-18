@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--out-dir", type=str, default="videos")
     parser.add_argument("--fps", type=int, default=15,
                         help="FPS do vídeo (frameskip=4 sobre 60 Hz -> 15 = tempo real)")
-    parser.add_argument("--max-steps", type=int, default=450)
+    parser.add_argument("--max-steps", type=int, default=900)
     parser.add_argument("--single", type=str, default=None,
                         help=argparse.SUPPRESS)  # uso interno: grava 1 fase e sai
     args = parser.parse_args()

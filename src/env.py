@@ -18,7 +18,7 @@ except ImportError:
 class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
 
-    def __init__(self, rom_path, state_path, render_mode=None, max_steps=450, frameskip=4,
+    def __init__(self, rom_path, state_path, render_mode=None, max_steps=900, frameskip=4,
                  death_penalty=100.0, timeout_penalty=0.0):
         super(Mario64DSEnv, self).__init__()
         

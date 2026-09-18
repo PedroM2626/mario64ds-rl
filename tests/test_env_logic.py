@@ -32,7 +32,7 @@ def test_default_spaces_and_limits():
     env = _make_env()
     assert env.action_space.n == 6
     assert env.observation_space.shape == (84, 84, 1)
-    assert env.max_steps == 450
+    assert env.max_steps == 900  # 60s (o tempo de completar a descida)
     assert env.frameskip == 4
 
 

@@ -22,7 +22,7 @@ V_MIN = -100.0
 V_MAX = 100.0
 
 
-def make_env(rom_path, state_path, seed=0, max_steps=450, frameskip=4):
+def make_env(rom_path, state_path, seed=0, max_steps=900, frameskip=4):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
@@ -55,7 +55,7 @@ def main():
     parser.add_argument("--features", type=str, default="impala", choices=["impala", "nature"],
                         help="Extrator visual: 'impala' (default) ou 'nature' (comparação justa com PPO)")
     parser.add_argument("--seed", type=int, default=0, help="Seed para reproducibilidade")
-    parser.add_argument("--max-steps", type=int, default=450, help="Passos máximos por episódio")
+    parser.add_argument("--max-steps", type=int, default=900, help="Passos máximos por episódio")
     parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
     args = parser.parse_args()
 
