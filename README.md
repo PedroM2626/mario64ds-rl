@@ -348,7 +348,38 @@ python -m src.train_curriculum --run-id ppo_curriculum \
     --start-model models/grid_ppo_nature_s0_500k_best.zip \
     --phases "200000:1e-4,200000:5e-5,200000:2.5e-5" --eval-freq 5000
 ```
-Dados: `results_curriculum.csv` (27 linhas, por fase/pista/episódio).
+Dados: `results_curriculum.csv` (por fase/pista/episódio).
+
+### ⏱ Regime 900 steps (60s) — a descida completa (2026-09-17)
+
+Com 450 steps (30s) nenhum agente completa a descida — o tempo da pista é
+maior que 30s. Default global mudado para **900 steps (60s)** em env, treinos,
+eval e vídeos (`videos/` agora com 60s por fase).
+
+**Achado principal — o modelo 2-way 500k (treinado a 450) avaliado a 900,
+sem nenhum treino novo:**
+
+| Pista | Resultado @900 | Leitura |
+|---|---|---|
+| ds1 | +0,58 · **464**/900 · morte | sobrevive os 30s conhecidos e morre 14 passos na região nova |
+| ds2 | −70,30 · 302 · morte | nunca aprendida |
+| ds3 | **+79,13 · 900/900 · TIMEOUT** | **completa a descida inteira sem treino novo** — o treino a 450 generalizou para 60s na ds3 |
+
+**Tentativas de treino no regime 900 foram líquido-negativas (todas):**
+
+| Experimento | ds1 | ds3 | Veredito |
+|---|---|---|---|
+| Fine-tune 3e-4, 500k (`ppo_900_ds13`) | 101 (vs 464 original) | 147 | destruiu o modelo |
+| Curriculum 1e-4→5e-5, 500k (`curriculum_900`) | 244→369 | 533→358 (era 900✓) | degradou ambas |
+
+Hipótese (não falsificada): o **value net treinado a 450 fica descalibrado
+para episódios de 60s** (retornos ~2× maiores) e o fine-tune desestabiliza
+antes de recalibrar. O treino do zero no regime 900 é o caminho limpo.
+
+Regravar os vídeos 900:
+```bash
+python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
+```
 
 #### Limitações conhecidas
 

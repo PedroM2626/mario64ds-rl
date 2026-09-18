@@ -73,6 +73,9 @@ def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=900):
     rows = []
     for s_idx, sp in enumerate(states):
         vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, max_steps, 4)
+        # Label derivado do próprio caminho (ds1/ds2/ds3), não do índice —
+        # --states pode ser qualquer subconjunto (ex.: ds1,ds3).
+        pista_label = os.path.splitext(sp)[0].split(".")[-1]
         for ep in range(n_eps):
             obs = vec.reset()
             done, ep_rew, steps = False, 0.0, 0
@@ -82,7 +85,7 @@ def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=900):
                 ep_rew += float(rews[0])
                 steps += 1
                 done = bool(dones[0])
-            rows.append({"pista": f"ds{s_idx + 1}", "episode": ep,
+            rows.append({"pista": pista_label, "episode": ep,
                          "reward": ep_rew, "steps": steps,
                          "survived": steps >= max_steps})
         vec.close()
@@ -144,10 +147,10 @@ def main():
             print(f"\n===== FASE {i}/{len(phases)}: {steps} steps @ lr={lr} "
                   f"(resume: {current_model}) =====", flush=True)
 
-            train_envs = build_vec(rom_full, states, 0, args.seed, 450, 4, n_stack=4)
+            train_envs = build_vec(rom_full, states, 0, args.seed, 900, 4, n_stack=4)
             # Eval env com TODAS as pistas (1 env por pista): a recompensa média
             # do EvalCallback seleciona o checkpoint balanceado.
-            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 450, 4, n_stack=4)
+            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 900, 4, n_stack=4)
 
             model = PPO.load(current_model, env=train_envs, device="auto")
             # LR da fase: PPO.load restaura o schedule salvo; sobrescrevemos
