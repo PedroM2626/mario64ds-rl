@@ -19,7 +19,8 @@ class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
 
     def __init__(self, rom_path, state_path, render_mode=None, max_steps=1350, frameskip=4,
-                 death_penalty=100.0, timeout_penalty=0.0, step_penalty=0.02):
+                 death_penalty=100.0, timeout_penalty=0.0, step_penalty=0.02,
+                 coin_reward_enabled=False):
         super(Mario64DSEnv, self).__init__()
         
         self.rom_path = rom_path
@@ -38,6 +39,12 @@ class Mario64DSEnv(gym.Env):
         # acumula -0.02·max_steps (~-27 em 1350); avançar termina rápido,
         # paga menos tempo e agora coleta moedas de verdade (fix BGR/HSV).
         self.step_penalty = step_penalty
+        # Coin reward HSV: DESLIGADO por padrão. Diagnóstico 2026-09-17: a
+        # máscara amarela detecta o PISO XADREZ (faixa inferior, y~163) e a
+        # PAREDE DE FLORES (x~11-25), não moedas — reward hacking: ruído +
+        # puxão para a borda esquerda. A convergência histórica (450-regime)
+        # veio do fluxo óptico sozinho (HSV quebrado detectava ~nada).
+        self.coin_reward_enabled = coin_reward_enabled
         
         # Determine paths relative to this file
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -83,8 +90,13 @@ class Mario64DSEnv(gym.Env):
             gray = cv2.cvtColor(top_screen, cv2.COLOR_RGB2GRAY)
             self.last_top_screen_gray = gray.copy()
             resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
-            
-            # Coin Tracking / Guidance using HSV Color Thresholding
+
+            # Coin Tracking via HSV — apenas se habilitado (ver __init__:
+            # desligado por padrão; detectava piso xadrez/parede de flores).
+            if not self.coin_reward_enabled:
+                self.last_coin_reward = 0.0
+                return np.expand_dims(resized, axis=-1)
+
             hsv = cv2.cvtColor(top_screen, cv2.COLOR_RGB2HSV)
             # Yellow/Gold coins in Mario 64 DS
             lower_yellow = np.array([15, 100, 100])
