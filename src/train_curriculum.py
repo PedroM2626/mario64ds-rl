@@ -42,7 +42,7 @@ from src.train_ppo import MLflowCallback
 PHASES_DEFAULT = "200000:1e-4,200000:5e-5,200000:2.5e-5"
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=900, frameskip=4):
+def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
@@ -65,7 +65,7 @@ def build_vec(rom_path, states, rank0, seed, max_steps, frameskip, n_stack=4):
     return vec
 
 
-def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=900):
+def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=1350):
     """Eval determinístico por pista (SubprocVecEnv sequencial — seguro)."""
     from src.eval import _load_sb3_with_legacy_patch
     model = _load_sb3_with_legacy_patch(PPO, model_path, device="auto")
@@ -147,10 +147,10 @@ def main():
             print(f"\n===== FASE {i}/{len(phases)}: {steps} steps @ lr={lr} "
                   f"(resume: {current_model}) =====", flush=True)
 
-            train_envs = build_vec(rom_full, states, 0, args.seed, 900, 4, n_stack=4)
+            train_envs = build_vec(rom_full, states, 0, args.seed, 1350, 4, n_stack=4)
             # Eval env com TODAS as pistas (1 env por pista): a recompensa média
             # do EvalCallback seleciona o checkpoint balanceado.
-            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 900, 4, n_stack=4)
+            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 1350, 4, n_stack=4)
 
             model = PPO.load(current_model, env=train_envs, device="auto")
             # LR da fase: PPO.load restaura o schedule salvo; sobrescrevemos
@@ -187,7 +187,7 @@ def main():
                 continue
 
             rows = eval_pistas(phase_best, rom_full, states, args.seed, n_eps=3,
-                               max_steps=900)
+                               max_steps=1350)
             pista_means = {}
             for pista in sorted(set(r["pista"] for r in rows)):
                 vv = [r for r in rows if r["pista"] == pista]

@@ -56,7 +56,7 @@ def _load_sb3_with_legacy_patch(Algo, model_path, device="auto"):
 
 
 def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, seed,
-             max_steps=900):
+             max_steps=1350):
     # NOTA: usa SubprocVecEnv (não DummyVecEnv) porque o DeSmuME dá
     # "access violation" ao criar 2 emuladores no mesmo processo.
     from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
@@ -103,7 +103,7 @@ def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, 
 
 
 def eval_rainbow(model_path, features, savestates, rom_path, n_episodes, seed, device,
-                 max_steps=900):
+                 max_steps=1350):
     import gymnasium as gym
     from gymnasium.wrappers import FrameStackObservation
     from tianshou.data import Batch
@@ -153,7 +153,7 @@ def main():
     parser.add_argument("--deterministic", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--savestate-idx", type=int, default=None, choices=[0, 1, 2])
-    parser.add_argument("--max-steps", type=int, default=900,
+    parser.add_argument("--max-steps", type=int, default=1350,
                         help="Limite de passos (sobrevivência = steps >= max-steps)")
     parser.add_argument("--out", type=str, default=None, help="CSV de saída (default: eval_<algo>.csv)")
     args = parser.parse_args()

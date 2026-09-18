@@ -1,8 +1,8 @@
-"""Testes unitários do env que NÃO precisam do emulador/ROM.
+﻿"""Testes unitÃ¡rios do env que NÃƒO precisam do emulador/ROM.
 
-O antigo ``src/test_env.py`` exigia DeSmuME + ROM e não era coletado pelo
-pytest. Estes testes cobrem a convenção de recompensa (anti-suicídio),
-spaces e construção com emulador mockado.
+O antigo ``src/test_env.py`` exigia DeSmuME + ROM e nÃ£o era coletado pelo
+pytest. Estes testes cobrem a convenÃ§Ã£o de recompensa (anti-suicÃ­dio),
+spaces e construÃ§Ã£o com emulador mockado.
 """
 
 from unittest.mock import MagicMock, patch
@@ -32,7 +32,7 @@ def test_default_spaces_and_limits():
     env = _make_env()
     assert env.action_space.n == 6
     assert env.observation_space.shape == (84, 84, 1)
-    assert env.max_steps == 900  # 60s (o tempo de completar a descida)
+    assert env.max_steps == 1350  # 60s (o tempo de completar a descida)
     assert env.frameskip == 4
 
 

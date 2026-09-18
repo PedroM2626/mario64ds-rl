@@ -18,8 +18,8 @@ except ImportError:
 class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
 
-    def __init__(self, rom_path, state_path, render_mode=None, max_steps=900, frameskip=4,
-                 death_penalty=100.0, timeout_penalty=0.0):
+    def __init__(self, rom_path, state_path, render_mode=None, max_steps=1350, frameskip=4,
+                 death_penalty=100.0, timeout_penalty=0.0, step_penalty=0.02):
         super(Mario64DSEnv, self).__init__()
         
         self.rom_path = rom_path
@@ -32,6 +32,12 @@ class Mario64DSEnv(gym.Env):
         # Manter death_penalty > timeout_penalty, senão o agente aprende a se suicidar.
         self.death_penalty = death_penalty
         self.timeout_penalty = timeout_penalty
+        # Anti-camping (report 2026-09-17: o agente descobriu que sobrevive
+        # parado num trecho da ds3 que não o joga para baixo — o timeout sem
+        # custo torna camping viável). Custo fixo por passo: ficar parado
+        # acumula -0.02·max_steps (~-27 em 1350); avançar termina rápido,
+        # paga menos tempo e agora coleta moedas de verdade (fix BGR/HSV).
+        self.step_penalty = step_penalty
         
         # Determine paths relative to this file
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,7 +72,13 @@ class Mario64DSEnv(gym.Env):
         try:
             frame = self.emu.display_buffer_as_rgbx()
             frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
-            top_screen = frame[:192, :, :3]
+            # FIX (bug de cores): o buffer do py-desmume é BGR(X), não RGBX
+            # como se assumia — cv2.imwrite mostrava Mario vermelho e o vídeo
+            # (imageio, RGB) mostrava azul. Com RGB2HSV em dados BGR o matiz
+            # rotaciona (H -> 120-H) e a máscara amarela [15-40] detectava
+            # coisas CIANO (H~90 -> 30), não as moedas (H~25 -> 95):
+            # a recompensa de moeda estava quebrada desde sempre.
+            top_screen = frame[:192, :, [2, 1, 0]]  # BGR -> RGB
             
             gray = cv2.cvtColor(top_screen, cv2.COLOR_RGB2GRAY)
             self.last_top_screen_gray = gray.copy()
@@ -128,8 +140,8 @@ class Mario64DSEnv(gym.Env):
         obs = self._get_obs()
         self.episode_steps += 1
         
-        # Base reward consists only of coin reward (added below) and punishments (if dead)
-        reward = 0.0
+        # Custo de tempo por passo (anti-camping, ver __init__)
+        reward = -self.step_penalty
         
         done = False 
         truncated = False
@@ -196,7 +208,8 @@ class Mario64DSEnv(gym.Env):
             return np.zeros((192, 256, 3), dtype=np.uint8)
         frame = self.emu.display_buffer_as_rgbx()
         frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
-        return frame[:192, :, :3]
+        # Buffer é BGR(X) (ver fix em _get_obs): converte para RGB
+        return frame[:192, :, [2, 1, 0]]
 
     def close(self):
         if self.has_emulator:

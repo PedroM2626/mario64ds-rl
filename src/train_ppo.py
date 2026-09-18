@@ -12,7 +12,7 @@ from stable_baselines3.common.monitor import Monitor
 from src.env import Mario64DSEnv
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=900, frameskip=4):
+def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
@@ -69,7 +69,7 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="Seed para reproducibilidade")
     parser.add_argument("--states", type=str, default="ds1,ds3",
                         help="Savestates no mix de treino (ex.: 'ds1,ds2,ds3' para generalizar nas 3 pistas)")
-    parser.add_argument("--max-steps", type=int, default=900, help="Passos máximos por episódio (deve bater com env)")
+    parser.add_argument("--max-steps", type=int, default=1350, help="Passos máximos por episódio (deve bater com env)")
     parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
     args = parser.parse_args()
 

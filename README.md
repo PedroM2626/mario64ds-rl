@@ -1,9 +1,14 @@
-# Mario 64 DS - Reinforcement Learning (Cool Cool Mountain Slide)
+# Mario 64 DS - Reinforcement Learning (Slides do Super Mario 64 DS)
 
-Este projeto é uma implementação de Aprendizado por Reforço Profundo (Deep Reinforcement Learning) que ensina uma Inteligência Artificial a pilotar o Mário na descida de gelo da fase *Cool Cool Mountain* no jogo Super Mario 64 DS, rodando nativamente através de um emulador de Nintendo DS.
+Este projeto é uma implementação de Aprendizado por Reforço Profundo (Deep Reinforcement Learning) que ensina uma Inteligência Artificial a pilotar o Mário nas pistas de descida do Super Mario 64 DS, rodando nativamente através de um emulador de Nintendo DS.
+
+**Pistas (savestates em `data/`):**
+- `ds1` — pista da fase 3
+- `ds2` — pista da Peach
+- `ds3` — pista secreta da fase do macaco
 
 ## 🎯 Objetivo
-O objetivo do agente é sobreviver o maior tempo possível na pista de gelo sem cair no abismo, movendo-se para frente e coletando moedas ao longo do caminho, utilizando apenas o feed visual da tela (pixels) como observação.
+O objetivo do agente é **completar a descida** (não apenas sobreviver), movendo-se para frente e coletando moedas ao longo do caminho, utilizando apenas o feed visual da tela (pixels) como observação. Episódios de `1350` steps (90s a frameskip 4) — 30s não bastavam para completar nenhuma pista.
 
 ## 🧠 Arquitetura do Projeto
 - **Emulador**: `py-desmume` (Wrapper Python para o emulador de C++ DeSmuME).
@@ -408,6 +413,41 @@ CNN, não o rollout. O OOM do Rainbow+IMPALA é de RAM (buffer), não de VRAM.
 > `support` na CPU; sem `policy.to(device)` (`src/train.py`) o treino em
 > GPU explode com device mismatch (`cuda:0 vs cpu`). Corrigido — e com a
 > GPU o Rainbow saltou de ~6,5 it/s (CPU) para ~15 it/s (~3× mais rápido).
+
+### 🎨 Bug de cores (BGR vs RGB) — 2026-09-17
+
+**Descoberta:** o buffer do `py-desmume` é **BGR(X)**, não RGBX como o código
+assumia. Diagnóstico: `cv2.imwrite` (que espera BGR) mostrava Mario
+**vermelho** e moeda **amarela**; o vídeo via imageio (que espera RGB)
+mostrava Mario **azul** e moeda **azul** (report do usuário).
+
+Consequência grave: com `COLOR_RGB2HSV` em dados BGR, o matiz rotaciona
+(H → 120−H) — a máscara "amarela" [15-40] detectava coisas **ciano**
+(H≈90→30), **não as moedas** (H≈25→95). **A recompensa de moeda estava
+quebrada desde sempre** — o treino foi carregado pelo fluxo óptico sozinho.
+
+**Fixes em `src/env.py`:**
+- `_get_obs`: slice `[2,1,0]` (BGR→RGB) antes do grayscale e do HSV — a
+  detecção de moedas agora funciona como desenhado.
+- `get_screen_rgb`: converte para RGB — vídeos com cores corretas.
+- Grayscale: pesos trocados no encoding antigo (impacto menor — a CNN se
+  adaptava, mas o encoding muda com o fix).
+
+**Impacto:** o encoding da observação e a recompensa mudam → **todos os
+modelos anteriores ficaram stale** (foram treinados sem moedas e com
+camping viável). Retreino do zero com o env corrigido.
+
+### 🏕 Anti-camping + 1350 steps (2026-09-17)
+
+Report: na ds3, o agente descobriu que **sobrevive parado** num trecho que
+não o joga para baixo — o timeout sem custo tornava camping viável
+(ótimo local clássico, como o "Paradoxo do Suicídio" §5).
+
+**Fixes:**
+- **`step_penalty=0.02`/passo** (`src/env.py`): ficar parado acumula
+  ~−27 em 1350 steps; avançar termina rápido, paga menos tempo e agora
+  coleta moedas de verdade (fix BGR/HSV acima).
+- **`max_steps=1350`** (90s): 900 (60s) ainda não bastavam para completar.
 
 ## 🛠 Como Executar
 
