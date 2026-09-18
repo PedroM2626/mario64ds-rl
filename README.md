@@ -312,6 +312,44 @@ Leitura científica:
   por pista com replay das antigas), **2 envs por pista** (6 envs), reward
   por velocidade real, ou multi-task com cabeças por pista.
 
+### 🎓 Curriculum — quase fecha as 3 pistas (2026-09-17, `src/train_curriculum.py`)
+
+Design: partir do melhor modelo (2-way 500k), **LR decrescente por fase**
+(1e-4 → 5e-5 → 2.5e-5), todas as pistas no mix em toda fase, e seleção do
+melhor checkpoint **balanceado** (EvalCallback com eval determinístico nas 3
+pistas — vec com 1 env por pista; a média seleciona o balanceado: um
+especialista de 1 pista tem média ~−33, um modelo que sobrevive as 3 tem ~+63).
+
+| Fase (lr) | ds1 | ds2 | ds3 | Média balanceada |
+|---|---|---|---|---|
+| 1 (1e-4, 200k) | **✓ 3/3** (+79,27) | ✗ 337 | **✓ 3/3** (+42,69) | +28,4* |
+| 2 (5e-5, 200k) | ✗ **432/450 (96%)** | **✓ 3/3** (+44,24) | **✓ 3/3** (+51,41) | **+28,36** ← best global |
+| 3 (2.5e-5, 200k) | ✗ 338 | ✗ 432 (regrediu) | **✓ 3/3** (+58,68) | +17,5 |
+
+\* média da fase 1: (79,27 − 73,59 + 42,69)/3 = +16,1; o best global (28,36) é o checkpoint da fase 2.
+
+Leitura científica:
+- **O LR baixo funciona como anti-esquecimento**: a fase 1 (1e-4) preservou
+  ds1+ds3 — no experimento A (fine-tune direto a 3e-4), ds1 foi esquecido
+  imediatamente. Isso isola a causa do esquecimento: a **magnitude do update**,
+  não o mixing de dados.
+- **A fase 2 aprendeu ds2** (3/3) mantendo ds3 e chegando a 96% em ds1 —
+  faltaram **18 passos** para fechar as 3 pistas.
+- **A fase 3 regrediu** (LR 2.5e-5, 200k): mais steps não garantem — o
+  checkpoint da fase 2 estava num pico instável.
+- O `ppo_curriculum_best.zip` (fase 2) é o segundo melhor modelo do projeto:
+  ds2 ✓✓, ds3 ✓✓, ds1 96% — complementar ao 2-way (ds1 ✓✓, ds3 ✓✓, ds2 98%).
+- Caminho para fechar de verdade: estender a fase 2 (500k @ 5e-5 partindo do
+  best da fase 1) ou 2 envs por pista no curriculum.
+
+Reproduzir:
+```bash
+python -m src.train_curriculum --run-id ppo_curriculum \
+    --start-model models/grid_ppo_nature_s0_500k_best.zip \
+    --phases "200000:1e-4,200000:5e-5,200000:2.5e-5" --eval-freq 5000
+```
+Dados: `results_curriculum.csv` (27 linhas, por fase/pista/episódio).
+
 #### Limitações conhecidas
 
 - **Confusão treino-legado:** checkpoints de 1M/500k antigos foram treinados
