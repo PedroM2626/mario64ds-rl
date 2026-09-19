@@ -68,12 +68,14 @@ def _record_single(args):
     env = Mario64DSEnv(rom_path=rom_path, state_path=savestate_path)
     obs, info = env.reset()
 
-    # FrameStack REAL (igual ao treino via FrameStackObservation): deque de 4
-    # frames sucessivos, inicializado com 4 cópias do frame de reset. Repetir
-    # o frame atual 4x remove a noção de movimento e muda o comportamento do
-    # modelo (agente morre) — por isso o stack deslizante é obrigatório.
+    # FrameStack REAL (igual ao treino via SB3 VecFrameStack): no reset o
+    # stack do SB3 é [0, 0, 0, reset] (3 zeros + o frame atual no último
+    # slot) — NÃO 4 cópias do reset (convencão do FrameStackObservation do
+    # gymnasium, usada só nos paths Tianshou). Replicar o init errado muda
+    # as primeiras ações e a trajetória diverge (o agente morre).
     from collections import deque
-    stack_deque = deque([obs[:, :, 0]] * 4, maxlen=4)
+    first = obs[:, :, 0]
+    stack_deque = deque([np.zeros_like(first)] * 3 + [first], maxlen=4)
 
     def make_stack():
         # (4, 84, 84) CHW — mesmo formato do treino (VecFrameStack+VecTransposeImage)
