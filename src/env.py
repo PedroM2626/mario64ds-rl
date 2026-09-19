@@ -20,7 +20,7 @@ class Mario64DSEnv(gym.Env):
 
     def __init__(self, rom_path, state_path, render_mode=None, max_steps=1350, frameskip=4,
                  death_penalty=100.0, timeout_penalty=0.0, step_penalty=0.02,
-                 coin_reward_enabled=False):
+                 coin_reward_enabled=False, flow_weight=1.0):
         super(Mario64DSEnv, self).__init__()
         
         self.rom_path = rom_path
@@ -39,6 +39,7 @@ class Mario64DSEnv(gym.Env):
         # acumula -0.02·max_steps (~-27 em 1350); avançar termina rápido,
         # paga menos tempo e agora coleta moedas de verdade (fix BGR/HSV).
         self.step_penalty = step_penalty
+        self.flow_weight = flow_weight
         # Coin reward HSV: DESLIGADO por padrão. Diagnóstico 2026-09-17: a
         # máscara amarela detecta o PISO XADREZ (faixa inferior, y~163) e a
         # PAREDE DE FLORES (x~11-25), não moedas — reward hacking: ruído +
@@ -182,7 +183,13 @@ class Mario64DSEnv(gym.Env):
                 flow = cv2.calcOpticalFlowFarneback(self.prev_gray, curr_gray_small, None, 0.5, 3, 15, 3, 5, 1.2, 0)
                 flow_y = flow[..., 1]
                 # Positive flow_y means pixels are moving down -> Mario is moving forward
-                flow_reward = np.clip(np.mean(flow_y), 0, None) * 0.5
+                # Positive flow_y means pixels are moving down -> Mario is moving forward.
+                # flow_weight=1.0 (era 0.5): com a remoção do hacking da moeda,
+                # o flow sozinho (~0.1-0.25/passo) era fraco demais contra o
+                # -100 da morte em rollouts estocásticos (todos os treinos
+                # frescos degradavam); o sinal denso de avanço precisa ser
+                # forte para vencer o ruído da morte.
+                flow_reward = np.clip(np.mean(flow_y), 0, None) * self.flow_weight
                 reward += flow_reward
             self.prev_gray = curr_gray_small
 

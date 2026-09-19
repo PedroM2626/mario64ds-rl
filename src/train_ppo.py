@@ -12,11 +12,13 @@ from stable_baselines3.common.monitor import Monitor
 from src.env import Mario64DSEnv
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4):
+def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4,
+             step_penalty=0.02, flow_weight=1.0):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
             max_steps=max_steps, frameskip=frameskip,
+            step_penalty=step_penalty, flow_weight=flow_weight,
         )
         env = Monitor(env)
         env.reset(seed=seed + rank)
@@ -71,6 +73,10 @@ def main():
                         help="Savestates no mix de treino (ex.: 'ds1,ds2,ds3' para generalizar nas 3 pistas)")
     parser.add_argument("--max-steps", type=int, default=1350, help="Passos máximos por episódio (deve bater com env)")
     parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
+    parser.add_argument("--step-penalty", type=float, default=0.02,
+                        help="Custo por passo (anti-camping)")
+    parser.add_argument("--flow-weight", type=float, default=1.0,
+                        help="Peso do flow reward (0.5 antigo; 1.0+ vence o ruído da morte)")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -91,7 +97,9 @@ def main():
     for i in range(args.n_envs):
         state = savestates[i % len(savestates)]
         env_fns.append(make_env(rom_full, state, rank=i, seed=args.seed,
-                                max_steps=args.max_steps, frameskip=args.frameskip))
+                                max_steps=args.max_steps, frameskip=args.frameskip,
+                                step_penalty=args.step_penalty,
+                                flow_weight=args.flow_weight))
 
     train_envs = SubprocVecEnv(env_fns)
     train_envs = VecFrameStack(train_envs, n_stack=4)
