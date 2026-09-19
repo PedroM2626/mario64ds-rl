@@ -455,9 +455,25 @@ não o joga para baixo — o timeout sem custo tornava camping viável
 O emulador necessita que as Roms e Savestates estejam nomeadas corretamente na pasta `data/`
 (não vão para o git — ver `.gitignore`):
 - `data/Super Mario 64 DS (USA) (Rev 1).nds`
-- `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Início da ladeira central)
-- `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Outra ladeira)
-- `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Início de outra ladeira)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Pista da fase 3)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Pista da Peach)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Pista secreta da fase do macaco)
+
+### 🏆 Modelo atual que completa a ds1 (2026-09-17)
+
+Com o env corrigido (cores BGR fix, moedas reais desligadas por hacking,
+flow ×2.5, penalidade anti-camping, 1350 steps), o treino fresco convergiu:
+
+**`ppo_flow25_ds13_best.zip`** (PPO+Nature, flow ×2.5, 1M steps, seed 0):
+- **ds1: +179,75 · 1350/1350 · 3/3 — COMPLETA a descida (90s)!**
+- ds2: −74,06 · 228 · 0/3 | ds3: −57,40 · 81 · 0/3 (especialização de pista persiste)
+
+Vídeos (bate exatamente com o eval):
+```bash
+python record_phases.py --model models/ppo_flow25_ds13_best.zip
+```
+O modelo antigo `grid_ppo_nature_s0_500k_best.zip` completa a ds3
+(+338,98 · 1350/1350) — modelos complementares, nenhum cobre as 3 ainda.
 
 ### Treinando Novos Modelos
 Para iniciar um novo treinamento do zero, escolha sua arma:
