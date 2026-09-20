@@ -79,9 +79,9 @@ def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=1350,
     for s_idx, sp in enumerate(states):
         vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, max_steps, 4,
                         step_penalty=step_penalty, flow_weight=flow_weight)
-        # Label derivado do próprio caminho (ds1/ds2/ds3), não do índice —
+        # Label derivado do basename (ds1/ds2/ds3), não do índice —
         # --states pode ser qualquer subconjunto (ex.: ds1,ds3).
-        pista_label = os.path.splitext(sp)[0].split(".")[-1]
+        pista_label = os.path.basename(sp).split(".")[-1]
         for ep in range(n_eps):
             obs = vec.reset()
             done, ep_rew, steps = False, 0.0, 0
