@@ -42,11 +42,13 @@ from src.train_ppo import MLflowCallback
 PHASES_DEFAULT = "200000:1e-4,200000:5e-5,200000:2.5e-5"
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4):
+def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4,
+             step_penalty=0.02, flow_weight=1.0):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
             max_steps=max_steps, frameskip=frameskip,
+            step_penalty=step_penalty, flow_weight=flow_weight,
         )
         env = Monitor(env)
         env.reset(seed=seed + rank)
@@ -54,10 +56,12 @@ def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4):
     return _init
 
 
-def build_vec(rom_path, states, rank0, seed, max_steps, frameskip, n_stack=4):
+def build_vec(rom_path, states, rank0, seed, max_steps, frameskip, n_stack=4,
+              step_penalty=0.02, flow_weight=1.0):
     vec = SubprocVecEnv([
         make_env(rom_path, sp, rank=rank0 + i, seed=seed,
-                 max_steps=max_steps, frameskip=frameskip)
+                 max_steps=max_steps, frameskip=frameskip,
+                 step_penalty=step_penalty, flow_weight=flow_weight)
         for i, sp in enumerate(states)
     ])
     vec = VecFrameStack(vec, n_stack=n_stack)
@@ -65,14 +69,16 @@ def build_vec(rom_path, states, rank0, seed, max_steps, frameskip, n_stack=4):
     return vec
 
 
-def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=1350):
+def eval_pistas(model_path, rom_path, states, seed, n_eps=3, max_steps=1350,
+                step_penalty=0.02, flow_weight=2.5):
     """Eval determinístico por pista (SubprocVecEnv sequencial — seguro)."""
     from src.eval import _load_sb3_with_legacy_patch
     model = _load_sb3_with_legacy_patch(PPO, model_path, device="auto")
 
     rows = []
     for s_idx, sp in enumerate(states):
-        vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, max_steps, 4)
+        vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, max_steps, 4,
+                        step_penalty=step_penalty, flow_weight=flow_weight)
         # Label derivado do próprio caminho (ds1/ds2/ds3), não do índice —
         # --states pode ser qualquer subconjunto (ex.: ds1,ds3).
         pista_label = os.path.splitext(sp)[0].split(".")[-1]
@@ -104,6 +110,10 @@ def main():
     parser.add_argument("--n-envs", type=int, default=3)
     parser.add_argument("--eval-freq", type=int, default=10000,
                         help="Steps entre evals do EvalCallback (deve ser < steps da fase)")
+    parser.add_argument("--step-penalty", type=float, default=0.02,
+                        help="Custo por passo (anti-camping)")
+    parser.add_argument("--flow-weight", type=float, default=2.5,
+                        help="Peso do flow reward (2.5: sinal denso que vence o ruído da morte)")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -147,10 +157,12 @@ def main():
             print(f"\n===== FASE {i}/{len(phases)}: {steps} steps @ lr={lr} "
                   f"(resume: {current_model}) =====", flush=True)
 
-            train_envs = build_vec(rom_full, states, 0, args.seed, 1350, 4, n_stack=4)
+            train_envs = build_vec(rom_full, states, 0, args.seed, 1350, 4, n_stack=4,
+                                                step_penalty=args.step_penalty, flow_weight=args.flow_weight)
             # Eval env com TODAS as pistas (1 env por pista): a recompensa média
             # do EvalCallback seleciona o checkpoint balanceado.
-            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 1350, 4, n_stack=4)
+            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 1350, 4, n_stack=4,
+                                            step_penalty=args.step_penalty, flow_weight=args.flow_weight)
 
             model = PPO.load(current_model, env=train_envs, device="auto")
             # LR da fase: PPO.load restaura o schedule salvo; sobrescrevemos
@@ -187,7 +199,9 @@ def main():
                 continue
 
             rows = eval_pistas(phase_best, rom_full, states, args.seed, n_eps=3,
-                               max_steps=1350)
+                               max_steps=1350,
+                               step_penalty=args.step_penalty,
+                               flow_weight=args.flow_weight)
             pista_means = {}
             for pista in sorted(set(r["pista"] for r in rows)):
                 vv = [r for r in rows if r["pista"] == pista]
