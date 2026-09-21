@@ -6,8 +6,8 @@ RGB top screen (256x192) via env.get_screen_rgb() rather than the agent's
 84x84 grayscale observation. Outputs: videos/phase_ds1.mp4, phase_ds2.mp4, phase_ds3.mp4.
 
 Examples:
-    python record_phases.py --model models/curriculum_flow25_r3_best.zip
-    python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip --fps 15
+    python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
+    python scripts/record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip --fps 15
 """
 
 import argparse
@@ -15,6 +15,10 @@ import os
 import subprocess
 import sys
 
+# Ensure repository root is on sys.path
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 PHASES = ["ds1", "ds2", "ds3"]
 
@@ -35,11 +39,13 @@ def main():
                         help=argparse.SUPPRESS)  # Internal use: records single track and exits
     args = parser.parse_args()
 
+    out_dir_full = os.path.join(ROOT_DIR, args.out_dir) if not os.path.isabs(args.out_dir) else args.out_dir
+
     if args.single is None:
         # Orchestrator mode: 1 subprocess per phase (isolates DeSmuME C++ memory space)
-        os.makedirs(args.out_dir, exist_ok=True)
+        os.makedirs(out_dir_full, exist_ok=True)
         for phase in PHASES:
-            out = os.path.join(args.out_dir, f"phase_{phase}.mp4")
+            out = os.path.join(out_dir_full, f"phase_{phase}.mp4")
             print(f"\n=== Recording {phase} -> {out} ===", flush=True)
             r = subprocess.run(
                 [sys.executable, __file__, "--model", args.model, "--rom", args.rom,
@@ -47,28 +53,29 @@ def main():
                  "--max-steps", str(args.max_steps), "--single", phase,
                  "--flow-weight", str(args.flow_weight),
                  "--step-penalty", str(args.step_penalty)],
+                cwd=ROOT_DIR
             )
             if r.returncode != 0:
                 print(f"WARNING: recording {phase} failed (exit={r.returncode})", flush=True)
         return
 
     # Single mode: record ONE phase in this process
-    _record_single(args)
+    _record_single(args, out_dir_full)
 
 
-def _record_single(args):
+def _record_single(args, out_dir_full):
     import imageio
     import numpy as np
     from stable_baselines3 import PPO
 
     from src.env import Mario64DSEnv
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    rom_path = os.path.join(base_dir, args.rom)
-    savestate_path = os.path.join(base_dir, "data", f"Super Mario 64 DS (USA) (Rev 1).{args.single}")
-    out_path = os.path.join(args.out_dir, f"phase_{args.single}.mp4")
+    rom_path = os.path.join(ROOT_DIR, args.rom) if not os.path.isabs(args.rom) else args.rom
+    savestate_path = os.path.join(ROOT_DIR, "data", f"Super Mario 64 DS (USA) (Rev 1).{args.single}")
+    out_path = os.path.join(out_dir_full, f"phase_{args.single}.mp4")
+    model_path = os.path.join(ROOT_DIR, args.model) if not os.path.isabs(args.model) else args.model
 
-    model = PPO.load(args.model)
+    model = PPO.load(model_path)
 
     env = Mario64DSEnv(rom_path=rom_path, state_path=savestate_path,
                        step_penalty=args.step_penalty, flow_weight=args.flow_weight)

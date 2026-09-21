@@ -26,7 +26,7 @@ The agent's primary objective is to **complete the descent** (not merely survive
 
 To re-record the demonstration videos:
 ```bash
-python record_phases.py --model models/curriculum_flow25_r3_best.zip
+python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
 ```
 
 ---
@@ -75,8 +75,10 @@ Each training round initially consolidated one track at the expense of another; 
   - **QR-DQN** (sb3-contrib, `src/train_qrdqn.py`) supporting both NatureCNN and IMPALA feature extractors.
 - **Experiment Tracking**: `MLflow` (SQLite backend `mlflow.db`) + `TensorBoard` (`tensorboard_logs/<run-id>`).
 - **Evaluation Engine**: `src/eval.py` ($N$ deterministic/stochastic episodes, fixed seeds, CSV exports).
-- **Video Rendering**: `record_phases.py` (records real-time RGB MP4 demonstration footage across all tracks).
+- **Video Rendering**: `scripts/record_phases.py` (records real-time RGB MP4 demonstration footage across all tracks).
+- **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
 - **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
+- **Consolidated Empirical Data**: `results/` (stores consolidated experimental CSV tables for 100k grid, 500k scale, 2M steps, and curriculum rounds).
 
 ---
 
@@ -118,7 +120,7 @@ Initial experiments evaluated policies over 450 steps ($30\text{s}$) with single
 - *Reproducibility Note*: These historical figures reflected single stochastic rollouts without fixed seeds. Systematic evaluations were formalized under `src/eval.py`.
 
 ### 100k Controlled Benchmark Grid (CPU Baseline)
-Evaluating `(PPO, Rainbow, QR-DQN) × (NatureCNN, IMPALA) × Seeds {0, 1, 2}` over 100k timesteps (`results_grid_100k.csv`):
+Evaluating `(PPO, Rainbow, QR-DQN) × (NatureCNN, IMPALA) × Seeds {0, 1, 2}` over 100k timesteps (`results/results_grid_100k.csv`):
 
 | Algorithm × Extractor @ 100k | Mean Reward $\pm$ SD | Mean Survival Rate | Mean Training Duration | Status |
 |---|---|---|---|---|
@@ -135,7 +137,7 @@ Evaluating `(PPO, Rainbow, QR-DQN) × (NatureCNN, IMPALA) × Seeds {0, 1, 2}` ov
 3. At 100k steps, single-track specialization dominated; multi-track generalizability required longer horizons and structured curricula.
 
 ### 500k Regime Scaling & Generalization
-Increasing training to 500k timesteps on two tracks (`ds1` + `ds3`) tested whether scale broke single-track specialization (`results_grid_500k.csv`):
+Increasing training to 500k timesteps on two tracks (`ds1` + `ds3`) tested whether scale broke single-track specialization (`results/results_grid_500k.csv`):
 
 | Configuration | `ds1` (3 eps det.) | `ds2` (3 eps det.) | `ds3` (3 eps det.) | Overall Survival |
 |---|---|---|---|---|
@@ -235,7 +237,7 @@ python -m src.play --algo ppo --model models/curriculum_flow25_r3_best.zip --det
 
 **Record high-definition demonstration MP4s:**
 ```bash
-python record_phases.py --model models/curriculum_flow25_r3_best.zip --fps 15
+python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip --fps 15
 ```
 
 ### Automated Testing

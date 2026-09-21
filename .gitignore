@@ -22,3 +22,6 @@ data/Desmume/
 images/test_*.png
 # Grid execution logs (verbose, large, reproducible)
 logs/
+# Intermediate single-run evaluation CSVs
+eval_*.csv
+results/eval_*.csv

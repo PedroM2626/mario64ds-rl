@@ -137,7 +137,9 @@ def main():
     mlflow.set_experiment("Mario64_NDS_RL")
 
     models_dir = os.path.join(base_dir, "models")
-    results_csv = os.path.join(base_dir, "results_curriculum.csv")
+    results_dir = os.path.join(base_dir, "results")
+    os.makedirs(results_dir, exist_ok=True)
+    results_csv = os.path.join(results_dir, "results_curriculum.csv")
 
     all_rows = []
     current_model = args.start_model

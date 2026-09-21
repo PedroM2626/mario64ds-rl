@@ -2,12 +2,12 @@
 
 Executes all training configurations sequentially in isolated subprocesses to prevent
 DeSmuME memory access violations. Upon training completion, runs deterministic evaluations
-(3 episodes per savestate) and logs metrics to a consolidated results CSV.
+(3 episodes per savestate) and logs metrics to a consolidated results CSV in results/.
 
 Usage:
-    python run_grid_100k.py
-    python run_grid_100k.py --timesteps 100000 --n-episodes 3
-    python run_grid_100k.py --dry-run
+    python scripts/run_grid_100k.py
+    python scripts/run_grid_100k.py --timesteps 100000 --n-episodes 3
+    python scripts/run_grid_100k.py --dry-run
 """
 
 import argparse
@@ -17,14 +17,17 @@ import subprocess
 import sys
 import time
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
+
 PY = sys.executable
 
 ALGOS = ["ppo", "rainbow", "qrdqn"]
 FEATURES = ["nature", "impala"]
 SEEDS = [0, 1, 2]
 
-RESULTS_CSV = os.path.join(BASE, "results_grid_100k.csv")
+RESULTS_CSV = os.path.join(BASE, "results", "results_grid_100k.csv")
 
 
 def run_id(algo, feat, seed, timesteps):
@@ -85,7 +88,7 @@ def main():
                     help="Episodes per savestate in evaluation")
     ap.add_argument("--dry-run", action="store_true", help="Print commands without executing")
     ap.add_argument("--results-csv", type=str, default=None,
-                    help="Consolidated CSV path (default: results_grid_<timesteps//1000>k.csv)")
+                    help="Consolidated CSV path (default: results/results_grid_<timesteps//1000>k.csv)")
     ap.add_argument("--algos", type=str, default="ppo,rainbow,qrdqn",
                     help="Comma-separated algorithms (e.g. 'ppo,rainbow')")
     ap.add_argument("--features-list", type=str, default="nature,impala",
@@ -98,7 +101,9 @@ def main():
                     help="Substring filter for run_id: e.g. 'qrdqn' or 'rainbow_nature_s1'")
     args = ap.parse_args()
 
-    results_csv = args.results_csv or os.path.join(BASE, f"results_grid_{args.timesteps // 1000}k.csv")
+    results_dir = os.path.join(BASE, "results")
+    os.makedirs(results_dir, exist_ok=True)
+    results_csv = args.results_csv or os.path.join(results_dir, f"results_grid_{args.timesteps // 1000}k.csv")
     algos = [a.strip() for a in args.algos.split(",") if a.strip()]
     feats = [f.strip() for f in args.features_list.split(",") if f.strip()]
     seeds = [int(s) for s in args.seeds.split(",") if s.strip() != ""]
@@ -165,7 +170,7 @@ def main():
 
         # Evaluate per savestate in isolated subprocesses
         for sidx in (0, 1):
-            out_csv = os.path.join(BASE, f"eval_{rid}_ds{sidx}.csv")
+            out_csv = os.path.join(results_dir, f"eval_{rid}_ds{sidx}.csv")
             ec = eval_cmd(a, f, mp, s, args.n_episodes, out_csv) + ["--savestate-idx", str(sidx)]
             print(f"----- EVAL {rid} ds{sidx} -----", flush=True)
             try:
