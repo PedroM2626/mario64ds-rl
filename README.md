@@ -468,12 +468,37 @@ flow ×2.5, penalidade anti-camping, 1350 steps), o treino fresco convergiu:
 - **ds1: +179,75 · 1350/1350 · 3/3 — COMPLETA a descida (90s)!**
 - ds2: −74,06 · 228 · 0/3 | ds3: −57,40 · 81 · 0/3 (especialização de pista persiste)
 
-Vídeos (bate exatamente com o eval):
+### 🎓 Curriculum flow ×2.5 — COMPLETA DUAS PISTAS (2026-09-17/18)
+
+Curriculum partindo do `ppo_flow25_ds13_best` (ds1✓), 3 pistas no mix,
+LR 5e-5 → 2.5e-5, seleção balanceada (eval determinístico nas 3 pistas):
+
+| Fase (lr) | ds1 (fase 3) | ds2 (Peach) | ds3 (macaco) | Média |
+|---|---|---|---|---|
+| 1 (5e-5, 300k) ← **best global** | **+532,00 · 1350 · 3/3** | **+250,46 · 1350 · 3/3** | +291,99 · 359 · 0/3 | **+358,15** |
+| 2 (2.5e-5, 300k) | +578,63 · 1350 · 3/3 | +34,38 · 279 · 0/3 (regrediu) | +26,97 · 77 · 0/3 | +213 |
+
+**`curriculum_flow25_best.zip` (fase 1): COMPLETA ds1 E ds2 (1350/1350 nas duas!)**
+e coleta +292 na ds3 antes de morrer no step 359. Primeira vez no projeto
+que um único modelo completa 2 pistas a 90s — a ds2 (Peach) nunca tinha
+sido aprendida por nenhum modelo.
+
+Vídeos (trajetórias idênticas ao eval determinístico):
 ```bash
-python record_phases.py --model models/ppo_flow25_ds13_best.zip
+python record_phases.py --model models/curriculum_flow25_best.zip
 ```
-O modelo antigo `grid_ppo_nature_s0_500k_best.zip` completa a ds3
-(+338,98 · 1350/1350) — modelos complementares, nenhum cobre as 3 ainda.
+
+Reproduzir:
+```bash
+python -m src.train_curriculum --run-id curriculum_flow25 \
+    --start-model models/ppo_flow25_ds13_best.zip \
+    --states ds1,ds2,ds3 --phases "300000:5e-5,300000:2.5e-5" \
+    --flow-weight 2.5 --eval-freq 10000 --seed 0
+```
+Dados: `results_curriculum.csv`.
+
+Restam: fechar a ds3 (morre em 359/1350) sem quebrar ds1/ds2 — próxima
+rodada de curriculum partindo do best da fase 1.
 
 ### Treinando Novos Modelos
 Para iniciar um novo treinamento do zero, escolha sua arma:

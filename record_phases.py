@@ -28,6 +28,9 @@ def main():
     parser.add_argument("--fps", type=int, default=15,
                         help="FPS do vídeo (frameskip=4 sobre 60 Hz -> 15 = tempo real)")
     parser.add_argument("--max-steps", type=int, default=1350)
+    parser.add_argument("--flow-weight", type=float, default=2.5,
+                        help="Peso do flow reward no report (deve bater com o treino)")
+    parser.add_argument("--step-penalty", type=float, default=0.02)
     parser.add_argument("--single", type=str, default=None,
                         help=argparse.SUPPRESS)  # uso interno: grava 1 fase e sai
     args = parser.parse_args()
@@ -41,7 +44,9 @@ def main():
             r = subprocess.run(
                 [sys.executable, __file__, "--model", args.model, "--rom", args.rom,
                  "--out-dir", args.out_dir, "--fps", str(args.fps),
-                 "--max-steps", str(args.max_steps), "--single", phase],
+                 "--max-steps", str(args.max_steps), "--single", phase,
+                 "--flow-weight", str(args.flow_weight),
+                 "--step-penalty", str(args.step_penalty)],
             )
             if r.returncode != 0:
                 print(f"AVISO: gravação de {phase} falhou (exit={r.returncode})", flush=True)
@@ -65,7 +70,8 @@ def _record_single(args):
 
     model = PPO.load(args.model)
 
-    env = Mario64DSEnv(rom_path=rom_path, state_path=savestate_path)
+    env = Mario64DSEnv(rom_path=rom_path, state_path=savestate_path,
+                       step_penalty=args.step_penalty, flow_weight=args.flow_weight)
     obs, info = env.reset()
 
     # FrameStack REAL (igual ao treino via SB3 VecFrameStack): no reset o
