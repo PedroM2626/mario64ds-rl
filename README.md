@@ -475,30 +475,50 @@ LR 5e-5 → 2.5e-5, seleção balanceada (eval determinístico nas 3 pistas):
 
 | Fase (lr) | ds1 (fase 3) | ds2 (Peach) | ds3 (macaco) | Média |
 |---|---|---|---|---|
-| 1 (5e-5, 300k) ← **best global** | **+532,00 · 1350 · 3/3** | **+250,46 · 1350 · 3/3** | +291,99 · 359 · 0/3 | **+358,15** |
+| 1 (5e-5, 300k) ← **best r1** | **+532,00 · 1350 · 3/3** | **+250,46 · 1350 · 3/3** | +291,99 · 359 · 0/3 | **+358,15** |
 | 2 (2.5e-5, 300k) | +578,63 · 1350 · 3/3 | +34,38 · 279 · 0/3 (regrediu) | +26,97 · 77 · 0/3 | +213 |
 
-**`curriculum_flow25_best.zip` (fase 1): COMPLETA ds1 E ds2 (1350/1350 nas duas!)**
-e coleta +292 na ds3 antes de morrer no step 359. Primeira vez no projeto
-que um único modelo completa 2 pistas a 90s — a ds2 (Peach) nunca tinha
-sido aprendida por nenhum modelo.
+**Rodada 2 (ds3-heavy)** — mix ds1,ds2,ds3,ds3, partindo do best r1:
+| Fase | ds1 | ds2 | ds3 |
+|---|---|---|---|
+| 1 (5e-5, 500k) ← **best r2** | +93,68 · 455 · 0/3 | **+825,17 · 1350 · 3/3** | **+492,96 · 1350 · 6/6** |
 
-Vídeos (trajetórias idênticas ao eval determinístico):
+**Rodada 3 (ds1-heavy)** — mix ds1,ds2,ds3,ds1, partindo do best r2:
+
+### 🏆🏆🏆 AS TRÊS PISTAS COMPLETAS (2026-09-18)
+
+**`curriculum_flow25_r3_best.zip`** — o primeiro modelo da história do
+projeto a completar as 3 pistas (1350/1350 = 90s em cada), confirmado por
+eval independente determinístico (9/9 episódios completos):
+
+| Pista | Eval indep. (flow ×1,0) | Vídeo (flow ×2,5) | Passos |
+|---|---|---|---|
+| ds1 (fase 3) | +131,77 · 3/3 | +369,94 | **1350/1350** |
+| ds2 (Peach) | +329,92 · 3/3 | +865,29 | **1350/1350** |
+| ds3 (macaco) | +185,40 · 3/3 | +504,01 | **1350/1350** |
+
+O caminho até aqui (cada rodada fechou uma pista e quebrou outra; a
+alternância de ênfase no mix + seleção balanceada convergiu):
+
+| Rodada | Mix | ds1 | ds2 | ds3 |
+|---|---|---|---|---|
+| r1 | uniforme | ✓ 1350 | ✓ 1350 | ✗ 359 |
+| r2 | ds3-heavy | ✗ 455 | ✓ 1350 | ✓ 1350 |
+| **r3** | **ds1-heavy** | **✓ 1350** | **✓ 1350** | **✓ 1350** |
+
+Os vídeos finais (`videos/phase_ds*.mp4`, 90s cada, tempo real):
 ```bash
-python record_phases.py --model models/curriculum_flow25_best.zip
+python record_phases.py --model models/curriculum_flow25_r3_best.zip
 ```
 
-Reproduzir:
+Reproduzir a jornada completa (r1→r2→r3):
 ```bash
-python -m src.train_curriculum --run-id curriculum_flow25 \
-    --start-model models/ppo_flow25_ds13_best.zip \
-    --states ds1,ds2,ds3 --phases "300000:5e-5,300000:2.5e-5" \
-    --flow-weight 2.5 --eval-freq 10000 --seed 0
+python -m src.train_ppo --run-id ppo_flow25_ds13 --features nature --states ds1,ds3 --n-envs 2 --timesteps 1000000 --seed 0 --flow-weight 2.5
+python -m src.train_curriculum --run-id curriculum_flow25 --start-model models/ppo_flow25_ds13_best.zip --states ds1,ds2,ds3 --phases "300000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
+python -m src.train_curriculum --run-id curriculum_flow25_r2 --start-model models/curriculum_flow25_best.zip --states ds1,ds2,ds3,ds3 --n-envs 4 --phases "500000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
+python -m src.train_curriculum --run-id curriculum_flow25_r3 --start-model models/curriculum_flow25_r2_best.zip --states ds1,ds2,ds3,ds1 --n-envs 4 --phases "500000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
 ```
-Dados: `results_curriculum.csv`.
-
-Restam: fechar a ds3 (morre em 359/1350) sem quebrar ds1/ds2 — próxima
-rodada de curriculum partindo do best da fase 1.
+Dados: `results_curriculum_r1.csv`, `results_curriculum_r2.csv`.
 
 ### Treinando Novos Modelos
 Para iniciar um novo treinamento do zero, escolha sua arma:

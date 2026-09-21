@@ -230,7 +230,7 @@ def main():
             current_model = phase_best
 
             if all_survived:
-                print(f"\n🎉 CONVERGIU na fase {i}: todas as 3 pistas sobrevivem!", flush=True)
+                print(f"\nCONVERGIU na fase {i}: todas as 3 pistas sobrevivem!", flush=True)
                 break
 
         # Consolidar CSV
