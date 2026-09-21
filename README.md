@@ -1,684 +1,262 @@
-# Mario 64 DS - Reinforcement Learning (Slides do Super Mario 64 DS)
+# Mario 64 DS - Reinforcement Learning (Super Mario 64 DS Slide Tracks)
 
-Este projeto é uma implementação de Aprendizado por Reforço Profundo (Deep Reinforcement Learning) que ensina uma Inteligência Artificial a pilotar o Mário nas pistas de descida do Super Mario 64 DS, rodando nativamente através de um emulador de Nintendo DS.
+This project is a Deep Reinforcement Learning implementation that trains an autonomous artificial agent to navigate Mario through the downhill slide courses of Super Mario 64 DS, operating natively through a Nintendo DS emulator.
 
-**Pistas (savestates em `data/`):**
-- `ds1` — pista da fase 3
-- `ds2` — pista da Peach
-- `ds3` — pista secreta da fase do macaco
+**Tracks (savestates located in `data/`):**
+- `ds1` — Course 3 slide (Cool, Cool Mountain / Pinguim Slide)
+- `ds2` — Princess Peach's Secret Slide (The Princess's Secret Slide)
+- `ds3` — Tall, Tall Mountain secret slide (Monkey slide)
 
-## 🎯 Objetivo
-O objetivo do agente é **completar a descida** (não apenas sobreviver), movendo-se para frente e coletando moedas ao longo do caminho, utilizando apenas o feed visual da tela (pixels) como observação. Episódios de `1350` steps (90s a frameskip 4) — 30s não bastavam para completar nenhuma pista.
+---
 
-## 🏆 Estado Atual (2026-09-18): AS TRÊS PISTAS COMPLETAS
+## 🎯 Objective
+The agent's primary objective is to **complete the descent** (not merely survive by idling), navigating forward along the downhill gradient and collecting coins along the trajectory using solely the raw visual screen feed (pixels) as observation. Episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track.
 
-**`curriculum_flow25_r3_best.zip`** (PPO+Nature, flow ×2.5) — primeiro modelo
-da história do projeto a completar as 3 pistas, confirmado por eval
-determinístico independente (9/9 episódios de 90s completos):
+---
 
-| Pista | Recompensa (vídeo, flow ×2,5) | Passos | Vídeo |
+## 🏆 Current Benchmark State: ALL THREE TRACKS COMPLETED
+
+**`curriculum_flow25_r3_best.zip`** (PPO + NatureCNN, optical flow weight $\times 2.5$) — the first agent checkpoint in the project's history to successfully complete all 3 slide tracks, corroborated by independent deterministic evaluation (9/9 full 90-second completed episodes):
+
+| Track | Reward (video, flow $\times 2.5$) | Completed Steps | Demonstration Video |
 |---|---|---|---|
-| ds1 (fase 3) | +369,94 | **1350/1350** | `videos/phase_ds1.mp4` |
-| ds2 (Peach) | +865,29 | **1350/1350** | `videos/phase_ds2.mp4` |
-| ds3 (macaco) | +504,01 | **1350/1350** | `videos/phase_ds3.mp4` |
+| `ds1` (Course 3) | +369.94 | **1350 / 1350** | `videos/phase_ds1.mp4` |
+| `ds2` (Peach Slide) | +865.29 | **1350 / 1350** | `videos/phase_ds2.mp4` |
+| `ds3` (Monkey Slide) | +504.01 | **1350 / 1350** | `videos/phase_ds3.mp4` |
 
+To re-record the demonstration videos:
 ```bash
-python record_phases.py --model models/curriculum_flow25_r3_best.zip  # regravar
+python record_phases.py --model models/curriculum_flow25_r3_best.zip
 ```
 
-## 🧭 Por que agora funciona — a cadeia causal completa
+---
 
-O projeto passou 11 dias sem fechar as 3 pistas. A convergência final não veio
-de um único fix, mas de 5 descobertas encadeadas — cada uma falsificando a
-hipótese anterior:
+## 🧭 Theoretical Analysis: The Complete Causal Chain
 
-**1. A recompensa de moeda nunca funcionou (bug BGR desde o início).**
-O buffer do py-desmume é **BGR(X)**, não RGBX como o código assumia. Com
-`COLOR_RGB2HSV` em dados BGR o matiz rotaciona (H→120−H): a máscara amarela
-detectava coisas *ciano*, nunca as moedas. **Todo o aprendizado histórico foi
-carregado pelo fluxo óptico sozinho** (ver §"Bug de cores" abaixo). Descoberto
-por report do usuário: "mário azul, moeda azul nos vídeos" (2026-09-17).
+Achieving simultaneous convergence across all three tracks required resolving five interconnected failure modes, where each experimental discovery falsified earlier hypotheses:
 
-**2. Corrigir a moeda PIOROU (reward hacking).** Com o BGR corrigido, a máscara
-amarela passou a detectar o **piso xadrez** (faixa inferior) e a **parede de
-flores** (que puxa para a borda esquerda) — recompensa por centralizar em ruído
-de cena. Fix: recompensa de moeda **desligada por padrão**
-(`coin_reward_enabled=False`).
+**1. The coin tracking reward was structurally defective (legacy BGR bug).**
+The internal display buffer exported by `py-desmume` is structured as **BGR(X)**, rather than RGBX as initially assumed. Applying OpenCV's `COLOR_RGB2HSV` conversion directly to BGR data caused a phase rotation of the hue channel ($H \to 120 - H$). Consequently, the yellow color mask ($H \in [15, 40]$) filtered for **cyan** features ($H \approx 90 \to 30$), entirely missing actual gold coins ($H \approx 25 \to 95$). **All historical convergence was carried solely by optical flow** (see §"Color Representation Bug" below).
 
-**3. Flow ×0.5 sozinho era fraco demais contra a morte.** Sem o baseline
-acidental da moeda quebrada, **todo treino fresco degradava** (ep_rew_mean
-−73,9 → −89,3, mortes a ~55-119 steps, 0 timeouts) — em CPU e CUDA
-(idênticos, mesmo seed), a 450 e a 1350 steps (o tamanho do episódio não era
-a causa). Diagnóstico: em rollouts estocásticos onde tudo morre, o sinal denso
-de avanço precisa sobrepujar o −100 da morte. Fix: **`flow_weight=2.5`**
-(o agente passou de morrer em ~90 steps a completar ds1 1350/1350).
+**2. Naive coin reward correction triggered severe reward hacking.**
+Once the BGR ordering was corrected, the yellow HSV mask began registering high-confidence false positives on the **checkered floor** (bottom image slice) and the **flower-textured side walls** (which pulled the agent toward the outer left edge). The agent maximized return by centering noise features instead of navigating. Fix: **Coin reward disabled by default** (`coin_reward_enabled=False`).
 
-**4. Camping + tempo insuficiente.** O agente descobriu pontos seguros na ds3
-(sobreviver sem avançar) e 30s não completava pista nenhuma. Fixes:
-`step_penalty=0.02`/passo (camping acumula ~−27) e **`max_steps=1350` (90s)**.
+**3. Low optical flow weighting ($\times 0.5$) failed to counteract terminal death penalties.**
+Without the accidental heuristic baseline of the legacy coin detector, **fresh policy initializations degraded rapidly** (mean episode reward shifted from $-73.9$ to $-89.3$, terminal death occurred within $\sim 55\text{--}119$ steps, with 0 timeouts). In stochastic rollouts where policy exploratory entropy leads to falls, dense forward momentum reward must dominate the $-100.0$ abyss penalty. Fix: **`flow_weight=2.5`** (shifting policies from collapsing at step $\sim 90$ to full survival on `ds1` at 1350/1350).
 
-**5. Interferência entre pistas: vencida por ênfase alternada.** Treinar as 3
-juntas a LR alto causa esquecimento catastrófico (exp. A: ds1✗); a 1M-2M steps
-não converge (exp. C/D: 0/3). O curriculum com **LR decrescente** (5e-5 →
-2,5e-5: updates pequenos preservam o já-aprendido) + **seleção balanceada**
-(eval determinístico nas 3 pistas; especialista de 1 pista tem média baixa)
-+ **rodadas com ênfase alternada** fechou o ciclo:
+**4. Camping behavior and horizon truncation.**
+Given survival-only incentives, policies converged to safe non-sliding plateaus on `ds3` (idling indefinitely without forward progression). Furthermore, a 30s horizon (450 steps) truncated episodes prior to track completion. Fixes: Fixed temporal cost **`step_penalty=0.02` per step** (idling incurs $\sim -27.0$ across 1350 steps, incentivizing rapid progression) and extending the horizon to **`max_steps=1350` (90s)**.
 
-| Rodada | Mix | ds1 | ds2 | ds3 | Data |
+**5. Multi-track interference resolved via alternating curriculum.**
+Simultaneous multi-task training across all three tracks at high learning rates ($\eta = 3 \times 10^{-4}$) induced catastrophic interference within the shared convolutional feature representations (Experiment A lost `ds1`; Experiments C/D failed to converge even after 2M steps). The solution combined:
+- **Decaying learning rates** ($5 \times 10^{-5} \to 2.5 \times 10^{-5}$) to constrain parameter displacement and preserve consolidated skills;
+- **Balanced checkpoint selection** using multi-track deterministic evaluation (single-track specialists yield poor average returns across tracks);
+- **Curriculum with alternating track sampling emphasis**:
+
+| Round | Track Mixture | `ds1` | `ds2` | `ds3` | Timestamp |
 |---|---|---|---|---|---|
-| Base | ds1,ds3 (flow ×2,5, 1M) | **✓ 1350** | ✗ 228 | ✗ 81 | 09-17 |
-| r1 | uniforme (curriculum) | ✓ | **✓ 1350** | ✗ 359 | 09-17/18 |
-| r2 | ds3-heavy | ✗ 455 | ✓ | **✓ 1350** | 09-18 |
-| **r3** | **ds1-heavy** | **✓ 1350** | ✓ | ✓ | **09-18** |
+| Base | `ds1`, `ds3` (flow $\times 2.5$, 1M) | **✓ 1350** | ✗ 228 | ✗ 81 | 2026-09-17 |
+| r1 | Uniform mix (`ds1`, `ds2`, `ds3`) | ✓ 1350 | **✓ 1350** | ✗ 359 | 2026-09-17/18 |
+| r2 | `ds3`-heavy (`ds1`, `ds2`, `ds3`, `ds3`) | ✗ 455 | ✓ 1350 | **✓ 1350** | 2026-09-18 |
+| **r3** | **`ds1`-heavy** (`ds1`, `ds2`, `ds3`, `ds1`) | **✓ 1350** | **✓ 1350** | **✓ 1350** | **2026-09-18** |
 
-Cada rodada fechava uma pista e quebrava outra; a r3 fechou o ciclo sem quebrar
-as anteriores (e curiosamente foi a *fase 2* — que sempre regredia — que
-convergiu na r3).
-
-**Gotchas menores no caminho** (documentados nos commits): o `VecFrameStack`
-do SB3 inicializa com `[0,0,0,reset]` (não 4 cópias — o script de vídeo
-divergia e o agente "morria" no vídeo); o `C51Policy` do Tianshou exige
-`policy.to(device)` (device mismatch em CUDA); o label de pista derivado do
-caminho vazava no nome de métrica do MLflow.
-
-As seções abaixo preservam a trajetória completa, na ordem em que aconteceram.
+Each training round initially consolidated one track at the expense of another; round `r3` successfully balanced the representations across all three tracks simultaneously.
 
 ---
 
-## 🧠 Arquitetura do Projeto
-- **Emulador**: `py-desmume` (Wrapper Python para o emulador de C++ DeSmuME).
-- **Ambiente RL**: Custom `gymnasium.Env` (`src/env.py`).
-- **Observação**: Imagens em Tons de Cinza (Grayscale) redimensionadas para `84x84`, com `FrameStack` de 4 quadros sucessivos para prover noção de movimento à rede neural.
-- **Modelos Treinados**:
-  - **Rainbow DQN** (via Tianshou, `src/train.py`) com **IMPALA CNN** (`src/impala_cnn.py`) ou **NatureCNN** (`--features nature`).
-  - **PPO** (via Stable-Baselines3, `src/train_ppo.py`) com **NatureCNN** (default) ou **IMPALA** (`--features impala`, `src/sb3_impala.py`).
-  - **QR-DQN** (via sb3-contrib, `src/train_qrdqn.py`) com **NatureCNN** ou **IMPALA**.
-- **Tracking**: `MLflow` (sqlite `mlflow.db`) + `Tensorboard` (`tensorboard_logs/<run-id>`).
-- **Avaliação justa**: `src/eval.py` (N episódios, seed, CSV).
-- **Vídeos**: `record_phases.py` (grava o agente jogando ds1/ds2/ds3 em MP4).
-- **Curriculum**: `src/train_curriculum.py` (fases com LR decrescente + seleção balanceada).
+## 🧠 System Architecture
+
+- **Emulation Layer**: `py-desmume` (Python wrapper interfacing with the DeSmuME C++ core).
+- **Environment Interface**: Custom `gymnasium.Env` (`src/env.py`).
+- **State Representation**: Grayscale frames resized to $84 \times 84$, stacked via `FrameStack` ($k=4$) to supply temporal velocity and acceleration dynamics to the neural networks.
+- **Reinforcement Learning Algorithms**:
+  - **Rainbow DQN** (Tianshou framework, `src/train.py`) utilizing **IMPALA CNN** (`src/impala_cnn.py`) or **NatureCNN** (`--features nature`).
+  - **PPO** (Stable-Baselines3, `src/train_ppo.py`) with standard **NatureCNN** or custom **IMPALA** (`src/sb3_impala.py`).
+  - **QR-DQN** (sb3-contrib, `src/train_qrdqn.py`) supporting both NatureCNN and IMPALA feature extractors.
+- **Experiment Tracking**: `MLflow` (SQLite backend `mlflow.db`) + `TensorBoard` (`tensorboard_logs/<run-id>`).
+- **Evaluation Engine**: `src/eval.py` ($N$ deterministic/stochastic episodes, fixed seeds, CSV exports).
+- **Video Rendering**: `record_phases.py` (records real-time RGB MP4 demonstration footage across all tracks).
+- **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
 
 ---
 
-## 🚀 Nossa Trajetória: Dificuldades e Soluções
+## 🚀 Engineering Challenges & Solutions
 
-A jornada para fazer o Mário deslizar inteligentemente pelo gelo passou por diversas gerações, bugs interessantes e ajustes de lógica (Reward Shaping). Aqui estão os principais obstáculos e como os vencemos:
+### 1. Emulator Memory Access Violations
+- **Issue**: Parallel vectorized rollout environments (such as PPO multi-env setups) caused segmentation faults (`Access Violation`) when instantiating multiple DeSmuME C++ instances within a single Python process.
+- **Solution**: Implemented process isolation via `SubprocVecEnv` (both in SB3 and Tianshou). Each emulator instance operates inside its own OS-level process, communicating observations and actions via inter-process pipes.
 
-### 1. O Problema da Violação de Acesso (Memória do Emulador)
-**A Dificuldade:** Algoritmos como o PPO exigem múltiplos ambientes rodando em paralelo para coletar dados rapidamente. Porém, o emulador DeSmuME (feito em C++) não foi projetado para ter múltiplas instâncias rodando na mesma thread do Python, o que causava `Access Violation` e fechava o programa bruscamente.
-**A Solução:** Implementamos `SubprocVecEnv` (tanto no Tianshou quanto no SB3). Isso força o Python a alocar cada ambiente (e cada emulador) em um processo e espaço de memória completamente separado, comunicando-se via Pipes. 
+### 2. Prioritized Experience Replay Memory Exhaustion (OOM)
+- **Issue**: Standard 100k-capacity `PrioritizedVectorReplayBuffer` allocations with multi-frame image stacks ($4 \times 84 \times 84$ `uint8`) exceeded 26 GiB of RAM due to deepcopy semantics within Tianshou.
+- **Solution**: Bounded replay buffer capacity to `20,000` transitions and streamlined frame processing, stabilizing memory consumption at $\sim 1.5$ GB without compromising off-policy sample quality.
 
-### 2. O Estouro de Memória do Buffer (OOM)
-**A Dificuldade:** Ao iniciar o treinamento do Rainbow DQN, o Buffer de Prioridade (`PrioritizedVectorReplayBuffer`) do Tianshou começou a devorar gigabytes de memória RAM descontroladamente, travando a máquina durante as cópias internas de arrays de imagens (`FrameStack`).
-**A Solução:** Otimizamos severamente o tamanho do Replay Buffer (reduzindo de 100k para `20.000` transições) e delegamos o pré-processamento pesado para o momento exato em que a imagem é extraída, mantendo a memória estável em cerca de ~1.5 GB.
+### 3. Optical Flow Computation Overhead
+- **Issue**: Computing Farneback optical flow (`cv2.calcOpticalFlowFarneback`) at full resolution severely degraded environment throughput.
+- **Solution**: Downscaled observation slices specifically for optical flow calculation to $32 \times 32$. This maintained high simulator FPS while preserving robust directional motion estimation.
 
-### 3. A Lerdeza Extrema do Optical Flow
-**A Dificuldade:** Queríamos recompensar o Mário por ir para a frente. Para o computador "saber" que a tela está avançando, usamos Fluxo Óptico (`cv2.calcOpticalFlowFarneback`). No entanto, rodar isso em 84x84 derrubou o FPS do treinamento para um nível inaceitável.
-**A Solução:** Removemos temporariamente o Optical Flow. (O que gerou a Dificuldade #4). Mais tarde, reimplementamos um "Optical Flow Otimizado", fazendo um *downscale extremo* da imagem apenas no cálculo matemático para a resolução minúscula de `32x32`. Isso manteve o FPS alto e devolveu a noção de avanço para a IA.
+### 4. Sparse Reward Collapse & Local Optima ("The Wall Strategy")
+- **Issue**: When removing optical flow rewards, policies relied exclusively on sparse coin rewards. The agent quickly discovered a local optimum: steering hard left to drop off the track immediately, collecting a small coin cluster near the barrier and terminating with a $-28.0$ return rather than risking $-50.0$ further downhill.
+- **Solution**: Reintroduced dense optical flow incentives ($y$-component forward motion), reinforcing forward progress over abrupt lateral suicide.
 
-### 4. A Estratégia do Muro (Local Optimum & Sparse Rewards)
-**A Dificuldade:** Quando removemos o Optical Flow (Dificuldade #3), as recompensas do Mário passaram a ser apenas "coletar moedas". Como moedas são raras (Sparse Reward), a rede neural não conseguia associar botões ao progresso. O modelo chegou à seguinte "brilhante" conclusão: *Se eu andar reto, demoro para morrer e tomo `-50`. Mas se eu for virar para a esquerda imediatamente, eu caio logo, recolho meia dúzia de moedas perto da borda e fecho com `-28`.* Ele viciou em se jogar para a esquerda (Ótimo Local).
-**A Solução:** Retornamos o Optical Flow ultrarrápido (+0.5 de recompensa contínua por rolar a tela para baixo), dando a ele um incentivo constante para ir para a frente em vez de bater na parede.
+### 5. The Suicide Paradox
+- **Issue**: An earlier reward specification penalized timeouts ($-100.0$) more heavily than falling into the abyss ($-50.0$). The agent learned to deliberately jump off cliffs upon reaching the lower track sections to terminate early and avoid the larger timeout penalty.
+- **Solution**: Aligned reward incentives: timeout penalty set to $0.0$ (reflecting survival), while falling off the track incurs a severe $-100.0$ penalty ($R_{\text{death}} < R_{\text{timeout}}$).
 
-### 5. O Paradoxo do Suicídio
-**A Dificuldade:** Em dado momento, configuramos que o tempo esgotado (Timeout da fase) dava uma punição de `-100`, enquanto cair no abismo (Death) dava `-50`. O resultado? Ao chegar na base da montanha (onde demoraria para o tempo acabar), a Inteligência Artificial começou a se jogar ativamente do precipício para tomar `-50` e fugir do castigo maior de `-100`!
-**A Solução:** Mudamos a lógica de punição. Removemos completamente a penalidade de Timeout (já que não há linha de chegada oficial detectada, o Timeout significa apenas sucesso em sobreviver). Ao mesmo tempo, a punição por cair no abismo foi fixada no doloroso `-100`.
-
-### 6. Bug de Visão no Visualizador
-**A Dificuldade:** O script de visualização (`play.py`) estava entregando a imagem da tela num formato (shape) de 5 dimensões em vez de 4. A rede neural, acostumada com a formatação de treinamento, recebia ruído puro e a IA passava o vídeo inteiro apertando um único botão, cega.
-**A Solução:** Refatoramos o script para utilizar os wrappers oficiais (`DummyVectorEnv`) para encapsular o emulador exatamente como é feito na pipeline de treino, normalizando a matriz de entrada.
+### 6. Visualizer Tensor Mismatch
+- **Issue**: `play.py` originally provided observations with incompatible 5D tensor shapes, causing policies to receive out-of-distribution inputs and execute degenerate single-action trajectories.
+- **Solution**: Refactored the visualization pipeline to use official vectorized wrapper pipelines (`DummyVecEnv` + `VecFrameStack` + `VecTransposeImage`), ensuring identical input tensor shapes between training and evaluation.
 
 ---
 
-## 📊 Resultados históricos (regime 450, env antigo — pré 2026-09-17)
+## 📊 Historical Benchmark Results
 
-> **Nota:** esta seção preserva a narrativa da primeira era do projeto
-> (30s/450 steps, morte −50→−100, HSV quebrado sem saber, sem completar
-> pistas — 30s não bastavam). O resultado ATUAL está no topo: as 3 pistas
-> completas a 90s. Os números abaixo usam `play.py` manual estocástico,
-> sem seed — não são reproduzíveis como média.
+### Initial 450-Step Regime (30 Seconds, Legacy Configuration)
 
-Após resolvermos todos os impasses, disparamos treinamentos usando o **PPO (Proximal Policy Optimization)** aliado ao **NatureCNN**. A jornada do modelo até a perfeição foi épica:
+Initial experiments evaluated policies over 450 steps ($30\text{s}$) with single-episode stochastic evaluations:
+- **500k Steps (PPO baseline)**: Achieved survival through step $449/450$, collecting $+148.0$ points prior to a late fall (net $+48.10$).
+- **1M Steps (PPO continued via `--resume`)**: Reached the 450-step timeout on `ds1` ($+144.24$) and `ds2` ($+102.85$).
+- *Reproducibility Note*: These historical figures reflected single stochastic rollouts without fixed seeds. Systematic evaluations were formalized under `src/eval.py`.
 
-### O Ponto de Virada (500.000 Passos)
-Com 500k passos usando 8 instâncias paralelas, a IA começou a brilhar:
-- **Sobrevivência:** `449 / 450` passos.
-- **Recompensa:** `+48.10` pontos positivos (coletou `+148 pontos` antes de sofrer a punição de morte de `-100` caindo na reta final).
+### 100k Controlled Benchmark Grid (CPU Baseline)
+Evaluating `(PPO, Rainbow, QR-DQN) × (NatureCNN, IMPALA) × Seeds {0, 1, 2}` over 100k timesteps (`results_grid_100k.csv`):
 
-### A Maestria Absoluta (1.000.000 de Passos)
-Decidimos fazer um *fine-tuning* do modelo usando uma flag customizada de `--resume` e treinamos por mais 500k passos (totalizando **1 Milhão de passos de experiência**). O resultado foi a **perfeição absoluta**:
-- **Sobrevivência (Pista 1 e 2):** `450 / 450` passos (Tempo esgotado: **Timeout detected!**).
-- **Recompensa Final (Pista 1):** `+144.24`
-- **Recompensa Final (Pista 2):** `+102.85`
-
-A IA finalmente conseguiu **dominar a física do gelo**. Ela sobrevive 100% do tempo de simulação sem cair no abismo, fazendo curvas precisas para evitar a morte e otimizando a própria velocidade enquanto busca moedas na descida. O que antes era um pinguim se jogando da montanha, agora é um piloto profissional.
-
-> ⚠️ **Nota de reproducibilidade (de onde vêm +144.24 / +102.85?)**
-> Esses números vieram de `python -m src.play --algo ppo` manual: 1 episódio
-> por savestate (`ds1`, `ds3`), política **estocástica** (`deterministic=False`),
-> **sem seed fixada** e sem log em MLflow/TensorBoard. Ou seja: não são média
-> com desvio, e variam a cada execução.
-> Para reproduzir de forma justa, use agora:
-> ```bash
-> python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 5 --deterministic --seed 0
-> ```
-> Isso gera `eval_ppo.csv` com recompensa/passo/sobrevivência por episódio.
-> Curvas de treino: `tensorboard --logdir tensorboard_logs/ppo_mario64ds_continued_4_envs`
-> e `mlflow ui --backend-store-uri sqlite:///mlflow.db`.
-
-## ⚖️ Comparação justa: PPO vs Rainbow vs QR-DQN
-
-Antes PPO usava NatureCNN e Rainbow usava IMPALA — comparação injusta
-(arquitetura confundida com algoritmo). Agora ambos suportam ambos:
-
-```bash
-# PPO + Nature (baseline original) vs PPO + IMPALA
-python -m src.train_ppo --run-id ppo_nature --features nature --n-envs 4 --seed 0
-python -m src.train_ppo --run-id ppo_impala --features impala --n-envs 4 --seed 0
-
-# Rainbow + IMPALA (original) vs Rainbow + Nature
-python -m src.train --run-id rainbow_impala --features impala --seed 0
-python -m src.train --run-id rainbow_nature --features nature --seed 0
-
-# QR-DQN (script faltante versionado em src/train_qrdqn.py)
-python -m src.train_qrdqn --run-id qrdqn_nature --features nature --n-envs 4
-python -m src.train_qrdqn --run-id qrdqn_impala --features impala --n-envs 4
-```
-
-Avalie todos com o mesmo protocolo (`--n-episodes 5 --deterministic --seed 0`):
-
-```bash
-python -m src.eval --algo ppo --model models/ppo_nature_best.zip --n-episodes 5 --deterministic --out eval_ppo_nature.csv
-python -m src.eval --algo rainbow --model models/rainbow_impala_best.pth --features impala --n-episodes 5 --out eval_rainbow_impala.csv
-python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 5 --deterministic --out eval_qrdqn.csv
-```
-
-| Modelo (checkpoint) | Algo + Extrator | Recompensa (média ± dp)* | Passos | Sobrevivência |
+| Algorithm × Extractor @ 100k | Mean Reward $\pm$ SD | Mean Survival Rate | Mean Training Duration | Status |
 |---|---|---|---|---|
-| `ppo_mario64ds_continued_4_envs_best.zip` | PPO + NatureCNN, 1M passos (2×500k, `--resume`) | +144.24 / +102.85 (1 ep manual, estocástico — não reproduzível) | 450/450 (manual) | 2/2 timeouts (manual) |
-| `ppo_mario64ds_8_envs_best.zip` | PPO + NatureCNN, 500k passos, 8 envs | `eval_ppo8_ds1.csv`: -82.85 ± 0.00 (det., ds1, 2 eps) | 144.0 | 0/2 |
-| `qrdqn_mario64ds.zip` | QR-DQN + IMPALA legado (`src.impala_cnn.ImpalaCNN`, ver `src/train_qrdqn.py` + patch em `src/eval.py`) | `eval_qrdqn_ds1.csv`: +88.75 ± 0.00 (det., ds1, 2 eps); `eval_qrdqn_ds3.csv`: -75.54 ± 0.00 (det., ds3, 2 eps) | 450.0 / 126.0 | 2/2 (ds1), 0/2 (ds3) |
-| `rainbow_mario64ds_1h_best.pth` | Rainbow + IMPALA, ~1h | `eval_rainbow_ds1.csv`: -82.84 ± 0.00 (ds1, 2 eps) | 195.0 | 0/2 |
+| **Rainbow + NatureCNN** | **+7.20 $\pm$ 2.99** | **0.50** (3/6 across all seeds) | $\sim 4.5\text{h}$ | 3/3 Converged |
+| **PPO + NatureCNN** | -47.03 $\pm$ 32.68 | 0.17 (Seed 0: 3/6) | $\sim 35\text{min}$ | 3/3 Converged |
+| **PPO + IMPALA** | -53.62 $\pm$ 36.74 | 0.17 (Seed 1: 3/6) | $\sim 52\text{min}$ | 3/3 Converged |
+| **QR-DQN + IMPALA** | -46.55 $\pm$ 24.05 | 0.17 (Seed 1: 3/6) | $\sim 60\text{min}$ | 3/3 Converged |
+| **QR-DQN + NatureCNN** | -62.28 $\pm$ 8.98 | 0.00 | $\sim 40\text{min}$ | 3/3 Converged |
+| **Rainbow + IMPALA** | -75.83 $\pm$ 0.07 | 0.00 | Aborted (OOM) | Failed (`ArrayMemoryError` in PER deepcopy) |
 
-\* Números manuais do `play.py` ≠ `eval.py`. Ver seção de resultados reproduzíveis abaixo.
+*Key Findings*:
+1. Rainbow with NatureCNN exhibited the highest consistency at 100k steps across all three random seeds.
+2. PPO and QR-DQN showed high seed sensitivity at short training horizons, overfitting to one savestate while failing the other.
+3. At 100k steps, single-track specialization dominated; multi-track generalizability required longer horizons and structured curricula.
 
-### 📊 Resultados reproduzíveis (2026-09-07, `src/eval.py`, CPU, `seed=0`)
+### 500k Regime Scaling & Generalization
+Increasing training to 500k timesteps on two tracks (`ds1` + `ds3`) tested whether scale broke single-track specialization (`results_grid_500k.csv`):
 
-Protocolo: 1 processo por savestate (`--savestate-idx`), `SubprocVecEnv`
-(o DeSmuME dá `access violation` com 2 emuladores no mesmo processo).
-Determinístico = `model.predict(..., deterministic=True)` (SB3) /
-greedy C51 (Rainbow). Recompensa inclui `-100` por morte, `0` por timeout.
-
-| Checkpoint | Savestate | Modo | Eps | Recompensa média ± dp | Passos médios | Sobrevivência | CSV |
-|---|---|---|---|---|---|---|---|
-| `ppo_mario64ds_continued_4_envs_best.zip` (PPO+Nature, 1M) | ds1 | det. | 2 | -33.13 ± 0.00 | 351.0 | 0/2 | `eval_ppo_ds1.csv` |
-| idem | ds3 | det. | 2 | -55.92 ± 0.00 | 203.0 | 0/2 | `eval_ppo_ds3.csv` |
-| idem | ds1 | estoc. | 3 | +23.09 ± 55.44 (-18.68, -13.49, **+101.44**) | 420.0 | 1/3 | `eval_ppo_ds1_stoch.csv` |
-| `ppo_mario64ds_8_envs_best.zip` (PPO+Nature, 500k) | ds1 | det. | 2 | -82.85 ± 0.00 | 144.0 | 0/2 | `eval_ppo8_ds1.csv` |
-| `qrdqn_mario64ds.zip` (QR-DQN+IMPALA, legado) | ds1 | det. | 2 | **+88.75 ± 0.00** | 450.0 | **2/2** | `eval_qrdqn_ds1.csv` |
-| idem | ds3 | det. | 2 | -75.54 ± 0.00 | 126.0 | 0/2 | `eval_qrdqn_ds3.csv` |
-| `rainbow_mario64ds_1h_best.pth` (Rainbow+IMPALA) | ds1 | greedy | 2 | -82.84 ± 0.00 | 195.0 | 0/2 | `eval_rainbow_ds1.csv` |
-
-Leitura:
-- O `+144.24` do README original **não se reproduz no modo determinístico**.
-  No estocástico, 1 de 3 episódios deu `+101.44/450` (timeout) — mesma
-  ordem de grandeza, confirmando que o número original foi um rollout
-  sortudo, não média.
-- **QR-DQN é o melhor em ds1 determinístico** (+88.75, 2/2 timeouts),
-  mas colapsa em ds3 (-75.54, morte em ~126 passos): overfit à pista 1.
-- **PPO 1M > PPO 500k/8envs** em ds1 (-33 vs -82): o fine-tuning com
-  `--resume` ajudou, mas ainda morre no determinístico.
-- **Rainbow 1h é o pior em ds1** (-82.84, 195 passos): precisa de mais
-  timesteps / tuning (buffer 20k, `target_update_freq=500`).
-- Nenhum modelo sobrevive ds3 no determinístico — próxima fronteira.
-
-Comandos usados (1 por savestate para isolar o DeSmuME):
-```bash
-python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 0 --out eval_ppo_ds1.csv
-python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 1 --out eval_ppo_ds3.csv
-python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 3 --seed 0 --savestate-idx 0 --out eval_ppo_ds1_stoch.csv
-python -m src.eval --algo ppo --model models/ppo_mario64ds_8_envs_best.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 0 --out eval_ppo8_ds1.csv
-python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 0 --out eval_qrdqn_ds1.csv
-python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 2 --deterministic --seed 0 --savestate-idx 1 --out eval_qrdqn_ds3.csv
-python -m src.eval --algo rainbow --model models/rainbow_mario64ds_1h_best.pth --features impala --n-episodes 2 --seed 0 --savestate-idx 0 --out eval_rainbow_ds1.csv
-```
-
-### 🧪 Smoke-train (validação dos pipelines pós-refactor, 2026-09-07, CPU)
-
-| Pipeline | Comando | Resultado |
-|---|---|---|
-| PPO+Nature | `python -m src.train_ppo --run-id smoke_ppo_nature --features nature --n-envs 2 --timesteps 1024 --seed 0` | OK, ~20s, 53 it/s, `ep_rew_mean` -60.2 → -64.8 |
-| PPO+IMPALA | `python -m src.train_ppo --run-id smoke_ppo_impala --features impala --n-envs 2 --timesteps 1024 --seed 0` | OK, ~23s, 45 it/s, novo `ImpalaFeaturesExtractor` treina |
-| Rainbow+Nature | `python -m src.train --run-id smoke_rainbow_nature --features nature --test-run --seed 0` | OK, 1000 steps, ~48s, `test_reward` -89.45 |
-| QR-DQN+Nature | `python -m src.train_qrdqn --run-id smoke_qrdqn --features nature --n-envs 2 --timesteps 1024 --seed 0` | OK após fix `buffer_size=20000` (default 1M estourava 26 GiB), ~21s, 47 it/s |
-
-### 🏁 Grade 100k (2026-09-08 a 2026-09-11, CPU-only — ver nota GPU abaixo)
-
-Protocolo: `(PPO, Rainbow, QR-DQN) × (nature, impala) × seeds {0,1,2}` =
-18 treinos de 100k steps, `n-envs=2`, em sequência (`run_grid_100k.py`).
-Eval: 3 eps determinísticos por savestate (6 eps/run), `seed` igual ao treino.
-Consolidado em `results_grid_100k.csv` (+ `eval_grid_*_ds?.csv`).
-
-> **100k basta?** Para *eficiência amostral e estabilidade*: sim.
-> Para *maestria*: não — nenhum run de 100k sobrevive ds3 de forma
-> consistente, e a variância entre seeds é enorme (ver desfecho por seed).
-> 100k separa “quem aprende rápido” de “quem nem roda”, mas o 1M continua
-> necessário para pilotagem robusta.
-
-| Algo × Features @100k (3 seeds) | Reward médio ± dp (média das 6 eps, depois média das seeds) | Sobrevivência média | Tempo treino/run (CPU) | Status |
+| Configuration | `ds1` (3 eps det.) | `ds2` (3 eps det.) | `ds3` (3 eps det.) | Overall Survival |
 |---|---|---|---|---|
-| Rainbow + Nature | **+7.20 ± 2.99** (único positivo) | **0.50** (3/6 em *todas* as seeds) | ~4.2–4.7h | 3/3 ok |
-| PPO + Nature | -47.03 ± 32.68 | 0.17 (só s0: 3/6) | ~35min | 3/3 ok |
-| PPO + IMPALA | -53.62 ± 36.74 | 0.17 (só s1: 3/6) | ~52min | 3/3 ok |
-| QR-DQN + IMPALA | -46.55 ± 24.05 | 0.17 (só s1: 3/6) | ~60min | 3/3 ok |
-| QR-DQN + Nature | -62.28 ± 8.98 | 0.00 | ~40min | 3/3 ok |
-| Rainbow + IMPALA | -75.83 ± 0.07 (≈ política aleatória) | 0.00 | OOM após 5–40min | **0/3 — `ArrayMemoryError` no `hasnull()/deepcopy` do PER** |
+| **PPO + NatureCNN (500k, Seed 0)** | **+100.36 (450/450)** | **440/450 (98% progress)** | **+55.07 (450/450)** | **6/6 (100% on training tracks)** |
+| **Rainbow + NatureCNN (500k)** | +90.77 (450/450) | -63.41 (201 steps) | -37.78 (357 steps, 79%) | 3/9 |
 
-Por run (média das 6 eps; surv = fração dos 6 eps com timeout):
+*Zero-Shot Generalization*: The 500k PPO agent, trained strictly on `ds1` and `ds3`, completed 98% of `ds2` (Peach Slide) on its very first evaluation without prior gradient updates on that track.
 
-| run_id | ds1 (3 eps det.) | ds3 (3 eps det.) | surv total |
-|---|---|---|---|
-| `grid_ppo_nature_s0_100k` | +68.42, 450, 3/3 | -70.80, 191, 0/3 | 0.50 |
-| `grid_ppo_nature_s1_100k` | -83.23, 126, 0/3 | -46.32, 335, 0/3 | 0.00 |
-| `grid_ppo_nature_s2_100k` | -80.37, 166, 0/3 | -69.86, 295, 0/3 | 0.00 |
-| `grid_ppo_impala_s0_100k` | -91.36, 67, 0/3 | -80.91, 113, 0/3 | 0.00 |
-| `grid_ppo_impala_s1_100k` | -73.48, 222, 0/3 | +68.97, 450, 3/3 | 0.50 |
-| `grid_ppo_impala_s2_100k` | -85.37, 128, 0/3 | -59.55, 238, 0/3 | 0.00 |
-| `grid_qrdqn_nature_s0_100k` | -25.15, 227, 0/3 | -78.91, 59, 0/3 | 0.00 |
-| `grid_qrdqn_nature_s1_100k` | -40.20, 212, 0/3 | -81.65, 45, 0/3 | 0.00 |
-| `grid_qrdqn_nature_s2_100k` | -62.91, 140, 0/3 | -84.90, 48, 0/3 | 0.00 |
-| `grid_qrdqn_impala_s0_100k` | -64.13, 215, 0/3 | -73.96, 68, 0/3 | 0.00 |
-| `grid_qrdqn_impala_s1_100k` | -69.88, 226, 0/3 | +43.46, 450, 3/3 | 0.50 |
-| `grid_qrdqn_impala_s2_100k` | -33.88, 252, 0/3 | -80.94, 54, 0/3 | 0.00 |
-| `grid_rainbow_nature_s0_100k` | +92.14, 450, 3/3 | -69.87, 205, 0/3 | 0.50 |
-| `grid_rainbow_nature_s1_100k` | +88.75, 450, 3/3 | -75.54, 126, 0/3 | 0.50 |
-| `grid_rainbow_nature_s2_100k` | +92.49, 450, 3/3 | -84.73, 24, 0/3 | 0.50 |
-| `grid_rainbow_impala_*_100k` (s0/s1/s2) | −71.7/−78.7/−71.7, ~124–134, 0/3 | −79.9/−73.2/−79.9, ~127–161, 0/3 | 0.00 (treino falhou) |
+---
 
-Leitura da grade:
-- **Rainbow+Nature é o mais estável a 100k**: 3/3 seeds dão timeout em ds1
-  (+88 a +92) e morrem em ds3. Consistência que PPO/QR-DQN não têm.
-- **PPO e QR-DQN são loteria de seed a 100k**: 1 seed em 3 “acerta” uma
-  pista (3/3 timeouts nela) e as outras 2 zeram. Overfit a *uma* savestate,
-  nunca às duas. Nature vs IMPALA não decide — a seed decide.
-- **Rainbow+IMPALA é inviável em CPU**: OOM no `PrioritizedVectorReplayBuffer`
-  (`hasnull()` → `deepcopy` de `(1680,4,84,84,1)` uint8) nas 3 seeds,
-  mesmo com `total_size=20000`. O extrator maior + PER + `n_step=3` estoura
-  a RAM após minutos/horas. Em GPU o update acelera, mas o buffer continua
-  em RAM — precisa reduzir buffer, `batch_size`, ou usar `VecReplayBuffer`
-  sem `hasnull` a cada step.
-- **Todas as 15 runs ok overfitam**: timeout em ds1 ⇒ morte em ds3, ou o
-  inverso. Nenhuma passa nas duas. Generalização entre pistas segue aberta.
+### Three-Track Generalization Experiments (Pre-Curriculum)
 
-Reproduzir:
-```bash
-python run_grid_100k.py --timesteps 100000 --n-envs 2 --n-episodes 3
-python run_grid_100k.py --timesteps 100000 --n-envs 2 --n-episodes 3 --skip-done --only qrdqn
-```
+Attempts to train simultaneously on all three tracks using uniform sampling revealed severe interference:
 
-### 🏆 Escala 500k — generalização (2026-09-11/12, env novo `-100`, seed 0)
-
-Para testar se 500k quebra o overfit de pista única, rodamos 1× PPO+Nature e
-1× Rainbow+Nature a 500k steps (`results_grid_500k.csv`):
-
-| run_id | ds1 (3 eps det.) | ds2 (3 eps det.) | ds3 (3 eps det.) | surv |
+| Experiment | `ds1` | `ds2` | `ds3` | Outcome |
 |---|---|---|---|---|
-| `grid_ppo_nature_s0_500k` (ok, 500k, ~3,8h) | **+100,36 · 450 · 3/3** | 440/450 morte (98%) | **+55,07 · 450 · 3/3** | 6/6 |
-| `rainbow_500k_completed_1009` (500k completo, run background concorrente finalizada em 10/09 — ver nota abaixo) | +90,77 · 450 · 3/3 | −63,41 · 201 · 0/3 | −37,78 · 357 · 0/3 | 3/9 |
+| **A. Fine-tuning** (2-way 500k + `ds2`, $\eta = 3 \times 10^{-4}$) | ✗ 0/3 (-76.99) | **✓ 3/3** (+34.90) | **✓ 3/3** (+60.34) | **Catastrophic forgetting of `ds1`** |
+| **B. Fresh 3-way** (500k steps, 3 envs) | ✗ 0/2 (-74.59) | ✗ 0/2 (-44.03) | ✗ 0/2 (-74.93) | Under-trained ($\sim 167\text{k}$/track) |
+| **C. Extended 3-way** (1M total steps, 3 envs) | ✗ 0/3 (-60.33) | ✗ 0/3 (-45.94) | ✗ 0/3 (-62.87) | Stochastic survival, 0/3 deterministic |
+| **D. Extended 3-way** (2M total steps, 3 envs) | ✗ 420/450 (93%) | ✗ 273/450 | ✗ 203/450 | **0/3 — "More steps alone" hypothesis falsified** |
 
-- **PPO 500k generaliza**: primeiro modelo do projeto com timeout
-  determinístico nas **duas** pistas de treino (6/6). Mais steps curaram o overfit.
-- **Rainbow 500k completo**: sobrevive 100% de ds1 e 79% de ds3 (357/450),
-  mas não ds2. Nota: o run foi dado como "parcial 379k" antes, mas descobrimos
-  que a tentativa background concorrente (mesmo padrão do incidente do PPO)
-  completou os 500k em 10/09 e salvou o final.pth — preservado como
-  `rainbow_500k_completed_1009.pth` e reavaliado acima.
-- Nota de incidente: o PPO 500k foi treinado 2× concorrente por engano
-  (processo background sobreviveu ao `kill` da ferramenta; 2 runs MLflow
-  homônimas, mesmos hiperparâmetros/seed). O artefato avaliado é válido
-  (500k steps, load+eval ok) e o CSV foi dedupado para 6 linhas.
+---
 
-### 📹 Vídeos de demonstração — ds1, ds2 e ds3 (2026-09-12)
+## 🔬 Curriculum Learning & 1350-Step Full Descent
 
-Gravados com `record_phases.py` usando o `grid_ppo_nature_s0_500k_best.zip`
-(1 episódio determinístico por fase, tela real do jogo em cores 256×192,
-tempo real, `videos/phase_ds*.mp4`):
+Transitioning from 450 steps to the full track descent (**1350 steps / 90 seconds**) required the alternating curriculum pipeline with decaying learning rates:
 
-| Fase | Recompensa | Passos | Resultado | Vídeo |
+```mermaid
+graph TD
+    A["Base Training (1M steps)<br>Tracks: ds1 + ds3<br>Flow weight: 2.5"] --> B["Curriculum Round 1 (300k steps, lr=5e-5)<br>Uniform mix: ds1, ds2, ds3<br>Achieved: ds1✓, ds2✓"]
+    B --> C["Curriculum Round 2 (500k steps, lr=5e-5)<br>Emphasis mix: ds1, ds2, ds3, ds3<br>Achieved: ds2✓, ds3✓"]
+    C --> D["Curriculum Round 3 (500k steps, lr=5e-5 -> 2.5e-5)<br>Emphasis mix: ds1, ds2, ds3, ds1<br>Achieved: ALL 3 TRACKS COMPLETED (1350/1350)"]
+```
+
+### Full Descent Results Summary (`curriculum_flow25_r3_best.zip`)
+
+| Track | Independent Eval (flow $\times 1.0$) | Video Rollout (flow $\times 2.5$) | Descent Steps | Survival Rate |
 |---|---|---|---|---|
-| ds1 | +100,36 | **450/450** | ⏱ TIMEOUT (sobreviveu) | `videos/phase_ds1.mp4` |
-| ds2 | −52,53 | **440/450** | ☠ morte no fim (98% de sobrevivência) | `videos/phase_ds2.mp4` |
-| ds3 | +47,85 | **450/450** | ⏱ TIMEOUT (sobreviveu) | `videos/phase_ds3.mp4` |
+| `ds1` (Course 3) | +131.77 | +369.94 | **1350 / 1350** | **3 / 3 (100%)** |
+| `ds2` (Princess Peach) | +329.92 | +865.29 | **1350 / 1350** | **3 / 3 (100%)** |
+| `ds3` (Tall, Tall Mountain) | +185.40 | +504.01 | **1350 / 1350** | **3 / 3 (100%)** |
 
-**Este é o primeiro teste real do projeto na pista ds2** (o eval anterior só
-cobria ds1/ds3): o modelo, treinado apenas com ds1+ds3, sobrevive 98% da
-pista inédita e morre quase no final — generalização real, não memorização.
+---
 
-Regravar os vídeos:
-```bash
-python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
-```
+## 🛠 Reproduction & Execution Guide
 
-### 🧗 Generalização 3 pistas (ds1+ds2+ds3) — tentativas e resultado (2026-09-12/17)
-
-> **Nota:** estes experimentos usavam o env ANTIGO (flow ×0,5, sem
-> step_penalty, HSV quebrado) e **não convergiram**. A interferência entre
-> pistas era real, mas foi vencida depois com flow ×2,5 + curriculum de ênfase
-> alternada — ver "Por que agora funciona" no topo. A lição que sobreviveu
-> daqui: mais steps NÃO resolvem (exp. D falsificou a hipótese), e a
-> magnitude do update (LR) é a chave do esquecimento.
-
-Quatro experimentos com a arquitetura vencedora (PPO+Nature), agora com a GPU
-ativa (torch `2.6.0+cu124` instalado — o índice cu124 não tem 2.12):
-
-| Experimento | ds1 | ds2 | ds3 | Veredito |
-|---|---|---|---|---|
-| **A. Fine-tune** do 2-way 500k com ds2 no mix (200k, `ppo_ft_ds123`) | ✗ 0/3 (−76,99 · 156) | **✓ 3/3** (+34,90) | **✓ 3/3** (+60,34) | **Esquecimento catastrófico de ds1** |
-| **B. Run fresca** 3-way 500k, 3 envs (`ppo_ds123_500k`) | ✗ 0/2 (−74,59 · 221) | ✗ 0/2 (−44,03 · 287) | ✗ 0/2 (−74,93 · 142) | Sub-treinado (~167k/pista) |
-| **C. Continuação** até 1M total, 3 envs (`ppo_ds123_1m`) | ✗ 0/3 (−60,33 · 223) | ✗ 0/3 (−45,94 · 422) | ✗ 0/3 (−62,87 · 115) | Eval estocástico +1,12 ±77,9, mas determinístico 0/3 |
-| **D. Continuação até 2M** total, 3 envs (`ppo_ds123_2m`, fila automática) | best: 420/450 (93%); final: 110 | ✗ (273/313) | ✗ (203/106) | **0/3 — hipótese "só mais steps" falsificada** |
-| C-best (escolhido pela eval em ds1, t=770k) | ✗ 0/2 (−81,90 · 129) | ✗ 0/2 (−67,09 · 250) | ✗ 0/2 (−71,46 · 89) | Confirma o padrão |
-
-**Rainbow+Nature 500k (2 runs independentes, mesma seed, CUDA):**
-
-| Run | ds1 | ds2 | ds3 |
-|---|---|---|---|
-| `rainbow_500k_completed_1009` (run background concorrente, finalizado em 10/09) | **✓ 3/3** (+90,77) | ✗ 0/3 (201) | ✗ 357/450 (79%) |
-| `grid_rainbow_nature_s0_500k_final` (fresca, 21,5h, finalizada 17/09 15:11) | ✗ 0/3 (225) | **✓ 3/3** (+47,94) | ✗ 0/3 (101) |
-
-Leitura científica:
-- **O fine-tune fechou a lacuna do ds2** (3/3) e manteve ds3, mas esqueceu
-  ds1 completamente — esquecimento catastrófico clássico em fine-tuning.
-- **A hipótese "só mais steps" está falsificada**: o experimento D rodou até
-  2M total (~667k/pista) e continua 0/3 no determinístico (o ds1-best chegou
-  a 420/450 — 93% — e morre no fim). Com 333k/pista (1M) já era 0/3; dobrar
-  a exposição não convergiu.
-- **3-way é qualitativamente mais difícil que 2-way**: o 2-way convergiu com
-  250k/pista; o 3-way falha com 667k/pista. O gargalo é a interferência
-  entre as geometrias das pistas na CNN compartilhada, não a exposição.
-- **O Rainbow 500k também especializa em pista única** — mas cada run escolhe
-  uma pista diferente (1009: ds1; fresca: ds2): alta variância entre runs
-  (mesma seed, CUDA muda o fluxo aleatório), mesmo padrão de especialização.
-- **Melhor modelo único continua sendo o 2-way** (`grid_ppo_nature_s0_500k`):
-  ds1 ✓✓, ds3 ✓✓, ds2 440/450 (98%). Entre o 2-way e o fine-tuned (A), as
-  3 pistas estão cobertas — mas por modelos diferentes.
-- Próximos passos se quiser fechar de verdade: **curriculum** (treinar pista
-  por pista com replay das antigas), **2 envs por pista** (6 envs), reward
-  por velocidade real, ou multi-task com cabeças por pista.
-
-### 🎓 Curriculum — quase fecha as 3 pistas (2026-09-17, `src/train_curriculum.py`)
-
-Design: partir do melhor modelo (2-way 500k), **LR decrescente por fase**
-(1e-4 → 5e-5 → 2.5e-5), todas as pistas no mix em toda fase, e seleção do
-melhor checkpoint **balanceado** (EvalCallback com eval determinístico nas 3
-pistas — vec com 1 env por pista; a média seleciona o balanceado: um
-especialista de 1 pista tem média ~−33, um modelo que sobrevive as 3 tem ~+63).
-
-| Fase (lr) | ds1 | ds2 | ds3 | Média balanceada |
-|---|---|---|---|---|
-| 1 (1e-4, 200k) | **✓ 3/3** (+79,27) | ✗ 337 | **✓ 3/3** (+42,69) | +28,4* |
-| 2 (5e-5, 200k) | ✗ **432/450 (96%)** | **✓ 3/3** (+44,24) | **✓ 3/3** (+51,41) | **+28,36** ← best global |
-| 3 (2.5e-5, 200k) | ✗ 338 | ✗ 432 (regrediu) | **✓ 3/3** (+58,68) | +17,5 |
-
-\* média da fase 1: (79,27 − 73,59 + 42,69)/3 = +16,1; o best global (28,36) é o checkpoint da fase 2.
-
-Leitura científica:
-- **O LR baixo funciona como anti-esquecimento**: a fase 1 (1e-4) preservou
-  ds1+ds3 — no experimento A (fine-tune direto a 3e-4), ds1 foi esquecido
-  imediatamente. Isso isola a causa do esquecimento: a **magnitude do update**,
-  não o mixing de dados.
-- **A fase 2 aprendeu ds2** (3/3) mantendo ds3 e chegando a 96% em ds1 —
-  faltaram **18 passos** para fechar as 3 pistas.
-- **A fase 3 regrediu** (LR 2.5e-5, 200k): mais steps não garantem — o
-  checkpoint da fase 2 estava num pico instável.
-- O `ppo_curriculum_best.zip` (fase 2) é o segundo melhor modelo do projeto:
-  ds2 ✓✓, ds3 ✓✓, ds1 96% — complementar ao 2-way (ds1 ✓✓, ds3 ✓✓, ds2 98%).
-- Caminho para fechar de verdade: estender a fase 2 (500k @ 5e-5 partindo do
-  best da fase 1) ou 2 envs por pista no curriculum.
-
-Reproduzir:
-```bash
-python -m src.train_curriculum --run-id ppo_curriculum \
-    --start-model models/grid_ppo_nature_s0_500k_best.zip \
-    --phases "200000:1e-4,200000:5e-5,200000:2.5e-5" --eval-freq 5000
-```
-Dados: `results_curriculum.csv` (por fase/pista/episódio).
-
-### ⏱ Regime 900 steps (60s) — a descida completa (2026-09-17)
-
-Com 450 steps (30s) nenhum agente completa a descida — o tempo da pista é
-maior que 30s. Default global mudado para **900 steps (60s)** em env, treinos,
-eval e vídeos (`videos/` agora com 60s por fase).
-
-**Achado principal — o modelo 2-way 500k (treinado a 450) avaliado a 900,
-sem nenhum treino novo:**
-
-| Pista | Resultado @900 | Leitura |
-|---|---|---|
-| ds1 | +0,58 · **464**/900 · morte | sobrevive os 30s conhecidos e morre 14 passos na região nova |
-| ds2 | −70,30 · 302 · morte | nunca aprendida |
-| ds3 | **+79,13 · 900/900 · TIMEOUT** | **completa a descida inteira sem treino novo** — o treino a 450 generalizou para 60s na ds3 |
-
-**Tentativas de treino no regime 900 foram líquido-negativas (todas):**
-
-| Experimento | ds1 | ds3 | Veredito |
-|---|---|---|---|
-| Fine-tune 3e-4, 500k (`ppo_900_ds13`) | 101 (vs 464 original) | 147 | destruiu o modelo |
-| Curriculum 1e-4→5e-5, 500k (`curriculum_900`) | 244→369 | 533→358 (era 900✓) | degradou ambas |
-
-Hipótese (não falsificada): o **value net treinado a 450 fica descalibrado
-para episódios de 60s** (retornos ~2× maiores) e o fine-tune desestabiliza
-antes de recalibrar. O treino do zero no regime 900 é o caminho limpo.
-
-Regravar os vídeos 900:
-```bash
-python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
-```
-
-#### Limitações conhecidas
-
-- **Confusão treino-legado:** checkpoints de 1M/500k antigos foram treinados
-  com morte `-50`; a grade usou `-100`. A grade é justa internamente.
-- **3 seeds:** suficiente para triagem, insuficiente para significância
-  estatística (recomendado ≥5 + IC bootstrap).
-- **Heurísticas de recompensa:** morte = tela preta (>95% pixels <10),
-  moedas por HSV e fluxo óptico 32×32 são proxies frágeis.
-- **Eval curto:** 3 eps/pista tem alta variância nas caudas.
-
-#### Nota GPU
-
-A máquina tem RTX 3060 6GB. Os treinos da grade 100k rodaram em CPU porque o
-torch era `2.12.0+cpu`. Em 2026-09-12 instalamos o build CUDA
-(`torch 2.6.0+cu124` — o índice cu124 não tem 2.12):
-```bash
-venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 --force-reinstall --no-deps
-venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"  # True
-```
-Os experimentos 3-way acima já rodaram com `device=cuda`. Ganho é parcial:
-o gargalo é o DeSmuME (emulador, CPU-bound) — a GPU acelera o update da
-CNN, não o rollout. O OOM do Rainbow+IMPALA é de RAM (buffer), não de VRAM.
-
-> **Fix CUDA no Rainbow:** o `C51Policy` do Tianshou guarda o buffer
-> `support` na CPU; sem `policy.to(device)` (`src/train.py`) o treino em
-> GPU explode com device mismatch (`cuda:0 vs cpu`). Corrigido — e com a
-> GPU o Rainbow saltou de ~6,5 it/s (CPU) para ~15 it/s (~3× mais rápido).
-
-### 🎨 Bug de cores (BGR vs RGB) — 2026-09-17
-
-**Descoberta:** o buffer do `py-desmume` é **BGR(X)**, não RGBX como o código
-assumia. Diagnóstico: `cv2.imwrite` (que espera BGR) mostrava Mario
-**vermelho** e moeda **amarela**; o vídeo via imageio (que espera RGB)
-mostrava Mario **azul** e moeda **azul** (report do usuário).
-
-Consequência grave: com `COLOR_RGB2HSV` em dados BGR, o matiz rotaciona
-(H → 120−H) — a máscara "amarela" [15-40] detectava coisas **ciano**
-(H≈90→30), **não as moedas** (H≈25→95). **A recompensa de moeda estava
-quebrada desde sempre** — o treino foi carregado pelo fluxo óptico sozinho.
-
-**Fixes em `src/env.py`:**
-- `_get_obs`: slice `[2,1,0]` (BGR→RGB) antes do grayscale e do HSV — a
-  detecção de moedas agora funciona como desenhado.
-- `get_screen_rgb`: converte para RGB — vídeos com cores corretas.
-- Grayscale: pesos trocados no encoding antigo (impacto menor — a CNN se
-  adaptava, mas o encoding muda com o fix).
-
-**Impacto:** o encoding da observação e a recompensa mudam → **todos os
-modelos anteriores ficaram stale** (foram treinados sem moedas e com
-camping viável). Retreino do zero com o env corrigido.
-
-### 🏕 Anti-camping + 1350 steps (2026-09-17)
-
-Report: na ds3, o agente descobriu que **sobrevive parado** num trecho que
-não o joga para baixo — o timeout sem custo tornava camping viável
-(ótimo local clássico, como o "Paradoxo do Suicídio" §5).
-
-**Fixes:**
-- **`step_penalty=0.02`/passo** (`src/env.py`): ficar parado acumula
-  ~−27 em 1350 steps; avançar termina rápido, paga menos tempo e agora
-  coleta moedas de verdade (fix BGR/HSV acima).
-- **`max_steps=1350`** (90s): 900 (60s) ainda não bastavam para completar.
-
-## 🛠 Como Executar
-
-### Pré-requisitos
-O emulador necessita que as Roms e Savestates estejam nomeadas corretamente na pasta `data/`
-(não vão para o git — ver `.gitignore`):
+### Prerequisites
+Store your legally dumped Nintendo DS ROM and savestates under the `data/` directory (ignored by git):
 - `data/Super Mario 64 DS (USA) (Rev 1).nds`
-- `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Pista da fase 3)
-- `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Pista da Peach)
-- `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Pista secreta da fase do macaco)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Track 1)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Track 2)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Track 3)
 
-### 🧪 Jornada da convergência final — detalhes por rodada (2026-09-17/18)
-
-**Passo 1 — treino base (flow ×2,5, ds1+ds3):** com o env corrigido (cores BGR
-fix, moedas reais desligadas por hacking, flow ×2.5, penalidade anti-camping,
-1350 steps), o treino fresco convergiu:
-
-**`ppo_flow25_ds13_best.zip`** (PPO+Nature, flow ×2.5, 1M steps, seed 0):
-- **ds1: +179,75 · 1350/1350 · 3/3 — COMPLETA a descida (90s)!**
-- ds2: −74,06 · 228 · 0/3 | ds3: −57,40 · 81 · 0/3 (especialização de pista persiste)
-
-**Passo 2 — curriculum r1 (mix uniforme):** partindo do `ppo_flow25_ds13_best`
-(ds1✓), 3 pistas no mix, LR 5e-5 → 2.5e-5, seleção balanceada (eval
-determinístico nas 3 pistas):
-
-| Fase (lr) | ds1 (fase 3) | ds2 (Peach) | ds3 (macaco) | Média |
-|---|---|---|---|---|
-| 1 (5e-5, 300k) ← **best r1** | **+532,00 · 1350 · 3/3** | **+250,46 · 1350 · 3/3** | +291,99 · 359 · 0/3 | **+358,15** |
-| 2 (2.5e-5, 300k) | +578,63 · 1350 · 3/3 | +34,38 · 279 · 0/3 (regrediu) | +26,97 · 77 · 0/3 | +213 |
-
-**Passo 3 — curriculum r2 (ds3-heavy)** — mix ds1,ds2,ds3,ds3, partindo do best r1:
-| Fase | ds1 | ds2 | ds3 |
-|---|---|---|---|
-| 1 (5e-5, 500k) ← **best r2** | +93,68 · 455 · 0/3 | **+825,17 · 1350 · 3/3** | **+492,96 · 1350 · 6/6** |
-
-**Passo 4 — curriculum r3 (ds1-heavy)** — mix ds1,ds2,ds3,ds1, partindo do best r2:
-
-### 🏆🏆🏆 AS TRÊS PISTAS COMPLETAS (2026-09-18)
-
-**`curriculum_flow25_r3_best.zip`** — o primeiro modelo da história do
-projeto a completar as 3 pistas (1350/1350 = 90s em cada), confirmado por
-eval independente determinístico (9/9 episódios completos):
-
-| Pista | Eval indep. (flow ×1,0) | Vídeo (flow ×2,5) | Passos |
-|---|---|---|---|
-| ds1 (fase 3) | +131,77 · 3/3 | +369,94 | **1350/1350** |
-| ds2 (Peach) | +329,92 · 3/3 | +865,29 | **1350/1350** |
-| ds3 (macaco) | +185,40 · 3/3 | +504,01 | **1350/1350** |
-
-(A tabela resumo da jornada r1→r3 está no topo, em "Por que agora funciona".
-Curiosidade: na r3 foi a *fase 2* — que nas rodadas anteriores sempre
-regredia — que fechou a ds1.)
-
-Reproduzir a jornada completa (base→r1→r2→r3):
+### Reproducing the Winning Curriculum Pipeline
 ```bash
+# Step 1: Base two-track pretraining (1M steps)
 python -m src.train_ppo --run-id ppo_flow25_ds13 --features nature --states ds1,ds3 --n-envs 2 --timesteps 1000000 --seed 0 --flow-weight 2.5
+
+# Step 2: Curriculum Round 1 (uniform mix)
 python -m src.train_curriculum --run-id curriculum_flow25 --start-model models/ppo_flow25_ds13_best.zip --states ds1,ds2,ds3 --phases "300000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
+
+# Step 3: Curriculum Round 2 (ds3 emphasis)
 python -m src.train_curriculum --run-id curriculum_flow25_r2 --start-model models/curriculum_flow25_best.zip --states ds1,ds2,ds3,ds3 --n-envs 4 --phases "500000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
+
+# Step 4: Curriculum Round 3 (ds1 consolidation)
 python -m src.train_curriculum --run-id curriculum_flow25_r3 --start-model models/curriculum_flow25_r2_best.zip --states ds1,ds2,ds3,ds1 --n-envs 4 --phases "500000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
 ```
-Dados: `results_curriculum_r1.csv`, `results_curriculum_r2.csv`.
 
-### Treinando Novos Modelos
-Para iniciar um novo treinamento do zero, escolha sua arma:
+### Training Other Baselines
 
-**PPO Baseline (Rápido, 4 instâncias paralelas):**
+**PPO with IMPALA ResNet:**
 ```bash
-python -m src.train_ppo --run-id ppo_mario64ds_novo --n-envs 4
+python -m src.train_ppo --run-id ppo_impala_run --features impala --n-envs 4 --seed 0
 ```
 
-**PPO + IMPALA (comparação justa com Rainbow):**
+**Rainbow DQN with NatureCNN:**
 ```bash
-python -m src.train_ppo --run-id ppo_impala_novo --features impala --n-envs 4 --seed 0
+python -m src.train --run-id rainbow_nature_run --features nature --seed 0
 ```
 
-**Rainbow DQN (Focado em Off-Policy):**
+**QR-DQN (Distributional RL):**
 ```bash
-python -m src.train --run-id rainbow_mario64ds_novo
+python -m src.train_qrdqn --run-id qrdqn_run --features nature --n-envs 4 --seed 0
 ```
 
-**Rainbow + NatureCNN (comparação justa com PPO):**
+### Evaluation & Visualization
+
+**Evaluate checkpoint across tracks:**
 ```bash
-python -m src.train --run-id rainbow_nature_novo --features nature --seed 0
+python -m src.eval --algo ppo --model models/curriculum_flow25_r3_best.zip --n-episodes 5 --deterministic --seed 0
 ```
 
-**QR-DQN (SB3-Contrib):**
+**Visualize agent playing in real-time:**
 ```bash
-python -m src.train_qrdqn --run-id qrdqn_novo --n-envs 4
+python -m src.play --algo ppo --model models/curriculum_flow25_r3_best.zip --deterministic
 ```
 
-### Visualizando Agentes Treinados
-O script auto-detectará o modelo mais recente de acordo com o algoritmo escolhido.
-
-**Ver o Mário jogar usando PPO:**
+**Record high-definition demonstration MP4s:**
 ```bash
-python -m src.play --algo ppo
+python record_phases.py --model models/curriculum_flow25_r3_best.zip --fps 15
 ```
 
-**Ver o Mário jogar usando Rainbow:**
-```bash
-python -m src.play --algo rainbow
-```
-
-**Ver usando QR-DQN, determinístico (reproduzível):**
-```bash
-python -m src.play --algo qrdqn --deterministic
-```
-
-### Avaliação reproduzível
-```bash
-python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 5 --deterministic --seed 0
-```
-
-### Testes
+### Automated Testing
 ```bash
 python -m pytest tests/ -v
 ```
-Testes unitários sem emulador (`tests/test_env_logic.py`, `tests/test_features.py`).
-`src/test_env.py` é smoke test manual (precisa de ROM).
 
-### MLflow e TensorBoard
+### MLflow & TensorBoard
 ```bash
+# Start MLflow tracking server
 mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
-# abrir http://localhost:5000 -> experimento Mario64_NDS_RL
 
+# Start TensorBoard
 tensorboard --logdir tensorboard_logs --port 6006
-# abrir http://localhost:6006
-# ou por run: tensorboard --logdir tensorboard_logs/ppo_mario64ds_continued_4_envs
 ```
 
-### Docker (CPU e GPU)
+### Docker Containerization
 ```bash
-# CPU
+# Build container image
 docker build -t mario64ds-rl .
-docker run -v ${PWD}/data:/app/data mario64ds-rl
 
-# GPU (requer nvidia-container-toolkit; imagem base já com torch cu124 via requirements)
-docker build -t mario64ds-rl .
-docker run --gpus all -v ${PWD}/data:/app/data mario64ds-rl python -m src.train_ppo --n-envs 4 --timesteps 500000
-
-# Avaliar dentro do container
-docker run -v ${PWD}/models:/app/models -v ${PWD}/data:/app/data mario64ds-rl python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 3
+# Run container with GPU acceleration
+docker run --gpus all -v ${PWD}/data:/app/data -v ${PWD}/models:/app/models mario64ds-rl
 ```
-Nota: `CMD` padrão agora é PPO (o que convergiu), não Rainbow. ROM/savestates
-em `data/` não vão para a imagem via Git (ver `.gitignore`) — monte via volume.

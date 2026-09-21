@@ -15,13 +15,13 @@ from tianshou.algorithm.modelfree.c51 import C51Policy
 
 
 def load_rainbow_policy(model_path, device, features="impala"):
-    """Carrega a política Rainbow DQN (IMPALA ou Nature)."""
+    """Loads Rainbow DQN policy (IMPALA or Nature)."""
     if features == "impala":
         feature_net = ImpalaCNN(c=4, h=84, w=84, features_dim=256)
     elif features == "nature":
         feature_net = TianshouNatureCNN(c=4, h=84, w=84, features_dim=512)
     else:
-        raise ValueError(f"features deve ser 'impala' ou 'nature', recebido: {features}")
+        raise ValueError(f"features must be 'impala' or 'nature', received: {features}")
     action_shape = 6
     num_atoms = 51
     model = RainbowNet(feature_net, action_shape, num_atoms, noisy_std=0.5).to(device)
@@ -44,7 +44,7 @@ def load_rainbow_policy(model_path, device, features="impala"):
 
 
 def load_sb3_model(algo, model_path):
-    """Carrega modelo SB3 (PPO ou QR-DQN). O extrator (Nature/IMPALA) vem do .zip."""
+    """Loads SB3 model (PPO or QR-DQN). Extractor is restored from checkpoint."""
     if algo == "ppo":
         from stable_baselines3 import PPO as Algo
     elif algo == "qrdqn":
@@ -59,7 +59,7 @@ def load_sb3_model(algo, model_path):
         print(f"{algo.upper()} model loaded from {model_path}")
         return model
     except TypeError as e:
-        # Modelo legado QRDQN que referencia src.impala_cnn.ImpalaCNN
+        # Legacy QRDQN model referencing src.impala_cnn.ImpalaCNN
         if "Box" not in str(e):
             raise
         import src.impala_cnn
@@ -68,20 +68,14 @@ def load_sb3_model(algo, model_path):
         src.impala_cnn.ImpalaCNN = ImpalaFeaturesExtractor
         try:
             model = Algo.load(model_path)
-            print(f"{algo.upper()} (legado, patch IMPALA) loaded from {model_path}")
+            print(f"{algo.upper()} (legacy, IMPALA patch) loaded from {model_path}")
             return model
         finally:
             src.impala_cnn.ImpalaCNN = orig
 
 
 def play_rainbow(policy, rom_path, savestates, device, deterministic=False):
-    """Visualização com Rainbow DQN. Recria o env por savestate.
-
-    FIX: antes o código mutava ``env.workers[0].env.env.state_path`` após
-    criar o DummyVectorEnv, o que dependia do nesting exato de wrappers
-    (FrameStackObservation -> Mario64DSEnv) e nem sempre recarregava o
-    savestate. Agora cada savestate ganha seu próprio env.
-    """
+    """Visualization using Rainbow DQN, recreating an isolated environment per savestate."""
     for idx, state_path in enumerate(savestates):
         print(f"\n--- Rainbow DQN - Savestate {idx + 1}: {os.path.basename(state_path)} ---")
 
@@ -102,8 +96,7 @@ def play_rainbow(policy, rom_path, savestates, device, deterministic=False):
                 result = policy(batch)
                 action = result.act
                 if deterministic:
-                    # C51 é distribucional; modo greedy = argmax da média dos átomos.
-                    # Tianshou já retorna a ação greedy em act quando exploration_noise=False.
+                    # C51 is distributional; greedy mode = argmax over atom mean distribution.
                     pass
 
             obs, reward, terminated, truncated, info = env.step(action)
@@ -117,7 +110,7 @@ def play_rainbow(policy, rom_path, savestates, device, deterministic=False):
 
 
 def play_sb3(model, rom_path, savestates, label="PPO", deterministic=False):
-    """Visualização com modelo SB3 (PPO ou QR-DQN). Recria o env por savestate."""
+    """Visualization using an SB3 model (PPO or QR-DQN), recreating environment per savestate."""
     from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack, VecTransposeImage
     from stable_baselines3.common.monitor import Monitor
 
@@ -153,13 +146,13 @@ def play_sb3(model, rom_path, savestates, label="PPO", deterministic=False):
 def play():
     parser = argparse.ArgumentParser(description="Visualize Mario 64 DS RL Agent")
     parser.add_argument("--algo", type=str, default="rainbow", choices=["rainbow", "ppo", "qrdqn"],
-                        help="Algorithm: 'rainbow' (Tianshou), 'ppo' ou 'qrdqn' (SB3)")
+                        help="Algorithm: 'rainbow' (Tianshou), 'ppo' or 'qrdqn' (SB3)")
     parser.add_argument("--model", type=str, default=None,
                         help="Path to model weights (auto-detected if not provided)")
     parser.add_argument("--features", type=str, default="impala", choices=["impala", "nature"],
-                        help="Extrator do Rainbow (ignorado para PPO/QRDQN, que leem do .zip)")
+                        help="Visual extractor for Rainbow (ignored for PPO/QRDQN, which read from .zip)")
     parser.add_argument("--deterministic", action="store_true",
-                        help="Ação greedy/determinística (para reproducibilidade; default é estocástico)")
+                        help="Greedy/deterministic actions (for reproducibility; default is stochastic)")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

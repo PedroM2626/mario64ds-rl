@@ -28,23 +28,21 @@ class Mario64DSEnv(gym.Env):
         self.render_mode = render_mode
         self.max_steps = max_steps
         self.frameskip = frameskip
-        # Convenção de recompensa (ver README §5 "Paradoxo do Suicídio"):
-        # timeout = sobrevivência -> sem punição; morte no abismo -> -100.
-        # Manter death_penalty > timeout_penalty, senão o agente aprende a se suicidar.
+        # Reward convention (see README "Suicide Paradox"):
+        # timeout = survival -> no penalty; abyss death -> -100.
+        # Keep death_penalty > timeout_penalty, otherwise the agent learns to commit suicide.
         self.death_penalty = death_penalty
         self.timeout_penalty = timeout_penalty
-        # Anti-camping (report 2026-09-17: o agente descobriu que sobrevive
-        # parado num trecho da ds3 que não o joga para baixo — o timeout sem
-        # custo torna camping viável). Custo fixo por passo: ficar parado
-        # acumula -0.02·max_steps (~-27 em 1350); avançar termina rápido,
-        # paga menos tempo e agora coleta moedas de verdade (fix BGR/HSV).
+        # Anti-camping: the agent discovered it could survive motionless at a safe spot
+        # on ds3 that does not slide downhill (zero-cost timeout made camping viable).
+        # Fixed step cost: idling accumulates -0.02 * max_steps (~-27 over 1350 steps);
+        # advancing finishes quickly and pays less cumulative time penalty.
         self.step_penalty = step_penalty
         self.flow_weight = flow_weight
-        # Coin reward HSV: DESLIGADO por padrão. Diagnóstico 2026-09-17: a
-        # máscara amarela detecta o PISO XADREZ (faixa inferior, y~163) e a
-        # PAREDE DE FLORES (x~11-25), não moedas — reward hacking: ruído +
-        # puxão para a borda esquerda. A convergência histórica (450-regime)
-        # veio do fluxo óptico sozinho (HSV quebrado detectava ~nada).
+        # Coin reward HSV: DISABLED by default. Diagnostic: the yellow mask detects
+        # the checkered floor (bottom band, y~163) and flower wall (x~11-25),
+        # causing reward hacking (noise + pull toward the left border).
+        # Historical convergence was driven by optical flow alone.
         self.coin_reward_enabled = coin_reward_enabled
         
         # Determine paths relative to this file
@@ -80,20 +78,19 @@ class Mario64DSEnv(gym.Env):
         try:
             frame = self.emu.display_buffer_as_rgbx()
             frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
-            # FIX (bug de cores): o buffer do py-desmume é BGR(X), não RGBX
-            # como se assumia — cv2.imwrite mostrava Mario vermelho e o vídeo
-            # (imageio, RGB) mostrava azul. Com RGB2HSV em dados BGR o matiz
-            # rotaciona (H -> 120-H) e a máscara amarela [15-40] detectava
-            # coisas CIANO (H~90 -> 30), não as moedas (H~25 -> 95):
-            # a recompensa de moeda estava quebrada desde sempre.
+            # FIX (color bug): py-desmume display buffer is BGR(X), not RGBX
+            # as previously assumed — cv2.imwrite showed Mario as red and video
+            # (imageio, RGB) showed blue. With RGB2HSV on BGR data, hue rotates
+            # (H -> 120-H) and yellow mask [15-40] detected cyan features (H~90 -> 30)
+            # rather than coins (H~25 -> 95): coin reward was broken historically.
             top_screen = frame[:192, :, [2, 1, 0]]  # BGR -> RGB
             
             gray = cv2.cvtColor(top_screen, cv2.COLOR_RGB2GRAY)
             self.last_top_screen_gray = gray.copy()
             resized = cv2.resize(gray, (84, 84), interpolation=cv2.INTER_AREA)
 
-            # Coin Tracking via HSV — apenas se habilitado (ver __init__:
-            # desligado por padrão; detectava piso xadrez/parede de flores).
+            # Coin Tracking via HSV — only if enabled (disabled by default due
+            # to checkered floor / flower wall detection).
             if not self.coin_reward_enabled:
                 self.last_coin_reward = 0.0
                 return np.expand_dims(resized, axis=-1)
@@ -153,7 +150,7 @@ class Mario64DSEnv(gym.Env):
         obs = self._get_obs()
         self.episode_steps += 1
         
-        # Custo de tempo por passo (anti-camping, ver __init__)
+        # Time cost per step (anti-camping, see __init__)
         reward = -self.step_penalty
         
         done = False 
@@ -161,7 +158,7 @@ class Mario64DSEnv(gym.Env):
         
         if self.episode_steps >= self.max_steps:
             truncated = True
-            # Timeout = sobrevivência (não há linha de chegada detectada).
+            # Timeout = survival (no explicit finish line detected).
             reward -= self.timeout_penalty
             print("Timeout detected!")
 
@@ -182,13 +179,10 @@ class Mario64DSEnv(gym.Env):
             if self.prev_gray is not None:
                 flow = cv2.calcOpticalFlowFarneback(self.prev_gray, curr_gray_small, None, 0.5, 3, 15, 3, 5, 1.2, 0)
                 flow_y = flow[..., 1]
-                # Positive flow_y means pixels are moving down -> Mario is moving forward
                 # Positive flow_y means pixels are moving down -> Mario is moving forward.
-                # flow_weight=1.0 (era 0.5): com a remoção do hacking da moeda,
-                # o flow sozinho (~0.1-0.25/passo) era fraco demais contra o
-                # -100 da morte em rollouts estocásticos (todos os treinos
-                # frescos degradavam); o sinal denso de avanço precisa ser
-                # forte para vencer o ruído da morte.
+                # flow_weight=1.0 (previously 0.5): with coin reward disabled, optical flow
+                # alone (~0.1-0.25/step) required stronger weighting against the -100 death penalty
+                # in stochastic rollouts to guide forward progress.
                 flow_reward = np.clip(np.mean(flow_y), 0, None) * self.flow_weight
                 reward += flow_reward
             self.prev_gray = curr_gray_small
@@ -222,12 +216,12 @@ class Mario64DSEnv(gym.Env):
             return self._get_obs()
 
     def get_screen_rgb(self):
-        """Tela superior real do jogo em RGB (256x192), para gravação de vídeo."""
+        """Real top screen of the game in RGB (256x192), for video recording."""
         if not self.has_emulator:
             return np.zeros((192, 256, 3), dtype=np.uint8)
         frame = self.emu.display_buffer_as_rgbx()
         frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
-        # Buffer é BGR(X) (ver fix em _get_obs): converte para RGB
+        # Buffer is BGR(X) (see fix in _get_obs): convert to RGB
         return frame[:192, :, [2, 1, 0]]
 
     def close(self):

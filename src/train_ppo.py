@@ -27,7 +27,7 @@ def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4,
 
 
 class MLflowCallback(BaseCallback):
-    """Callback para logar métricas do PPO no MLflow a cada 1000 passos."""
+    """Callback to log PPO training metrics to MLflow every 1000 steps."""
     def __init__(self, verbose=0):
         super().__init__(verbose)
 
@@ -42,11 +42,11 @@ class MLflowCallback(BaseCallback):
 
 
 def build_policy_kwargs(features: str):
-    """Retorna (policy, policy_kwargs) para comparação justa.
+    """Returns (policy, policy_kwargs) for fair architectural comparison.
 
-    - ``nature``: CnnPolicy padrão do SB3 (NatureCNN).
-    - ``impala``: CnnPolicy + ``ImpalaFeaturesExtractor`` customizado
-      (mesmos blocos residuais do Rainbow em ``src/impala_cnn.py``).
+    - ``nature``: Standard SB3 CnnPolicy (NatureCNN).
+    - ``impala``: CnnPolicy with custom ``ImpalaFeaturesExtractor``
+      (identical residual blocks to Rainbow in ``src/impala_cnn.py``).
     """
     if features == "nature":
         return "CnnPolicy", {}
@@ -56,28 +56,28 @@ def build_policy_kwargs(features: str):
             features_extractor_class=ImpalaFeaturesExtractor,
             features_extractor_kwargs=dict(features_dim=256),
         )
-    raise ValueError(f"--features deve ser 'nature' ou 'impala', recebido: {features}")
+    raise ValueError(f"--features must be 'nature' or 'impala', received: {features}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train Mario 64 DS RL Agent with PPO (NatureCNN ou IMPALA)")
+    parser = argparse.ArgumentParser(description="Train Mario 64 DS RL Agent with PPO (NatureCNN or IMPALA)")
     parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds", help="Path to NDS ROM")
     parser.add_argument("--timesteps", type=int, default=500000, help="Total timesteps to train")
     parser.add_argument("--run-id", type=str, default="ppo_mario64ds_baseline", help="Name/ID for this training run")
     parser.add_argument("--n-envs", type=int, default=4, help="Number of parallel environments")
     parser.add_argument("--resume", type=str, default=None, help="Path to a previous model (.zip) to resume training")
     parser.add_argument("--features", type=str, default="nature", choices=["nature", "impala"],
-                        help="Extrator visual: 'nature' (baseline SB3) ou 'impala' (comparação justa com Rainbow)")
-    parser.add_argument("--seed", type=int, default=0, help="Seed para reproducibilidade")
+                        help="Visual extractor: 'nature' (SB3 baseline) or 'impala' (fair comparison with Rainbow)")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument("--states", type=str, default="ds1,ds3",
-                        help="Savestates no mix de treino (ex.: 'ds1,ds2,ds3' para generalizar nas 3 pistas)")
-    parser.add_argument("--max-steps", type=int, default=1350, help="Passos máximos por episódio (deve bater com env)")
-    parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
+                        help="Savestates included in training mix (e.g., 'ds1,ds2,ds3' to generalize across 3 tracks)")
+    parser.add_argument("--max-steps", type=int, default=1350, help="Maximum steps per episode (must match env)")
+    parser.add_argument("--frameskip", type=int, default=4, help="Emulator frameskip")
     parser.add_argument("--step-penalty", type=float, default=0.02,
-                        help="Custo por passo (anti-camping)")
+                        help="Time penalty per step (anti-camping)")
     parser.add_argument("--flow-weight", type=float, default=2.5,
-                        help="Peso do flow reward (2.5 validado: sinal denso de avanço "
-                             "vence o ruído da morte; 0.5/1.0 fazem treino fresco degradar)")
+                        help="Weight for optical flow reward (2.5 validated: dense forward progress "
+                             "signal overcomes abyss death noise; 0.5/1.0 causes fresh runs to degrade)")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -93,7 +93,7 @@ def main():
     ]
     for sp in savestates:
         if not os.path.exists(sp):
-            raise FileNotFoundError(f"Savestate não encontrado: {sp}")
+            raise FileNotFoundError(f"Savestate not found: {sp}")
     env_fns = []
     for i in range(args.n_envs):
         state = savestates[i % len(savestates)]
@@ -104,22 +104,20 @@ def main():
 
     train_envs = SubprocVecEnv(env_fns)
     train_envs = VecFrameStack(train_envs, n_stack=4)
-    # Explícito (o SB3 também auto-aplica no _wrap_env, mas deixamos visível):
-    # (B, 84, 84, 4) HWC -> (B, 4, 84, 84) CHW para a CNN.
+    # Explicit transpose: (B, 84, 84, 4) HWC -> (B, 4, 84, 84) CHW for CNN input
     train_envs = VecTransposeImage(train_envs)
 
-    # Eval env (1 instância, savestate principal = primeiro do mix)
+    # Eval env (single instance, primary savestate = first in mix)
     eval_env = SubprocVecEnv([make_env(rom_full, savestates[0], rank=1000, seed=args.seed,
                                        max_steps=args.max_steps, frameskip=args.frameskip)])
     eval_env = VecFrameStack(eval_env, n_stack=4)
     eval_env = VecTransposeImage(eval_env)
 
-    # Logger Tensorboard
+    # TensorBoard logging
     log_path = os.path.join(base_dir, "tensorboard_logs", args.run_id)
 
-    # Callback de avaliação.
-    # FIX (race entre runs): cada run-id tem sua própria pasta, em vez de
-    # dividir models/best_model.zip com outros treinamentos em paralelo.
+    # Evaluation callback
+    # Dedicated directory per run_id prevents checkpoint collisions during concurrent runs
     models_dir = os.path.join(base_dir, 'models')
     best_model_dir = os.path.join(models_dir, args.run_id)
     os.makedirs(best_model_dir, exist_ok=True)
@@ -152,7 +150,7 @@ def main():
             gamma=0.99,
             gae_lambda=0.95,
             clip_range=0.2,
-            ent_coef=0.01,  # Incentiva exploração
+            ent_coef=0.01,  # Encourages exploration
             seed=args.seed,
             policy_kwargs=policy_kwargs,
             device="auto"
@@ -186,12 +184,12 @@ def main():
             train_envs.close()
             eval_env.close()
 
-        # Salvar modelo final
+        # Save final model
         final_path = os.path.join(models_dir, f"{args.run_id}_final")
         model.save(final_path)
         mlflow.log_artifact(final_path + ".zip", artifact_path="models")
 
-        # O EvalCallback salva o melhor modelo em <models>/<run_id>/best_model.zip
+        # EvalCallback saves the best model in <models>/<run_id>/best_model.zip
         best_path = os.path.join(best_model_dir, "best_model.zip")
         if os.path.exists(best_path):
             import shutil

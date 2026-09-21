@@ -1,8 +1,7 @@
-﻿"""Testes unitÃ¡rios do env que NÃƒO precisam do emulador/ROM.
+"""Unit tests for environment logic that do NOT require emulator or ROM binaries.
 
-O antigo ``src/test_env.py`` exigia DeSmuME + ROM e nÃ£o era coletado pelo
-pytest. Estes testes cobrem a convenÃ§Ã£o de recompensa (anti-suicÃ­dio),
-spaces e construÃ§Ã£o com emulador mockado.
+Covers reward conventions (anti-suicide constraint), spaces validation,
+and environment instantiation using a mocked DeSmuME emulator.
 """
 
 from unittest.mock import MagicMock, patch
@@ -16,7 +15,7 @@ def _make_env(**kwargs):
         mock_emu_cls.return_value = mock_emu
         from src.env import Mario64DSEnv
         env = Mario64DSEnv.__new__(Mario64DSEnv)
-        # Chama __init__ com emulador mockado
+        # Call __init__ with mocked emulator
         Mario64DSEnv.__init__(env, rom_path="fake.nds", state_path="fake.ds1", **kwargs)
         return env
 
@@ -32,7 +31,7 @@ def test_default_spaces_and_limits():
     env = _make_env()
     assert env.action_space.n == 6
     assert env.observation_space.shape == (84, 84, 1)
-    assert env.max_steps == 1350  # 60s (o tempo de completar a descida)
+    assert env.max_steps == 1350  # 90s at frameskip 4 (duration needed to complete descent)
     assert env.frameskip == 4
 
 

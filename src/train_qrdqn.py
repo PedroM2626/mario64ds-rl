@@ -1,11 +1,9 @@
-"""Treina QR-DQN (SB3-Contrib) no Mario 64 DS.
+"""Trains QR-DQN (SB3-Contrib) on Mario 64 DS.
 
-Este script não existia no repo, mas há ``models/qrdqn_mario64ds.zip`` e runs
-``qrdqn_mario64ds`` no MLflow — ou seja, o modelo foi treinado com um script
-ad-hoc não versionado. Esta versão versiona o procedimento e permite a
-comparação justa QR-DQN vs PPO vs Rainbow com ``--features nature|impala``.
+Enables controlled comparisons: QR-DQN vs PPO vs Rainbow with either NatureCNN
+or IMPALA visual feature extractors.
 
-Exemplos:
+Examples:
     python -m src.train_qrdqn --run-id qrdqn_mario64ds --n-envs 4 --timesteps 500000
     python -m src.train_qrdqn --run-id qrdqn_impala --features impala --n-envs 4
 """
@@ -36,6 +34,7 @@ def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4):
 
 
 class MLflowCallback(BaseCallback):
+    """Callback to log QR-DQN training metrics to MLflow every 1000 steps."""
     def __init__(self, verbose=0):
         super().__init__(verbose)
 
@@ -64,16 +63,17 @@ def build_policy_kwargs(features: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Mario 64 DS with QR-DQN")
-    parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds")
-    parser.add_argument("--run-id", type=str, default="qrdqn_mario64ds")
-    parser.add_argument("--timesteps", type=int, default=500000)
-    parser.add_argument("--n-envs", type=int, default=4)
-    parser.add_argument("--features", type=str, default="nature", choices=["nature", "impala"])
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--lr", type=float, default=5e-5)
-    parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--max-steps", type=int, default=1350)
-    parser.add_argument("--frameskip", type=int, default=4)
+    parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds", help="Path to NDS ROM")
+    parser.add_argument("--run-id", type=str, default="qrdqn_mario64ds", help="Name/ID for training run")
+    parser.add_argument("--timesteps", type=int, default=500000, help="Total timesteps")
+    parser.add_argument("--n-envs", type=int, default=4, help="Number of parallel environments")
+    parser.add_argument("--features", type=str, default="nature", choices=["nature", "impala"],
+                        help="Visual extractor: 'nature' or 'impala'")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed")
+    parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+    parser.add_argument("--max-steps", type=int, default=1350, help="Max steps per episode")
+    parser.add_argument("--frameskip", type=int, default=4, help="Emulator frameskip")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -112,8 +112,7 @@ def main():
     model = QRDQN(
         policy, train_envs, verbose=1, tensorboard_log=log_path,
         learning_rate=args.lr, batch_size=args.batch_size,
-        # Mesmo motivo do Rainbow (OOM com FrameStack): buffer padrão de 1M
-        # com obs (4,84,84) uint8 estoura ~26 GiB. 20k mantém ~1.5 GB.
+        # Sized to 20,000 transitions to avoid OOM (~1.5 GB RAM instead of ~26 GiB for 1M buffer)
         buffer_size=20000,
         seed=args.seed, policy_kwargs=policy_kwargs, device="auto",
     )

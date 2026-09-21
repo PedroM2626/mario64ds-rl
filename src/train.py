@@ -17,7 +17,7 @@ from gymnasium.wrappers import FrameStackObservation
 from src.env import Mario64DSEnv
 from src.impala_cnn import ImpalaCNN, TianshouNatureCNN, RainbowNet
 
-# Suporte C51: recompensa de morte (-100) e teto de timeout definem o suporte.
+# C51 support bounds: death penalty (-100) and max timeout ceiling define the support.
 V_MIN = -100.0
 V_MAX = 100.0
 
@@ -28,7 +28,7 @@ def make_env(rom_path, state_path, seed=0, max_steps=1350, frameskip=4):
             rom_path=rom_path, state_path=state_path,
             max_steps=max_steps, frameskip=frameskip,
         )
-        # FrameStack empilha os ultimos 4 frames num array
+        # FrameStack stacks the last 4 frames into a single observation array
         env = FrameStackObservation(env, stack_size=4)
         env.reset(seed=seed)
         return env
@@ -36,13 +36,13 @@ def make_env(rom_path, state_path, seed=0, max_steps=1350, frameskip=4):
 
 
 def build_feature_net(features: str):
-    """Comparação justa: 'impala' (default, residual) vs 'nature' (Mnih et al.)."""
+    """Fair benchmark comparison: 'impala' (default, residual) vs 'nature' (Mnih et al.)."""
     if features == "impala":
-        # A FrameStack vai enviar arrays de shape (84, 84, 4), então c=4
+        # FrameStack produces arrays of shape (84, 84, 4), so c=4
         return ImpalaCNN(c=4, h=84, w=84, features_dim=256)
     if features == "nature":
         return TianshouNatureCNN(c=4, h=84, w=84, features_dim=512)
-    raise ValueError(f"--features deve ser 'impala' ou 'nature', recebido: {features}")
+    raise ValueError(f"--features must be 'impala' or 'nature', received: {features}")
 
 
 def main():
@@ -53,10 +53,10 @@ def main():
     parser.add_argument("--test-run", action="store_true", help="Run a short test to verify environment")
     parser.add_argument("--run-id", type=str, default="rainbow_mario64ds", help="Name/ID for this training run")
     parser.add_argument("--features", type=str, default="impala", choices=["impala", "nature"],
-                        help="Extrator visual: 'impala' (default) ou 'nature' (comparação justa com PPO)")
-    parser.add_argument("--seed", type=int, default=0, help="Seed para reproducibilidade")
-    parser.add_argument("--max-steps", type=int, default=1350, help="Passos máximos por episódio")
-    parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
+                        help="Visual extractor: 'impala' (default) or 'nature' (fair comparison with PPO)")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
+    parser.add_argument("--max-steps", type=int, default=1350, help="Maximum steps per episode")
+    parser.add_argument("--frameskip", type=int, default=4, help="Emulator frameskip")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -69,8 +69,8 @@ def main():
     state_ds1 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds1")
     state_ds3 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds3")
 
-    # IMPORTANTE: O DeSmuME C-Library causa Access Violation se instanciarmos multiplos emuladores
-    # no mesmo processo Python. Por isso o Tianshou PRECISA usar SubprocVectorEnv para separar na RAM.
+    # IMPORTANT: DeSmuME C-Library causes Access Violation if multiple emulators are created
+    # in the same Python process. Tianshou must use SubprocVectorEnv to isolate memory across processes.
     env_fns = [
         make_env(rom_full, state_ds1, seed=args.seed, max_steps=args.max_steps, frameskip=args.frameskip),
         make_env(rom_full, state_ds3, seed=args.seed + 1, max_steps=args.max_steps, frameskip=args.frameskip)
@@ -91,12 +91,12 @@ def main():
     action_shape = train_envs.action_space[0].n if isinstance(train_envs.action_space, list) else train_envs.action_space[0].n
     num_atoms = 51
 
-    # Nossa rede RainbowNet com NoisyLinear e Dueling
+    # RainbowNet with NoisyLinear and Dueling heads
     model = RainbowNet(feature_net, action_shape, num_atoms, noisy_std=0.5).to(device)
 
-    # Tianshou 2.0 API separa a politica (Network) do Algorithm (Loop logic)
-    # .to(device) é OBRIGATÓRIO: o C51Policy guarda o buffer `support` na CPU,
-    # e sem isso o treino em CUDA explode com device mismatch (cuda:0 vs cpu).
+    # Tianshou 2.0 API separates policy from algorithm loop logic.
+    # .to(device) is REQUIRED: C51Policy stores support buffer on CPU by default;
+    # without explicit placement, CUDA execution causes device mismatch errors.
     policy = C51Policy(
         model=model,
         action_space=train_envs.action_space[0],
@@ -115,14 +115,14 @@ def main():
         target_update_freq=500
     )
 
-    # Buffer de Prioridade (PER - Prioritized Experience Replay) nativo do Tianshou!
-    # O tamanho foi reduzido para 20000 para evitar estouro de memória (OOM) no deepcopy interno do Tianshou.
+    # Prioritized Experience Replay (PER) buffer.
+    # Sized to 20,000 transitions to avoid out-of-memory (OOM) during deepcopy operations.
     buffer = PrioritizedVectorReplayBuffer(total_size=20000, buffer_num=len(env_fns), alpha=0.6, beta=0.4)
 
     train_collector = Collector(algorithm, train_envs, buffer, exploration_noise=True)
     test_collector = Collector(algorithm, test_envs, exploration_noise=False)
 
-    # Logger Tensorboard integrado ao MLflow
+    # TensorBoard logger integrated with MLflow
     log_path = os.path.join(base_dir, "tensorboard_logs", args.run_id)
     writer = SummaryWriter(log_path)
     logger = TensorboardLogger(writer)
@@ -170,6 +170,7 @@ def main():
         model_path = os.path.join(base_dir, 'models', f"{args.run_id}_final.pth")
         torch.save(algorithm.policy.model.state_dict(), model_path)
         mlflow.log_artifact(model_path, artifact_path="models")
+
 
 if __name__ == "__main__":
     main()

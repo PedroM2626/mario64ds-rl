@@ -1,13 +1,13 @@
-"""Fila sequencial: espera o Rainbow 500k (background) terminar, depois roda
-a continuação do PPO 3-way até 2M total e avalia as 3 pistas.
+"""Sequential execution queue: waits for Rainbow 500k (background process) to finish,
+then executes PPO 3-way continuation up to 2M total steps and evaluates across all 3 tracks.
 
-Sinal de término do Rainbow: models/grid_rainbow_nature_s0_500k_final.pth
-(só é salvo no fim do treino). Após detectar, espera 120s para o processo
-encerrar e libera o emulador, então dispara o PPO 2M e os evals.
+Termination signal for Rainbow: models/grid_rainbow_nature_s0_500k_final.pth
+(saved strictly upon training completion). Once detected, waits 120s to ensure
+process termination and release of emulator resources, then launches PPO 2M and evaluations.
 
-Uso:
-    python queue_ds123_2m.py            (bloqueia até terminar a fila)
-    Start-Process ... python queue_ds123_2m.py   (background, sobrevive à sessão)
+Usage:
+    python queue_ds123_2m.py
+    Start-Process ... python queue_ds123_2m.py   (background daemon)
 """
 
 import csv
@@ -34,8 +34,8 @@ def log(msg):
 
 
 def wait_for_rainbow():
-    # Detecção por mtime: o final.pth só conta se for criado DEPOIS do início
-    # da fila (existe um final antigo/stale de tentativa prévia que não conta).
+    # Detection by mtime: final.pth is only valid if created AFTER queue start time
+    # (prevents false positives from stale artifacts from prior runs).
     t0 = time.time()
     while True:
         fresh = (os.path.exists(RAINBOW_FINAL)
@@ -43,11 +43,11 @@ def wait_for_rainbow():
         if fresh:
             break
         if time.time() - t0 > MAX_WAIT_SEC:
-            log(f"Timeout de {MAX_WAIT_SEC}s esperando o Rainbow; seguindo mesmo assim")
+            log(f"Timeout of {MAX_WAIT_SEC}s waiting for Rainbow; proceeding regardless")
             return
         time.sleep(60)
-    log("Rainbow final detectado (grid_rainbow_nature_s0_500k_final.pth); "
-        "aguardando 120s para o processo encerrar e liberar o emulador")
+    log("Rainbow final detected (grid_rainbow_nature_s0_500k_final.pth); "
+        "waiting 120s for process termination and emulator release")
     time.sleep(120)
 
 
@@ -55,7 +55,7 @@ def run_ppo_2m():
     model = os.path.join(BASE, "models", "ppo_ds123_2m_best.zip")
     final = os.path.join(BASE, "models", "ppo_ds123_2m_final.zip")
     if os.path.exists(final):
-        log("ppo_ds123_2m_final já existe; pulando treino")
+        log("ppo_ds123_2m_final already exists; skipping training")
         return
     cmd = [PY, "-m", "src.train_ppo",
            "--resume", "models/ppo_ds123_1m_final.zip",
@@ -65,7 +65,7 @@ def run_ppo_2m():
     log(f"RUN PPO 2M: {' '.join(cmd)}")
     with open(PPO2M_LOG, "w") as f:
         subprocess.run(cmd, cwd=BASE, stdout=f, stderr=subprocess.STDOUT)
-    log(f"PPO 2M terminou (best={os.path.exists(model)}, final={os.path.exists(final)})")
+    log(f"PPO 2M finished (best={os.path.exists(model)}, final={os.path.exists(final)})")
 
 
 def run_evals():
@@ -74,7 +74,7 @@ def run_evals():
                                   ("final", "models/ppo_ds123_2m_final.zip")]:
         full = os.path.join(BASE, model_path)
         if not os.path.exists(full):
-            log(f"EVAL {model_key}: modelo não encontrado, pulando")
+            log(f"EVAL {model_key}: model not found, skipping")
             continue
         for sidx, ds in [(0, "ds1"), (1, "ds2"), (2, "ds3")]:
             out_csv = os.path.join(BASE, f"eval_ds123_2m_{model_key}_{ds}.csv")
@@ -100,12 +100,12 @@ def run_evals():
             if new_file:
                 w.writeheader()
             w.writerows(rows)
-        log(f"Resultados consolidados em {RESULTS} ({len(rows)} linhas)")
+        log(f"Results consolidated in {RESULTS} ({len(rows)} rows)")
 
 
 if __name__ == "__main__":
-    log("Fila iniciada: esperando Rainbow 500k terminar...")
+    log("Queue started: waiting for Rainbow 500k to finish...")
     wait_for_rainbow()
     run_ppo_2m()
     run_evals()
-    log("Fila concluída.")
+    log("Queue finished.")

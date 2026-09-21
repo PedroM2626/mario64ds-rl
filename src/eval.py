@@ -1,11 +1,10 @@
-"""Avaliação justa e reproduzível (substitui os números manuais do README).
+"""Fair and reproducible evaluation across algorithms and savestates.
 
-Os +144.24 / +102.85 do README vieram de ``play.py`` manual (estocástico,
-sem seed, 1 episódio por pista). Este script roda N episódios por savestate,
-com seed e modo determinístico opcionais, e salva CSV para a tabela
-comparativa Rainbow vs PPO vs QR-DQN.
+This script executes N evaluation episodes per savestate with deterministic or
+stochastic policies, setting random seeds, and exporting per-episode metrics
+to CSV files for controlled cross-algorithmic comparison (PPO vs Rainbow vs QR-DQN).
 
-Exemplos:
+Examples:
     python -m src.eval --algo ppo --model models/ppo_mario64ds_continued_4_envs_best.zip --n-episodes 5 --deterministic
     python -m src.eval --algo rainbow --model models/rainbow_mario64ds_1h_best.pth --features impala --n-episodes 5
     python -m src.eval --algo qrdqn --model models/qrdqn_mario64ds.zip --n-episodes 5
@@ -31,14 +30,12 @@ def _savestates(base_dir, only=None):
 
 
 def _load_sb3_with_legacy_patch(Algo, model_path, device="auto"):
-    """Carrega modelo SB3, com fallback para o QR-DQN legado.
+    """Loads an SB3 model with fallback redirection for legacy QR-DQN models.
 
-    O ``models/qrdqn_mario64ds.zip`` foi treinado quando
-    ``features_extractor_class`` apontava para ``src.impala_cnn.ImpalaCNN``
-    (estilo Tianshou). A classe atual correta é
-    ``src.sb3_impala.ImpalaFeaturesExtractor``. Sem o patch abaixo o load
-    falha com ``TypeError: Box % int``. O patch temporário redireciona a
-    referência antiga para a nova antes do unpickle.
+    Earlier legacy checkpoints may have referenced ``src.impala_cnn.ImpalaCNN``
+    as their ``features_extractor_class``. The current SB3-compatible class is
+    ``src.sb3_impala.ImpalaFeaturesExtractor``. This patch dynamically redirects
+    legacy pickle references if a type mismatch is detected.
     """
     try:
         return Algo.load(model_path, device=device)
@@ -57,8 +54,8 @@ def _load_sb3_with_legacy_patch(Algo, model_path, device="auto"):
 
 def eval_sb3(algo, model_path, savestates, rom_path, n_episodes, deterministic, seed,
              max_steps=1350):
-    # NOTA: usa SubprocVecEnv (não DummyVecEnv) porque o DeSmuME dá
-    # "access violation" ao criar 2 emuladores no mesmo processo.
+    # NOTE: Uses SubprocVecEnv (not DummyVecEnv) because DeSmuME C++ core causes
+    # access violation exceptions if multiple emulators exist in the same Python process.
     from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
     from stable_baselines3.common.monitor import Monitor
     from src.env import Mario64DSEnv
@@ -145,17 +142,18 @@ def eval_rainbow(model_path, features, savestates, rom_path, n_episodes, seed, d
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fair evaluation across algos")
+    parser = argparse.ArgumentParser(description="Fair evaluation across algorithms and configurations")
     parser.add_argument("--algo", type=str, required=True, choices=["ppo", "qrdqn", "rainbow"])
-    parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--model", type=str, required=True, help="Path to trained model checkpoint")
     parser.add_argument("--features", type=str, default="impala", choices=["impala", "nature"])
-    parser.add_argument("--n-episodes", type=int, default=5)
-    parser.add_argument("--deterministic", action="store_true")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--savestate-idx", type=int, default=None, choices=[0, 1, 2])
+    parser.add_argument("--n-episodes", type=int, default=5, help="Number of episodes per savestate")
+    parser.add_argument("--deterministic", action="store_true", help="Execute greedy/deterministic actions")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
+    parser.add_argument("--savestate-idx", type=int, default=None, choices=[0, 1, 2],
+                        help="Evaluate specific savestate index only")
     parser.add_argument("--max-steps", type=int, default=1350,
-                        help="Limite de passos (sobrevivência = steps >= max-steps)")
-    parser.add_argument("--out", type=str, default=None, help="CSV de saída (default: eval_<algo>.csv)")
+                        help="Step limit per episode (survival condition: steps >= max-steps)")
+    parser.add_argument("--out", type=str, default=None, help="Output CSV path (default: eval_<algo>.csv)")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -181,10 +179,10 @@ def main():
     rewards = [r["reward"] for r in rows]
     steps = [r["steps"] for r in rows]
     surv = sum(1 for r in rows if r["survived"])
-    print(f"\n== {args.algo.upper()} ({len(rows)} eps) ==")
+    print(f"\n== {args.algo.upper()} ({len(rows)} episodes) ==")
     print(f"reward: mean={np.mean(rewards):.2f} ± {np.std(rewards):.2f} | "
-          f"steps: mean={np.mean(steps):.1f} | sobrevivência: {surv}/{len(rows)}")
-    print(f"CSV salvo em: {out}")
+          f"steps: mean={np.mean(steps):.1f} | survival: {surv}/{len(rows)}")
+    print(f"CSV saved to: {out}")
 
 
 if __name__ == "__main__":

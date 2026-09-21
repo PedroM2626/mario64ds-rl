@@ -1,14 +1,13 @@
-"""Grade justa 100k: (PPO, Rainbow, QRDQN) x (nature, impala) x seeds 0,1,2 = 18 runs.
+"""Fair 100k benchmark grid: (PPO, Rainbow, QRDQN) x (nature, impala) x seeds 0,1,2 = 18 runs.
 
-Roda tudo em SEQUÊNCIA (nunca em paralelo: DeSmuME dá access violation
-com emuladores demais). Cada treino é um subprocesso isolado; falha num
-não aborta a grade. Ao final de cada treino, roda eval determinístico
-(3 eps por savestate) e anexa em results_grid_100k.csv.
+Executes all training configurations sequentially in isolated subprocesses to prevent
+DeSmuME memory access violations. Upon training completion, runs deterministic evaluations
+(3 episodes per savestate) and logs metrics to a consolidated results CSV.
 
-Uso:
+Usage:
     python run_grid_100k.py
     python run_grid_100k.py --timesteps 100000 --n-episodes 3
-    python run_grid_100k.py --dry-run   (só imprime comandos)
+    python run_grid_100k.py --dry-run
 """
 
 import argparse
@@ -53,13 +52,13 @@ def train_cmd(algo, feat, seed, timesteps, n_envs):
 def model_path(algo, rid):
     models = os.path.join(BASE, "models")
     if algo in ("ppo", "qrdqn"):
-        # EvalCallback salva <rid>/best_model.zip; train salva <rid>_final.zip e <rid>_best.zip
+        # EvalCallback saves <rid>/best_model.zip; train saves <rid>_final.zip and <rid>_best.zip
         for cand in [os.path.join(models, f"{rid}_best.zip"),
                      os.path.join(models, rid, "best_model.zip"),
                      os.path.join(models, f"{rid}_final.zip")]:
             if os.path.exists(cand):
                 return cand
-        return os.path.join(models, f"{rid}_best.zip")  # esperado (pode não existir se falhou)
+        return os.path.join(models, f"{rid}_best.zip")
     # rainbow
     for cand in [os.path.join(models, f"{rid}_best.pth"),
                  os.path.join(models, f"{rid}_final.pth")]:
@@ -78,25 +77,25 @@ def eval_cmd(algo, feat, model, seed, n_episodes, out_csv):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Fair benchmark grid across algorithms, architectures, and seeds")
     ap.add_argument("--timesteps", type=int, default=100000)
     ap.add_argument("--n-envs", type=int, default=2,
-                    help="n-envs p/ PPO/QRDQN (Rainbow usa 2 fixo: ds1+ds3)")
+                    help="n-envs for PPO/QRDQN (Rainbow uses fixed 2: ds1+ds3)")
     ap.add_argument("--n-episodes", type=int, default=3,
-                    help="eps por savestate no eval")
-    ap.add_argument("--dry-run", action="store_true")
+                    help="Episodes per savestate in evaluation")
+    ap.add_argument("--dry-run", action="store_true", help="Print commands without executing")
     ap.add_argument("--results-csv", type=str, default=None,
-                    help="CSV consolidado (default: results_grid_<timesteps//1000>k.csv)")
+                    help="Consolidated CSV path (default: results_grid_<timesteps//1000>k.csv)")
     ap.add_argument("--algos", type=str, default="ppo,rainbow,qrdqn",
-                    help="Algos separados por vírgula (ex. 'ppo,rainbow')")
+                    help="Comma-separated algorithms (e.g. 'ppo,rainbow')")
     ap.add_argument("--features-list", type=str, default="nature,impala",
-                    help="Features separados por vírgula (ex. 'nature')")
+                    help="Comma-separated feature extractors (e.g. 'nature,impala')")
     ap.add_argument("--seeds", type=str, default="0,1,2",
-                    help="Seeds separadas por vírgula (ex. '0')")
+                    help="Comma-separated seeds (e.g. '0,1,2')")
     ap.add_argument("--skip-done", action="store_true",
-                    help="Pula run_ids que já têm 6 linhas ok no results CSV")
+                    help="Skip run_ids that already have >=6 valid evaluation rows in results CSV")
     ap.add_argument("--only", type=str, default="",
-                    help="Filtro legado por substring: ex. 'qrdqn' ou 'rainbow_nature_s1'")
+                    help="Substring filter for run_id: e.g. 'qrdqn' or 'rainbow_nature_s1'")
     args = ap.parse_args()
 
     results_csv = args.results_csv or os.path.join(BASE, f"results_grid_{args.timesteps // 1000}k.csv")
@@ -109,7 +108,6 @@ def main():
         plan = [t for t in plan if args.only in f"{t[0]}_{t[1]}_s{t[2]}"]
     if args.skip_done:
         import csv as _csv
-        # considera done quem já tem >=6 linhas (2 savestates x 3 eps)
         from collections import Counter as _C
         cnt = _C()
         if os.path.exists(results_csv):
@@ -118,7 +116,7 @@ def main():
         plan = [t for t in plan
                 if run_id(t[0], t[1], t[2], args.timesteps) not in
                 {k for k, v in cnt.items() if v >= 6}]
-    print(f"Grade: {len(plan)} runs | timesteps={args.timesteps} | n_envs={args.n_envs} | eval_eps={args.n_episodes}")
+    print(f"Grid: {len(plan)} runs | timesteps={args.timesteps} | n_envs={args.n_envs} | eval_eps={args.n_episodes}")
     for i, (a, f, s) in enumerate(plan, 1):
         cmd, rid = train_cmd(a, f, s, args.timesteps, args.n_envs)
         print(f"[{i}/{len(plan)}] {rid}: {' '.join(cmd)}")
@@ -130,7 +128,7 @@ def main():
     if args.dry_run:
         return
 
-    # CSV consolidado
+    # Consolidated CSV header
     new_file = not os.path.exists(results_csv)
     fout = open(results_csv, "a", newline="")
     w = csv.DictWriter(fout, fieldnames=["run_id", "algo", "features", "seed", "timesteps",
@@ -153,11 +151,11 @@ def main():
         except Exception as e:
             status = f"error: {e}"
         dt = time.time() - t0
-        print(f"TRAIN {rid}: {status} em {dt:.0f}s", flush=True)
+        print(f"TRAIN {rid}: {status} in {dt:.0f}s", flush=True)
 
         mp = model_path(a, rid)
         if not os.path.exists(mp):
-            print(f"EVAL {rid}: SKIP (modelo não encontrado: {mp})", flush=True)
+            print(f"EVAL {rid}: SKIP (model checkpoint not found: {mp})", flush=True)
             w.writerow({"run_id": rid, "algo": a, "features": f, "seed": s,
                         "timesteps": args.timesteps, "train_status": status,
                         "train_seconds": f"{dt:.0f}", "savestate": "", "episode": "",
@@ -165,7 +163,7 @@ def main():
             fout.flush()
             continue
 
-        # Eval por savestate em processos separados (isola DeSmuME)
+        # Evaluate per savestate in isolated subprocesses
         for sidx in (0, 1):
             out_csv = os.path.join(BASE, f"eval_{rid}_ds{sidx}.csv")
             ec = eval_cmd(a, f, mp, s, args.n_episodes, out_csv) + ["--savestate-idx", str(sidx)]
@@ -176,7 +174,6 @@ def main():
                     print(f"EVAL {rid} ds{sidx}: exit={r.returncode}", flush=True)
             except Exception as e:
                 print(f"EVAL {rid} ds{sidx} error: {e}", flush=True)
-            # anexa linhas do CSV parcial
             if os.path.exists(out_csv):
                 with open(out_csv) as fh:
                     for row in csv.DictReader(fh):
@@ -188,7 +185,7 @@ def main():
                                     "survived": row["survived"], "eval_csv": os.path.basename(out_csv)})
                         fout.flush()
     fout.close()
-    print(f"\nGrade concluída. Consolidado em {results_csv}")
+    print(f"\nGrid completed. Consolidated results in {results_csv}")
 
 
 if __name__ == "__main__":

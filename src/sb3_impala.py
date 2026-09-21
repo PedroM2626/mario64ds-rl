@@ -1,14 +1,12 @@
-"""Extrator IMPALA compatível com Stable-Baselines3.
+"""IMPALA visual feature extractor compatible with Stable-Baselines3.
 
-O ``ImpalaCNN`` em ``src/impala_cnn.py`` foi escrito para o Tianshou
-(aceita HWC/5D, retorna ``(features, state)``). O SB3 espera um
-``BaseFeaturesExtractor`` que recebe tensor CHW ``(B, C, H, W)`` e retorna
-apenas ``(B, features_dim)``. Sem isso, carregar um QR-DQN/PPO com IMPALA
-quebra com ``TypeError: Box % int`` (o ``observation_space`` era passado
-como ``in_channels``).
+The ``ImpalaCNN`` in ``src/impala_cnn.py`` was tailored for Tianshou
+(accepts HWC/5D formats, returns ``(features, state)``). SB3 requires a
+``BaseFeaturesExtractor`` subclass that ingests CHW tensors ``(B, C, H, W)``
+and returns directly ``(B, features_dim)``.
 
-Reutiliza os blocos ``ImpalaBlock`` do Tianshou para manter paridade
-arquitetural na comparação justa PPO+IMPALA vs Rainbow+IMPALA.
+Reuses the ``ImpalaBlock`` definitions from Tianshou to preserve architectural
+parity in controlled benchmark evaluations (e.g., PPO+IMPALA vs Rainbow+IMPALA).
 """
 
 import gymnasium as gym
@@ -43,4 +41,6 @@ class ImpalaFeaturesExtractor(BaseFeaturesExtractor):
         )
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
+        if observations.dim() == 5 and observations.shape[-1] == 1:
+            observations = observations.squeeze(-1)
         return self.linear(self.cnn(observations))

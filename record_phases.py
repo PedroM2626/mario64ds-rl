@@ -1,12 +1,12 @@
-"""Grava 1 vídeo por fase (ds1, ds2, ds3) mostrando o agente treinado jogando.
+"""Records 1 video per track (ds1, ds2, ds3) showcasing the trained agent playing.
 
-Cada fase roda em um subprocesso isolado (o DeSmuME não suporta múltiplos
-emuladores no mesmo processo — access violation). Grava a tela real do jogo
-em cores (256x192) via env.get_screen_rgb(), não a observação grayscale do
-agente. Saída: videos/phase_1.mp4, phase_2.mp4, phase_3.mp4.
+Each track runs in an isolated subprocess (DeSmuME causes access violations
+if multiple emulators run concurrently in the same process). Records full-color
+RGB top screen (256x192) via env.get_screen_rgb() rather than the agent's
+84x84 grayscale observation. Outputs: videos/phase_ds1.mp4, phase_ds2.mp4, phase_ds3.mp4.
 
-Exemplos:
-    python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
+Examples:
+    python record_phases.py --model models/curriculum_flow25_r3_best.zip
     python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip --fps 15
 """
 
@@ -20,27 +20,27 @@ PHASES = ["ds1", "ds2", "ds3"]
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Grava vídeos do agente jogando cada fase")
+    parser = argparse.ArgumentParser(description="Record videos of the agent playing each track")
     parser.add_argument("--model", type=str, required=True,
-                        help="Caminho para modelo SB3 (.zip)")
+                        help="Path to SB3 model checkpoint (.zip)")
     parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds")
     parser.add_argument("--out-dir", type=str, default="videos")
     parser.add_argument("--fps", type=int, default=15,
-                        help="FPS do vídeo (frameskip=4 sobre 60 Hz -> 15 = tempo real)")
+                        help="Video FPS (frameskip=4 on 60 Hz -> 15 = real time)")
     parser.add_argument("--max-steps", type=int, default=1350)
     parser.add_argument("--flow-weight", type=float, default=2.5,
-                        help="Peso do flow reward no report (deve bater com o treino)")
+                        help="Flow reward weight (should match training)")
     parser.add_argument("--step-penalty", type=float, default=0.02)
     parser.add_argument("--single", type=str, default=None,
-                        help=argparse.SUPPRESS)  # uso interno: grava 1 fase e sai
+                        help=argparse.SUPPRESS)  # Internal use: records single track and exits
     args = parser.parse_args()
 
     if args.single is None:
-        # Modo orquestrador: 1 subprocesso por fase (isola o DeSmuME)
+        # Orchestrator mode: 1 subprocess per phase (isolates DeSmuME C++ memory space)
         os.makedirs(args.out_dir, exist_ok=True)
         for phase in PHASES:
             out = os.path.join(args.out_dir, f"phase_{phase}.mp4")
-            print(f"\n=== Gravando {phase} -> {out} ===", flush=True)
+            print(f"\n=== Recording {phase} -> {out} ===", flush=True)
             r = subprocess.run(
                 [sys.executable, __file__, "--model", args.model, "--rom", args.rom,
                  "--out-dir", args.out_dir, "--fps", str(args.fps),
@@ -49,10 +49,10 @@ def main():
                  "--step-penalty", str(args.step_penalty)],
             )
             if r.returncode != 0:
-                print(f"AVISO: gravação de {phase} falhou (exit={r.returncode})", flush=True)
+                print(f"WARNING: recording {phase} failed (exit={r.returncode})", flush=True)
         return
 
-    # Modo single: grava UMA fase neste processo
+    # Single mode: record ONE phase in this process
     _record_single(args)
 
 
@@ -74,17 +74,16 @@ def _record_single(args):
                        step_penalty=args.step_penalty, flow_weight=args.flow_weight)
     obs, info = env.reset()
 
-    # FrameStack REAL (igual ao treino via SB3 VecFrameStack): no reset o
-    # stack do SB3 é [0, 0, 0, reset] (3 zeros + o frame atual no último
-    # slot) — NÃO 4 cópias do reset (convencão do FrameStackObservation do
-    # gymnasium, usada só nos paths Tianshou). Replicar o init errado muda
-    # as primeiras ações e a trajetória diverge (o agente morre).
+    # Accurate FrameStack initialization matching SB3 VecFrameStack: on reset,
+    # SB3 initializes the stack as [0, 0, 0, reset_frame] (3 zeros + current frame in last slot),
+    # NOT 4 copies of reset_frame (convention used in gymnasium FrameStackObservation).
+    # Replicating this exact initialization ensures trajectory parity with training.
     from collections import deque
     first = obs[:, :, 0]
     stack_deque = deque([np.zeros_like(first)] * 3 + [first], maxlen=4)
 
     def make_stack():
-        # (4, 84, 84) CHW — mesmo formato do treino (VecFrameStack+VecTransposeImage)
+        # (4, 84, 84) CHW — matches training tensor format (VecFrameStack + VecTransposeImage)
         return np.stack(list(stack_deque), axis=0)[np.newaxis, :]
 
     frames = [env.get_screen_rgb()]
@@ -100,7 +99,7 @@ def _record_single(args):
 
     env.close()
 
-    # frameskip=4: o env roda a 15 passos/s; fps=15 = playback em tempo real
+    # frameskip=4: env advances at 15 simulation steps/s; fps=15 corresponds to real-time playback
     with imageio.get_writer(out_path, fps=args.fps, codec="libx264",
                             quality=8, macro_block_size=1) as writer:
         for frame in frames:
@@ -108,7 +107,7 @@ def _record_single(args):
 
     survived = steps >= args.max_steps
     print(f"{args.single}: reward={total_reward:.2f}, steps={steps}, "
-          f"{'TIMEOUT (sobreviveu)' if survived else 'MORTE'} | "
+          f"{'TIMEOUT (survived)' if survived else 'DEATH'} | "
           f"{out_path} ({len(frames)} frames)", flush=True)
 
 

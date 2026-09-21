@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Default: PPO (foi o algoritmo que convergiu: 450/450 passos).
+# Default: PPO (the algorithm that successfully converged: 450/450 steps baseline, and all 3 tracks in curriculum).
 # Override examples:
 #   docker run --gpus all <img> python -m src.train_ppo --n-envs 4 --timesteps 500000
 #   docker run <img> python -m src.train --features impala --timesteps 500000

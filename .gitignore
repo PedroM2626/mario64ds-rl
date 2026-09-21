@@ -6,11 +6,11 @@ __pycache__/
 mlruns/
 *.db
 *tensorboard*
-# Pesos treinados (grandes, gerados localmente)
+# Trained model weights (large, locally generated)
 models/*.zip
 models/*.pth
 models/*/best_model.zip
-# ROMs e savestates (arquivos com copyright / gerados localmente)
+# ROMs and savestates (copyrighted / locally generated files)
 data/*.nds
 data/*.ds1
 data/*.ds2
@@ -18,7 +18,7 @@ data/*.ds3
 data/*.dsv
 data/*.sav
 data/Desmume/
-# Imagens de debug locais
+# Local debug images
 images/test_*.png
-# Logs de execução das grades (verbosos, grandes, regeneráveis)
+# Grid execution logs (verbose, large, reproducible)
 logs/
