@@ -75,8 +75,9 @@ def main():
     parser.add_argument("--frameskip", type=int, default=4, help="Frameskip do emulador")
     parser.add_argument("--step-penalty", type=float, default=0.02,
                         help="Custo por passo (anti-camping)")
-    parser.add_argument("--flow-weight", type=float, default=1.0,
-                        help="Peso do flow reward (0.5 antigo; 1.0+ vence o ruído da morte)")
+    parser.add_argument("--flow-weight", type=float, default=2.5,
+                        help="Peso do flow reward (2.5 validado: sinal denso de avanço "
+                             "vence o ruído da morte; 0.5/1.0 fazem treino fresco degradar)")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

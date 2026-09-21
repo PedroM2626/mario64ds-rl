@@ -10,6 +10,81 @@ Este projeto é uma implementação de Aprendizado por Reforço Profundo (Deep R
 ## 🎯 Objetivo
 O objetivo do agente é **completar a descida** (não apenas sobreviver), movendo-se para frente e coletando moedas ao longo do caminho, utilizando apenas o feed visual da tela (pixels) como observação. Episódios de `1350` steps (90s a frameskip 4) — 30s não bastavam para completar nenhuma pista.
 
+## 🏆 Estado Atual (2026-09-18): AS TRÊS PISTAS COMPLETAS
+
+**`curriculum_flow25_r3_best.zip`** (PPO+Nature, flow ×2.5) — primeiro modelo
+da história do projeto a completar as 3 pistas, confirmado por eval
+determinístico independente (9/9 episódios de 90s completos):
+
+| Pista | Recompensa (vídeo, flow ×2,5) | Passos | Vídeo |
+|---|---|---|---|
+| ds1 (fase 3) | +369,94 | **1350/1350** | `videos/phase_ds1.mp4` |
+| ds2 (Peach) | +865,29 | **1350/1350** | `videos/phase_ds2.mp4` |
+| ds3 (macaco) | +504,01 | **1350/1350** | `videos/phase_ds3.mp4` |
+
+```bash
+python record_phases.py --model models/curriculum_flow25_r3_best.zip  # regravar
+```
+
+## 🧭 Por que agora funciona — a cadeia causal completa
+
+O projeto passou 11 dias sem fechar as 3 pistas. A convergência final não veio
+de um único fix, mas de 5 descobertas encadeadas — cada uma falsificando a
+hipótese anterior:
+
+**1. A recompensa de moeda nunca funcionou (bug BGR desde o início).**
+O buffer do py-desmume é **BGR(X)**, não RGBX como o código assumia. Com
+`COLOR_RGB2HSV` em dados BGR o matiz rotaciona (H→120−H): a máscara amarela
+detectava coisas *ciano*, nunca as moedas. **Todo o aprendizado histórico foi
+carregado pelo fluxo óptico sozinho** (ver §"Bug de cores" abaixo). Descoberto
+por report do usuário: "mário azul, moeda azul nos vídeos" (2026-09-17).
+
+**2. Corrigir a moeda PIOROU (reward hacking).** Com o BGR corrigido, a máscara
+amarela passou a detectar o **piso xadrez** (faixa inferior) e a **parede de
+flores** (que puxa para a borda esquerda) — recompensa por centralizar em ruído
+de cena. Fix: recompensa de moeda **desligada por padrão**
+(`coin_reward_enabled=False`).
+
+**3. Flow ×0.5 sozinho era fraco demais contra a morte.** Sem o baseline
+acidental da moeda quebrada, **todo treino fresco degradava** (ep_rew_mean
+−73,9 → −89,3, mortes a ~55-119 steps, 0 timeouts) — em CPU e CUDA
+(idênticos, mesmo seed), a 450 e a 1350 steps (o tamanho do episódio não era
+a causa). Diagnóstico: em rollouts estocásticos onde tudo morre, o sinal denso
+de avanço precisa sobrepujar o −100 da morte. Fix: **`flow_weight=2.5`**
+(o agente passou de morrer em ~90 steps a completar ds1 1350/1350).
+
+**4. Camping + tempo insuficiente.** O agente descobriu pontos seguros na ds3
+(sobreviver sem avançar) e 30s não completava pista nenhuma. Fixes:
+`step_penalty=0.02`/passo (camping acumula ~−27) e **`max_steps=1350` (90s)**.
+
+**5. Interferência entre pistas: vencida por ênfase alternada.** Treinar as 3
+juntas a LR alto causa esquecimento catastrófico (exp. A: ds1✗); a 1M-2M steps
+não converge (exp. C/D: 0/3). O curriculum com **LR decrescente** (5e-5 →
+2,5e-5: updates pequenos preservam o já-aprendido) + **seleção balanceada**
+(eval determinístico nas 3 pistas; especialista de 1 pista tem média baixa)
++ **rodadas com ênfase alternada** fechou o ciclo:
+
+| Rodada | Mix | ds1 | ds2 | ds3 | Data |
+|---|---|---|---|---|---|
+| Base | ds1,ds3 (flow ×2,5, 1M) | **✓ 1350** | ✗ 228 | ✗ 81 | 09-17 |
+| r1 | uniforme (curriculum) | ✓ | **✓ 1350** | ✗ 359 | 09-17/18 |
+| r2 | ds3-heavy | ✗ 455 | ✓ | **✓ 1350** | 09-18 |
+| **r3** | **ds1-heavy** | **✓ 1350** | ✓ | ✓ | **09-18** |
+
+Cada rodada fechava uma pista e quebrava outra; a r3 fechou o ciclo sem quebrar
+as anteriores (e curiosamente foi a *fase 2* — que sempre regredia — que
+convergiu na r3).
+
+**Gotchas menores no caminho** (documentados nos commits): o `VecFrameStack`
+do SB3 inicializa com `[0,0,0,reset]` (não 4 cópias — o script de vídeo
+divergia e o agente "morria" no vídeo); o `C51Policy` do Tianshou exige
+`policy.to(device)` (device mismatch em CUDA); o label de pista derivado do
+caminho vazava no nome de métrica do MLflow.
+
+As seções abaixo preservam a trajetória completa, na ordem em que aconteceram.
+
+---
+
 ## 🧠 Arquitetura do Projeto
 - **Emulador**: `py-desmume` (Wrapper Python para o emulador de C++ DeSmuME).
 - **Ambiente RL**: Custom `gymnasium.Env` (`src/env.py`).
@@ -21,6 +96,7 @@ O objetivo do agente é **completar a descida** (não apenas sobreviver), movend
 - **Tracking**: `MLflow` (sqlite `mlflow.db`) + `Tensorboard` (`tensorboard_logs/<run-id>`).
 - **Avaliação justa**: `src/eval.py` (N episódios, seed, CSV).
 - **Vídeos**: `record_phases.py` (grava o agente jogando ds1/ds2/ds3 em MP4).
+- **Curriculum**: `src/train_curriculum.py` (fases com LR decrescente + seleção balanceada).
 
 ---
 
@@ -54,7 +130,13 @@ A jornada para fazer o Mário deslizar inteligentemente pelo gelo passou por div
 
 ---
 
-## 📊 Resultados Finais
+## 📊 Resultados históricos (regime 450, env antigo — pré 2026-09-17)
+
+> **Nota:** esta seção preserva a narrativa da primeira era do projeto
+> (30s/450 steps, morte −50→−100, HSV quebrado sem saber, sem completar
+> pistas — 30s não bastavam). O resultado ATUAL está no topo: as 3 pistas
+> completas a 90s. Os números abaixo usam `play.py` manual estocástico,
+> sem seed — não são reproduzíveis como média.
 
 Após resolvermos todos os impasses, disparamos treinamentos usando o **PPO (Proximal Policy Optimization)** aliado ao **NatureCNN**. A jornada do modelo até a perfeição foi épica:
 
@@ -279,6 +361,13 @@ python record_phases.py --model models/grid_ppo_nature_s0_500k_best.zip
 
 ### 🧗 Generalização 3 pistas (ds1+ds2+ds3) — tentativas e resultado (2026-09-12/17)
 
+> **Nota:** estes experimentos usavam o env ANTIGO (flow ×0,5, sem
+> step_penalty, HSV quebrado) e **não convergiram**. A interferência entre
+> pistas era real, mas foi vencida depois com flow ×2,5 + curriculum de ênfase
+> alternada — ver "Por que agora funciona" no topo. A lição que sobreviveu
+> daqui: mais steps NÃO resolvem (exp. D falsificou a hipótese), e a
+> magnitude do update (LR) é a chave do esquecimento.
+
 Quatro experimentos com a arquitetura vencedora (PPO+Nature), agora com a GPU
 ativa (torch `2.6.0+cu124` instalado — o índice cu124 não tem 2.12):
 
@@ -459,31 +548,31 @@ O emulador necessita que as Roms e Savestates estejam nomeadas corretamente na p
 - `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Pista da Peach)
 - `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Pista secreta da fase do macaco)
 
-### 🏆 Modelo atual que completa a ds1 (2026-09-17)
+### 🧪 Jornada da convergência final — detalhes por rodada (2026-09-17/18)
 
-Com o env corrigido (cores BGR fix, moedas reais desligadas por hacking,
-flow ×2.5, penalidade anti-camping, 1350 steps), o treino fresco convergiu:
+**Passo 1 — treino base (flow ×2,5, ds1+ds3):** com o env corrigido (cores BGR
+fix, moedas reais desligadas por hacking, flow ×2.5, penalidade anti-camping,
+1350 steps), o treino fresco convergiu:
 
 **`ppo_flow25_ds13_best.zip`** (PPO+Nature, flow ×2.5, 1M steps, seed 0):
 - **ds1: +179,75 · 1350/1350 · 3/3 — COMPLETA a descida (90s)!**
 - ds2: −74,06 · 228 · 0/3 | ds3: −57,40 · 81 · 0/3 (especialização de pista persiste)
 
-### 🎓 Curriculum flow ×2.5 — COMPLETA DUAS PISTAS (2026-09-17/18)
-
-Curriculum partindo do `ppo_flow25_ds13_best` (ds1✓), 3 pistas no mix,
-LR 5e-5 → 2.5e-5, seleção balanceada (eval determinístico nas 3 pistas):
+**Passo 2 — curriculum r1 (mix uniforme):** partindo do `ppo_flow25_ds13_best`
+(ds1✓), 3 pistas no mix, LR 5e-5 → 2.5e-5, seleção balanceada (eval
+determinístico nas 3 pistas):
 
 | Fase (lr) | ds1 (fase 3) | ds2 (Peach) | ds3 (macaco) | Média |
 |---|---|---|---|---|
 | 1 (5e-5, 300k) ← **best r1** | **+532,00 · 1350 · 3/3** | **+250,46 · 1350 · 3/3** | +291,99 · 359 · 0/3 | **+358,15** |
 | 2 (2.5e-5, 300k) | +578,63 · 1350 · 3/3 | +34,38 · 279 · 0/3 (regrediu) | +26,97 · 77 · 0/3 | +213 |
 
-**Rodada 2 (ds3-heavy)** — mix ds1,ds2,ds3,ds3, partindo do best r1:
+**Passo 3 — curriculum r2 (ds3-heavy)** — mix ds1,ds2,ds3,ds3, partindo do best r1:
 | Fase | ds1 | ds2 | ds3 |
 |---|---|---|---|
 | 1 (5e-5, 500k) ← **best r2** | +93,68 · 455 · 0/3 | **+825,17 · 1350 · 3/3** | **+492,96 · 1350 · 6/6** |
 
-**Rodada 3 (ds1-heavy)** — mix ds1,ds2,ds3,ds1, partindo do best r2:
+**Passo 4 — curriculum r3 (ds1-heavy)** — mix ds1,ds2,ds3,ds1, partindo do best r2:
 
 ### 🏆🏆🏆 AS TRÊS PISTAS COMPLETAS (2026-09-18)
 
@@ -497,21 +586,11 @@ eval independente determinístico (9/9 episódios completos):
 | ds2 (Peach) | +329,92 · 3/3 | +865,29 | **1350/1350** |
 | ds3 (macaco) | +185,40 · 3/3 | +504,01 | **1350/1350** |
 
-O caminho até aqui (cada rodada fechou uma pista e quebrou outra; a
-alternância de ênfase no mix + seleção balanceada convergiu):
+(A tabela resumo da jornada r1→r3 está no topo, em "Por que agora funciona".
+Curiosidade: na r3 foi a *fase 2* — que nas rodadas anteriores sempre
+regredia — que fechou a ds1.)
 
-| Rodada | Mix | ds1 | ds2 | ds3 |
-|---|---|---|---|---|
-| r1 | uniforme | ✓ 1350 | ✓ 1350 | ✗ 359 |
-| r2 | ds3-heavy | ✗ 455 | ✓ 1350 | ✓ 1350 |
-| **r3** | **ds1-heavy** | **✓ 1350** | **✓ 1350** | **✓ 1350** |
-
-Os vídeos finais (`videos/phase_ds*.mp4`, 90s cada, tempo real):
-```bash
-python record_phases.py --model models/curriculum_flow25_r3_best.zip
-```
-
-Reproduzir a jornada completa (r1→r2→r3):
+Reproduzir a jornada completa (base→r1→r2→r3):
 ```bash
 python -m src.train_ppo --run-id ppo_flow25_ds13 --features nature --states ds1,ds3 --n-envs 2 --timesteps 1000000 --seed 0 --flow-weight 2.5
 python -m src.train_curriculum --run-id curriculum_flow25 --start-model models/ppo_flow25_ds13_best.zip --states ds1,ds2,ds3 --phases "300000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
