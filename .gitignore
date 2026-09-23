@@ -9,6 +9,8 @@ mlruns/
 # Trained model weights (large, locally generated)
 models/*.zip
 models/*.pth
+models/*.pt
+models/wm_*
 models/*/best_model.zip
 # ROMs and savestates (copyrighted / locally generated files)
 data/*.nds
@@ -18,6 +20,9 @@ data/*.ds3
 data/*.dsv
 data/*.sav
 data/Desmume/
+# World-model generated artifacts (large, reproducible via collect_data / train)
+data/wm_buffer*.pkl
+data/*.pkl
 # Local debug images
 images/test_*.png
 # Grid execution logs (verbose, large, reproducible)
