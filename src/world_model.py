@@ -160,15 +160,53 @@ class WorldModel(nn.Module):
         post = Latent(deter, post_mean, post_std, _gauss_sample(post_mean, post_std))
         return post, prior
 
-    def imagine_step(self, prev: Latent, action: torch.Tensor) -> Latent:
-        """One RSSM step using the prior only (no observation available)."""
+    def imagine_step(self, prev: Latent, action: torch.Tensor,
+                     deterministic: bool = False) -> Latent:
+        """One RSSM step using the prior only (no observation available).
+
+        ``deterministic=True`` uses the prior mean as the latent sample (no noise),
+        which is required by MPC planners for stable value estimates of candidate
+        action sequences.
+        """
         a_onehot = F.one_hot(action, self.num_actions).float()
         gru_in = torch.cat([prev.sample, a_onehot], dim=-1)
         deter = torch.tanh(self.gru(gru_in, prev.deter))
         prior_params = self.prior_net(deter)
         prior_mean, prior_std = self._dist(prior_params)
         prior_mean = self.ln_prior(prior_mean)
-        return Latent(deter, prior_mean, prior_std, _gauss_sample(prior_mean, prior_std))
+        z = prior_mean if deterministic else _gauss_sample(prior_mean, prior_std)
+        return Latent(deter, prior_mean, prior_std, z)
+
+    # ---- MPC helper: deterministic discounted value of an action sequence ----
+    @torch.no_grad()
+    def rollout_value(self, latent: Latent, actions: torch.Tensor,
+                      gamma: float = 0.99, pessimism: float = 0.0,
+                      terminal_cost: float = 0.0, death_thresh: float = 0.5) -> torch.Tensor:
+        """Deterministically roll ``actions`` (T, B) from ``latent`` and return the
+        discounted cumulative predicted reward (B,).
+
+        Safety: once the continue head predicts death (``c < death_thresh``) we apply
+        a single large ``terminal_cost`` and stop accumulating reward for that
+        candidate. This makes the planner avoid cliffs without the flow-reward being
+        exploited (falling into the abyss produces *large* downward optical flow, so
+        an un-terminated rollout would wrongly reward falling off).
+        """
+        B = actions.shape[1]
+        if latent.deter.shape[0] != B:  # tile a single start state to the batch
+            latent = Latent(*[t.expand(B, *t.shape[1:]) for t in latent])
+        disc = torch.ones(B, device=actions.device)
+        alive = torch.ones(B, device=actions.device)
+        value = torch.zeros(B, device=actions.device)
+        for t in range(actions.shape[0]):
+            latent = self.imagine_step(latent, actions[t], deterministic=True)
+            img = self.img(latent)
+            c = torch.sigmoid(self.continue_net(img)).squeeze(-1)
+            r = self.reward_net(img).squeeze(-1) - pessimism * latent.std.mean(-1)
+            dying = ((c < death_thresh) & (alive > 0.5)).float()
+            value = value + alive * disc * (r - terminal_cost * dying)
+            alive = alive * (1.0 - dying)
+            disc = disc * gamma
+        return value
 
     # ---- heads --------------------------------------------------------------
     def reward(self, latent: Latent) -> torch.Tensor:

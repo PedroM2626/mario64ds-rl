@@ -113,6 +113,40 @@ def test_controller_produces_valid_action():
     assert 0 <= a0 < 6 and 0 <= a1 < 6
 
 
+def test_mpc_rollout_value_finite_and_terminal_cost():
+    """MPC value rollouts must be finite and a predicted death must lower value."""
+    from src.world_model import Latent
+    model = _tiny_model().eval()
+    start = model.initial_state(1, torch.device("cpu"))
+    T, N = 6, 5
+    seq = torch.randint(0, 6, (T, N))
+    v = model.rollout_value(start, seq, gamma=0.99, pessimism=0.0, terminal_cost=0.0)
+    assert v.shape == (N,) and torch.isfinite(v).all()
+    v_term = model.rollout_value(start, seq, gamma=0.99, pessimism=0.0,
+                                 terminal_cost=1000.0, death_thresh=0.999)
+    # with almost every state flagged fatal, the terminated value must be lower
+    assert (v_term <= v + 1e-5).all()
+
+
+def test_memoryless_dataset_and_head():
+    """Offline: memoryless BC dataset shape + head forward (no emulator)."""
+    import torch as th
+    from src.wm_replay import EpisodeBuffer
+    from src.distill_memoryless import build_dataset, MemorylessPolicy
+    buf = EpisodeBuffer()
+    T = 25
+    frames = (np.random.rand(T, 84, 84) * 255).astype(np.uint8)
+    buf.add(frames, np.arange(T) % 6, np.zeros(T, np.float32),
+            np.ones(T, np.float32), source="ppo", completed=True)
+    X, Y = build_dataset(buf, np.random.default_rng(0))
+    assert X.shape == (T, 4, 84, 84) and X.min() >= 0 and X.max() <= 1
+    assert Y.shape == (T,) and Y.max() < 6
+    head = MemorylessPolicy(16, 6, 16)
+    out = head(th.rand(3, 16))
+    assert out.shape == (3, 6)
+    assert 0 <= int(head.act(th.rand(1, 16)).item()) < 6
+
+
 def test_actor_bc_reduces_loss():
     """Distillation should drive the actor to reproduce the expert label."""
     model = _tiny_model().eval()

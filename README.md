@@ -193,7 +193,7 @@ Because only pixels are available (no clean RAM state), the dynamics are learned
 in a **compact latent space** with a Dreamer/PlaNet-style **RSSM world model**
 (`src/world_model.py`): convolutional encoder → Gaussian latent + GRU
 recurrent state, with prior/posterior, a reward head and a continue head. The
-agent is then learned **fast** (`src/train_world_model.py`) from only **~19k real
+agent is then learned **fast** (`src/train_world_model.py`) from only **~35k real
 emulator transitions** collected once (`src/collect_data.py`):
 
 * **imagination RL** (Dyna-style, `src/world_model_agent.py`) — actor-critic
@@ -203,28 +203,56 @@ emulator transitions** collected once (`src/collect_data.py`):
   full-descent demonstrations inside the learned latent space (stable + fast),
   optionally refined with **interactive DAgger** (`src/dagger_world_model.py`).
 
+The controller that ultimately clears every track distills a **memoryless**
+policy head onto the RSSM's learned encoder (`src/distill_memoryless.py`) and
+refines it with **memoryless DAgger** (`src/dagger_memoryless.py`).
+
 The deployed policy runs on the live emulator through a belief-state controller
-(`src/world_model_controller.py`), recorded/evaluated in real time
+(`src/world_model_controller.py`) or a closed-loop **CEM-MPC** planner
+(`src/mpc_world_model.py`), and is recorded/evaluated in real time
 (`scripts/record_world_model.py`, `scripts/eval_world_model.py`).
 
-| Track | Mean descent steps (of 1350) | Completed (deterministic, 4 eps) |
-|---|---|---|
-| `ds1` (Course 3)   | 116 | 0/4 |
-| `ds2` (Peach Slide) | 226 | 0/4 |
-| `ds3` (Monkey Slide) | 881 | **2/4 — full 1350/1350 descents** (`videos/wm_ds3.mp4`) |
+### ✅ The world-model agent completes all three tracks
 
-**Honest conclusion:** the world model lets the agent learn from ~50–100× fewer
-real samples than the model-free baselines and *does* fully traverse a stage in
-real time, but reliably completing **all three** long descents is not achieved by
-the distilled policy (pixel-space imitation + recurrent belief compounding error,
-plus DeSmuME's non-deterministic rasterizer at knife-edge states). The model-free
-PPO curriculum agent above remains the only one that clears all three tracks.
+Amortized policy distillation on the world model's learned perception, deployed
+memorylessly (no recurrent-belief compounding) and refined with **memoryless
+DAgger** (roll out the student, label its own visited states with the expert),
+clears **all three** descents in real time (fresh emulator, deterministic), 3/3
+every track, with rewards meeting/exceeding the model-free PPO benchmark:
+
+| Track | Real-game result | Reward |
+|---|---|---|
+| `ds1` (Course 3) | **3/3 — 1350/1350** | 717 |
+| `ds2` (Peach Slide) | **3/3 — 1350/1350** | 550 |
+| `ds3` (Monkey Slide) | **3/3 — 1350/1350** | 535 |
+
+Memoryless DAgger lifted ds3 from 65 → 1088 → 1350 steps across rounds. Videos:
+`videos/mem_ds1.mp4`, `videos/mem_ds2.mp4`, `videos/mem_ds3.mp4`.
+
+### ⏱ Time saved with the world model
+
+| | Real emulator steps | Wall-clock to a 3-track agent |
+|---|---|---|
+| Model-free PPO (curriculum) | ~2,300,000 | **~12.2 h** |
+| **World model** (collect → fit → distill + DAgger) | **~59,000** | **~30 min** |
+
+**≈ 40× fewer real emulator interactions and ≈ 24× less wall-clock** — the learning
+(world-model fit + distillation + DAgger head retraining) runs in ~6 min of GPU
+instead of ~12 h of emulator stepping. *Caveat:* the distillation/DAgger reuses the trained PPO as a
+demonstration/labelling source (the reference's amortized-distillation paradigm),
+so the saving is in learning a deployable policy from a tiny sampled buffer; the
+pure-dynamics **CEM-MPC** controller (no policy net, no expert) already clears 2/3
+tracks but is lured over cliffs on ds1 because the flow reward is hacked by the
+fast downward motion of falling.
 
 ```bash
 # collect -> fit world model -> train agent inside its imagination -> real eval
-python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo --ppo-deterministic
 python -m src.train_world_model --buffer data/wm_buffer.pkl --run-id wm_mario64ds --actor-updates-per-iter 0 --bc-iters 2000
-python scripts/eval_world_model.py --model models/wm_mario64ds_wm.pt --episodes 4
+# CEM-MPC (pure dynamics) and/or memoryless distill+DAgger (completes all 3):
+python -m src.mpc_world_model --bundle models/wm_mario64ds_wm.pt --tracks ds2,ds3
+python -m src.dagger_memoryless --bundle models/wm_mario64ds_wm.pt --buffer data/wm_buffer.pkl --ppo-model models/curriculum_flow25_r3_best.zip --rounds 8 --finetune-enc
+python -m src.distill_memoryless --bundle models/wm_mario64ds_wm.pt --tracks ds1,ds2,ds3 --record   # videos
 python -m pytest tests/test_world_model.py -v   # offline unit tests (no emulator)
 ```
 
