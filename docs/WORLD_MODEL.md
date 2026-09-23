@@ -105,6 +105,15 @@ Offline unit tests (no emulator required): `python -m pytest tests/test_world_mo
 
 ## 7. Results (real game, measured)
 
+> **⚠️ Transparency.** The controller that clears all three tracks (item 3) is a
+> **distillation/DAgger clone of the already-trained model-free PPO expert**
+> (`models/curriculum_flow25_r3_best.zip`) — the *skill* (safe racing line) is
+> copied from that PPO; the world model's learned encoder only makes fitting a
+> deployable policy from it fast on a small buffer. It is **not** the world model
+> learning the stage from scratch. The world-model-native (expert-free) results
+> are the limitations: imagination RL collapsed (item 1) and CEM-MPC clears only
+> 2/3 (item 2). See §7 caveat and the README *Time saved* note.
+
 Setup: **~35k real emulator transitions** collected once (random + deterministic
 PPO expert descents). The RSSM world model converged fast (reward-head MSE
 1.9 → 0.01). Three world-model controllers were evaluated on the live emulator:

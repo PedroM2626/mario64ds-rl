@@ -214,6 +214,22 @@ The deployed policy runs on the live emulator through a belief-state controller
 
 ### ✅ The world-model agent completes all three tracks
 
+> **⚠️ Transparency — read this first.** The policy that clears all three tracks
+> does **not** discover the skill from scratch through the world model. It is a
+> **distillation of the already-trained model-free PPO agent**
+> (`models/curriculum_flow25_r3_best.zip`): the PPO's expert descents are provided
+> as demonstrations (behaviour cloning) and, via DAgger, the PPO labels the
+> student's own states. So the *competence* (the safe racing line) is copied from
+> that pretrained PPO — the world model's learned encoder/dynamics only make
+> fitting a deployable policy from it **fast** on a tiny buffer. A reader should
+> therefore interpret the table below as "the world-model pipeline **reproduces**
+> the trained expert and clears all three tracks", **not** "the world model taught
+> the agent the stage by itself". The genuinely world-model-native controllers are
+> the two negative/limitation results: **imagination RL collapsed** and the
+> expert-free **CEM-MPC** clears only 2 of 3 tracks (it is lured off cliffs on ds1
+> by the flow reward). See the caveat under *Time saved* for what this does and
+> does not demonstrate.
+
 Amortized policy distillation on the world model's learned perception, deployed
 memorylessly (no recurrent-belief compounding) and refined with **memoryless
 DAgger** (roll out the student, label its own visited states with the expert),
@@ -238,12 +254,16 @@ Memoryless DAgger lifted ds3 from 65 → 1088 → 1350 steps across rounds. Vide
 
 **≈ 40× fewer real emulator interactions and ≈ 24× less wall-clock** — the learning
 (world-model fit + distillation + DAgger head retraining) runs in ~6 min of GPU
-instead of ~12 h of emulator stepping. *Caveat:* the distillation/DAgger reuses the trained PPO as a
-demonstration/labelling source (the reference's amortized-distillation paradigm),
-so the saving is in learning a deployable policy from a tiny sampled buffer; the
-pure-dynamics **CEM-MPC** controller (no policy net, no expert) already clears 2/3
-tracks but is lured over cliffs on ds1 because the flow reward is hacked by the
-fast downward motion of falling.
+instead of ~12 h of emulator stepping. **What this saving is and is not.** The
+~12 h of PPO that *created* the skill is **not** eliminated — the distillation and
+DAgger reuse that trained PPO as the demonstration/labelling source (the
+reference's amortized-distillation paradigm), so the ~30 min is the cost of
+*copying an already-competent policy into a world-model-grounded controller from a
+small buffer*, not of learning the stage from zero through the model. The
+pure-dynamics **CEM-MPC** controller (no policy net, no expert) is the honest
+world-model-only result: it clears 2/3 tracks in real time but is lured over
+cliffs on ds1 because the flow reward is hacked by the fast downward motion of
+falling.
 
 ```bash
 # collect -> fit world model -> train agent inside its imagination -> real eval
