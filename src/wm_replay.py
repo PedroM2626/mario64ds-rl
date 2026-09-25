@@ -116,22 +116,53 @@ class EpisodeBuffer:
                     label[b, t] = e["actions"][min(i + 1, T - 1)]
         return (torch.from_numpy(obs), torch.from_numpy(act_in), torch.from_numpy(label))
 
-    def sample(self, batch: int, seq_len: int, rng: Optional[np.random.Generator] = None):
+    def death_windows(self, seq_len: int):
+        """(episode_index, start_index) windows that contain a terminal death.
+
+        Deaths are ~0.1% of steps, so uniform window sampling almost never shows
+        the continue head a death -- which is why it learned "never die" and let
+        both MPC and imagination rollouts walk off cliffs unpenalized.
+        """
+        out = []
+        for ei, e in enumerate(self.episodes):
+            T = len(e["continues"])
+            if T < seq_len + 1:
+                continue
+            for dpos in np.nonzero(e["continues"] < 0.5)[0]:
+                lo = max(0, int(dpos) - seq_len + 1)
+                # NOTE: the death is the FINAL frame of an episode, so the latest
+                # valid window start is T - seq_len (inclusive). Using T-seq_len-1
+                # here silently excluded every death from training.
+                hi = min(int(dpos), T - seq_len)
+                if hi >= lo:
+                    out.append((ei, lo, hi))
+        return out
+
+    def sample(self, batch: int, seq_len: int, rng: Optional[np.random.Generator] = None,
+               death_oversample: float = 0.0):
         import torch
         rng = rng or np.random.default_rng()
         # Only episodes long enough to fill a sequence (else resample a long one).
-        usable = [e for e in self.episodes if len(e["frames"]) >= seq_len + 1]
-        if not usable:
-            usable = self.episodes
+        usable_idx = [i for i, e in enumerate(self.episodes)
+                      if len(e["frames"]) >= seq_len + 1]
+        if not usable_idx:
+            usable_idx = list(range(len(self.episodes)))
+        dw = self.death_windows(seq_len) if death_oversample > 0 else []
         obs = np.zeros((batch, seq_len, STACK, 84, 84), dtype=np.float32)
         acts = np.zeros((batch, seq_len), dtype=np.int64)
         rews = np.zeros((batch, seq_len), dtype=np.float32)
         conts = np.zeros((batch, seq_len), dtype=np.float32)
         for b in range(batch):
-            e = usable[rng.integers(len(usable))]
+            if dw and rng.random() < death_oversample:
+                ei, lo, hi = dw[rng.integers(len(dw))]
+                e = self.episodes[ei]
+                start = int(rng.integers(lo, hi + 1))
+            else:
+                e = self.episodes[usable_idx[rng.integers(len(usable_idx))]]
+                # inclusive upper bound so a window can reach the final (terminal) frame
+                start = int(rng.integers(0, max(1, len(e["frames"]) - seq_len + 1)))
             T = len(e["frames"])
             padded = _pad_frames(e["frames"])
-            start = int(rng.integers(0, max(1, T - seq_len)))
             for t in range(seq_len):
                 i = start + t
                 win = padded[i:i + STACK]

@@ -177,3 +177,59 @@ python -m src.dagger_memoryless --bundle models/wm_mario64ds_wm.pt --buffer data
 # record the three full descents (one fresh process per track):
 python -m src.distill_memoryless --bundle models/wm_mario64ds_wm.pt --tracks ds1,ds2,ds3 --record
 ```
+
+## 8. Expert-free controllers: a controlled study (and a real negative result)
+
+The headline result in §7 clones an expert. To ask whether the world model can
+control the agent **by itself**, we built two expert-free controllers and studied
+them with a diagnostic harness (`scripts/diagnose_world_model.py`) instead of
+guessing from end-to-end runs.
+
+### 8.1 A real bug this surfaced (fixed, with regression tests)
+
+`EpisodeBuffer.sample()` capped a window's start at `T - seq_len - 1`, but a
+terminal death sits on the **final** frame (`continue[-1] == 0`). So **no training
+window ever contained a death**: the continue head learned "never die",
+`cont_recall` was structurally 0, and every imagined rollout reported
+`survive = 1.0`. That single off-by-one explains *both* expert-free failures —
+CEM-MPC walking off cliffs and the imagination actor collapsing to one action.
+Fixed (inclusive bounds + `death_windows()` + `death_oversample` +
+`death_weight`), with tests in `tests/test_world_model.py`.
+
+### 8.2 The calibration trade-off (why expert-free control still fails here)
+
+With deaths now visible, four models trace a clean trade-off — predicted
+survival and the dense flow gradient are in tension:
+
+| model | death emphasis | mean flow / step | predicted survival over H=40 |
+|---|---|---|---|
+| `wm_native`    | none                    | **+0.54** ✓ | 1.00 for every action ✗ (cliff-blind) |
+| `wm_flowclean` | dw 4 / os 0.15          | **+0.21** ✓ | 1.00 for every action ✗ |
+| `wm_bal`       | dw 10 / os 0.25         | +0.16 ✓     | 0.00 for every action ✗ (model pessimism) |
+| `wm_deathcal2` | dw 8 / os 0.2 + clip 1  | −0.19 ✗     | 0.56–1.00 ✓ (only this one discriminates) |
+
+`--mask-terminal-reward` keeps the −100 spike out of the reward MSE (otherwise the
+fitted flow prediction goes negative and the planner loses its progress gradient);
+`--death-weight` / `--death-oversample` push the other way. No setting in the
+sweep gave a *positive* flow gradient **and** discriminative survival at the same
+time.
+
+### 8.3 Honest conclusion
+
+Expert-free CEM-MPC reaches roughly **450–840 of 1350 steps** on the slides
+(e.g. ds2 1/2 at 837 mean) but does **not** reliably clear all three; the
+imagination actor collapses to a single action. The reason is structural, not a
+tuning gap: the optical-flow reward **pays for falling** (downward pixel motion
+spikes in an abyss) and, at the decision point, the fatal action is not
+identifiable from a short pixel window — so there is no horizon at which a planner
+both foresees the cliff and is not swamped by prior-drift pessimism. This is
+precisely the advantage the reference `smw-pinn` enjoys from modelling exact RAM
+state (`x, y, vx, vy`) instead of pixels.
+
+What would actually break the wall, if pursued further: a progress reward that
+cannot be earned by falling (e.g. distance-along-track estimated from the model, or
+a survival-weighted objective with an ensemble-estimated uncertainty term), plus
+more near-cliff data than ~150 death events.
+
+**So the verified all-three-tracks result in §7 stands, and it is a distilled
+clone of the trained PPO — labelled as such there and above.**

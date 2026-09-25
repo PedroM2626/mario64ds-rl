@@ -125,8 +125,18 @@ def train(args):
     print(f"[wm] loaded buffer: {buffer.total_steps} steps / {len(buffer)} episodes on {device}")
 
     wm_cfg = dict(deter_dim=args.deter_dim, stoch_dim=args.stoch_dim,
-                  enc_dim=args.enc_dim, num_actions=6, obs_channels=4, hidden=args.hidden)
+                  enc_dim=args.enc_dim, num_actions=6, obs_channels=4, hidden=args.hidden,
+                  use_decoder=args.use_decoder)
     model = WorldModel(**wm_cfg).to(device)
+    if args.load_model:
+        # Start from an already-fitted world model and train ONLY the actor
+        # (set --model-iters 0 to keep the dynamics frozen). This is what an
+        # expert-free Dreamer-style run needs: no distillation, no BC.
+        lm = args.load_model if os.path.isabs(args.load_model) else os.path.join(ROOT, args.load_model)
+        ck = torch.load(lm, map_location=device)
+        missing, unexpected = model.load_state_dict(ck["model"], strict=False)
+        print(f"[wm] loaded world model from {os.path.basename(lm)} "
+              f"(missing={len(missing)} unexpected={len(unexpected)})", flush=True)
     actor = ActorCritic(args.deter_dim, args.stoch_dim, 6, hidden=args.hidden).to(device)
     model_opt = torch.optim.AdamW(model.parameters(), lr=args.lr, eps=1e-5)
     actor_opt = torch.optim.AdamW(actor.parameters(), lr=args.lr, eps=1e-5)
@@ -151,7 +161,8 @@ def train(args):
     t0 = time.time()
 
     def batch():
-        obs, acts, rews, conts = buffer.sample(args.batch, args.seq_len, rng)
+        obs, acts, rews, conts = buffer.sample(args.batch, args.seq_len, rng,
+                                               death_oversample=args.death_oversample)
         return (obs.to(device), acts.to(device), rews.to(device), conts.to(device))
 
     n_iters = args.model_iters + max(args.actor_iters, args.bc_iters)
@@ -166,7 +177,10 @@ def train(args):
         # --- world-model learning phase (real data) ---
         if it <= args.model_iters:
             model.train()
-            mloss = model_loss(model, obs, acts, rews, conts, free_nats=args.free_nats)
+            mloss = model_loss(model, obs, acts, rews, conts, free_nats=args.free_nats,
+                               recon_weight=args.recon_weight, death_weight=args.death_weight,
+                               reward_clip=args.reward_clip,
+                               mask_terminal_reward=args.mask_terminal_reward)
             model_opt.zero_grad()
             mloss["loss"].backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
@@ -183,7 +197,9 @@ def train(args):
                                              horizon=args.horizon, gamma=args.gamma,
                                              lam=args.lam, ent_coef=args.ent_coef,
                                              pessimism_beta=args.pessimism_beta,
-                                             uncertainty_trunc=args.unc_trunc)
+                                             uncertainty_trunc=args.unc_trunc,
+                                             terminal_cost=args.terminal_cost,
+                                             death_thresh=args.death_thresh)
             # (b) amortized policy distillation (behaviour cloning on expert descents)
             if expert_eps and it <= args.model_iters + args.bc_iters:
                 eobs, ein, elab = buffer.sample_expert(args.batch, args.bc_seq_len,
@@ -197,6 +213,10 @@ def train(args):
             if it <= args.model_iters:
                 msg += (f" model loss={float(mloss['loss']):.4f} kl={float(mloss['kl']):.3f} "
                         f"rew={float(mloss['rew']):.4f} cont={float(mloss['cont']):.4f}")
+                if "recon" in mloss:
+                    msg += f" recon={float(mloss['recon']):.4f}"
+                if "cont_recall" in mloss:
+                    msg += f" cont_recall={float(mloss['cont_recall']):.2f}"
             if am is not None:
                 msg += f" | actor R={am['mean_return']:.2f} vloss={am['value_loss']:.3f}"
             if bcm is not None:
@@ -232,6 +252,9 @@ def main():
     p = argparse.ArgumentParser(description="Train Mario 64 DS world model + imagination actor")
     p.add_argument("--buffer", default="data/wm_buffer.pkl")
     p.add_argument("--run-id", default="wm_mario64ds")
+    p.add_argument("--load-model", default=None,
+                   help="start from an already-fitted world-model bundle and train only "
+                        "the actor (use with --model-iters 0 for an expert-free Dreamer run)")
     p.add_argument("--rom", default="data/Super Mario 64 DS (USA) (Rev 1).nds")
     p.add_argument("--states", default="ds1,ds2,ds3", help="tracks for periodic real eval")
     p.add_argument("--seed", type=int, default=0)
@@ -258,11 +281,34 @@ def main():
     p.add_argument("--ent-coef", type=float, default=3e-3)
     p.add_argument("--free-nats", type=float, default=1.0)
     p.add_argument("--max-grad-norm", type=float, default=0.5)
+    p.add_argument("--recon-weight", type=float, default=0.0,
+                   help="weight on pixel reconstruction loss (sharpens the latent so "
+                        "prior rollouts stay calibrated; key for expert-free MPC)")
+    p.add_argument("--death-weight", type=float, default=1.0,
+                   help="BCE up-weight on terminal-death steps (deaths are ~0.1%% of "
+                        "steps; without this the continue head learns 'never die')")
+    p.add_argument("--death-oversample", type=float, default=0.0,
+                   help="fraction of sampled windows forced to contain a death")
+    p.add_argument("--reward-clip", type=float, default=0.0,
+                   help="clamp the reward target for the reward head (terminality is "
+                        "carried by the continue head + planner terminal cost)")
+    p.add_argument("--mask-terminal-reward", action="store_true",
+                   help="exclude death steps from the reward loss so the -100 spike "
+                        "cannot drag the dense flow prediction negative")
+    p.add_argument("--no-decoder", dest="use_decoder", action="store_false",
+                   help="disable the reconstruction decoder (fully reconstruction-free)")
+    p.set_defaults(use_decoder=True)
     # safe-MBRL pessimism (reference: deep-ensemble epistemic truncation)
     p.add_argument("--pessimism-beta", type=float, default=1.0,
                    help="subtract beta*model-uncertainty from imagined reward")
     p.add_argument("--unc-trunc", type=float, default=1.5,
                    help="truncate imagined rollout when prior std exceeds this")
+    p.add_argument("--terminal-cost", type=float, default=0.0,
+                   help="one-off penalty when the model predicts death inside the "
+                        "imagination horizon (essential: raw flow reward keeps paying "
+                        "while falling off a cliff)")
+    p.add_argument("--death-thresh", type=float, default=0.5,
+                   help="continue-probability below which an imagined state is fatal")
     # amortized policy distillation (behaviour cloning on expert descents)
     p.add_argument("--bc-iters", type=int, default=6000,
                    help="run policy-distillation updates for the first N iterations")

@@ -101,16 +101,44 @@ class ConvEncoder(nn.Module):
 
 
 # --------------------------------------------------------------------------- #
+# Convolutional decoder (latent -> pixels), used only as a representation
+# regularizer. Reconstruction keeps the stochastic latent informative about the
+# *visual* scene (e.g. the fall-to-black transition at a cliff), which makes the
+# prior rollouts used by MPC / imagination calibrated -- the absence of this is
+# what let a reconstruction-free latent be exploited by the flow-reward hack.
+# --------------------------------------------------------------------------- #
+class ConvDecoder(nn.Module):
+    def __init__(self, latent_dim: int, out_channels: int = 4, hidden: int = 128):
+        super().__init__()
+        self.fc = nn.Linear(latent_dim, hidden * 6 * 6)
+        self.hidden = hidden
+
+        def up(cin, cout):
+            return nn.Sequential(nn.Conv2d(cin, cout, 3, padding=1), nn.ReLU(),
+                                 nn.Upsample(scale_factor=2, mode="bilinear",
+                                             align_corners=False))
+        self.net = nn.Sequential(
+            up(hidden, 64), up(64, 32), up(32, 16), nn.Conv2d(16, out_channels, 3, padding=1)
+        )
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        x = self.fc(z).view(-1, self.hidden, 6, 6)
+        x = self.net(x)
+        return F.interpolate(x, size=(84, 84), mode="bilinear", align_corners=False)
+
+
+# --------------------------------------------------------------------------- #
 # The recurrent state-space model ("world model")
 # --------------------------------------------------------------------------- #
 class WorldModel(nn.Module):
     def __init__(self, deter_dim: int = 128, stoch_dim: int = 32,
                  enc_dim: int = 128, num_actions: int = 6,
-                 obs_channels: int = 4, hidden: int = 128):
+                 obs_channels: int = 4, hidden: int = 128, use_decoder: bool = True):
         super().__init__()
         self.deter_dim = deter_dim
         self.stoch_dim = stoch_dim
         self.num_actions = num_actions
+        self.use_decoder = use_decoder
 
         self.encoder = ConvEncoder(in_channels=obs_channels, feat_dim=enc_dim)
         # GRU consumes [z, onehot(a)]
@@ -120,6 +148,7 @@ class WorldModel(nn.Module):
         self.post_net = MLP(enc_dim + deter_dim, 2 * stoch_dim, hidden=hidden, layers=1, act="silu")
         self.reward_net = MLP(deter_dim + stoch_dim, 1, hidden=hidden, layers=2, act="relu")
         self.continue_net = MLP(deter_dim + stoch_dim, 1, hidden=hidden, layers=2, act="relu")
+        self.decoder = ConvDecoder(deter_dim + stoch_dim, obs_channels) if use_decoder else None
 
         self.ln_post = nn.LayerNorm(stoch_dim)
         self.ln_prior = nn.LayerNorm(stoch_dim)
@@ -212,6 +241,12 @@ class WorldModel(nn.Module):
     def reward(self, latent: Latent) -> torch.Tensor:
         return self.reward_net(self.img(latent)).squeeze(-1)
 
+    def recon(self, latent: Latent) -> Optional[torch.Tensor]:
+        """Decode the observation from a latent (representation regularizer)."""
+        if self.decoder is None:
+            return None
+        return self.decoder(self.img(latent))
+
     def posterior_imgs(self, obs_seq: torch.Tensor, action_seq: torch.Tensor
                        ) -> torch.Tensor:
         """Belief vectors [h, z] from the posterior at every step of a real seq.
@@ -273,7 +308,9 @@ def gauss_kl(post_mean, post_std, prior_mean, prior_std, free_nats: float = 1.0)
 
 def model_loss(model: WorldModel, obs_seq: torch.Tensor, action_seq: torch.Tensor,
                reward_seq: torch.Tensor, continue_seq: torch.Tensor,
-               free_nats: float = 1.0) -> Dict[str, torch.Tensor]:
+               free_nats: float = 1.0, recon_weight: float = 0.0,
+               death_weight: float = 1.0, reward_clip: float = 0.0,
+               mask_terminal_reward: bool = False) -> Dict[str, torch.Tensor]:
     out = model.observe_sequence(obs_seq, action_seq)
     kl = gauss_kl(out["post_mean"], out["post_std"],
                   out["prior_mean"], out["prior_std"], free_nats).mean()
@@ -285,10 +322,43 @@ def model_loss(model: WorldModel, obs_seq: torch.Tensor, action_seq: torch.Tenso
                           for t in range(reward_seq.shape[1])], 1)
     c_pred = torch.stack([model.continue_prob(_index_latent(post, t))
                           for t in range(continue_seq.shape[1])], 1)
-    rew_loss = F.mse_loss(r_pred, reward_seq)
-    cont_loss = F.binary_cross_entropy(c_pred.clamp(1e-4, 1 - 1e-4), continue_seq)
+    # Terminality is owned by the continue head (and injected by the planner as a
+    # terminal cost). The -100 death spike must not enter the reward MSE: with the
+    # clip it drags the predicted dense flow negative (~-0.2/step vs a true +0.5),
+    # destroying the progress gradient the planner needs. Masking terminal steps
+    # out keeps the flow signal crisp while the continue head still supplies death.
+    if mask_terminal_reward:
+        m = (continue_seq > 0.5).float()
+        num = (m * (r_pred - reward_seq) ** 2).sum()
+        rew_loss = num / (m.sum() + 1e-6)
+    else:
+        rew_target = (reward_seq.clamp(-reward_clip, reward_clip)
+                      if reward_clip > 0 else reward_seq)
+        rew_loss = F.mse_loss(r_pred, rew_target)
+    if death_weight > 1.0:
+        # Deaths are ~0.1% of steps; without up-weighting the continue head learns
+        # "never die", which blinds MPC/imagination to cliffs.
+        w = torch.where(continue_seq < 0.5, torch.full_like(continue_seq, death_weight),
+                        torch.ones_like(continue_seq))
+        bce = F.binary_cross_entropy(c_pred.clamp(1e-4, 1 - 1e-4), continue_seq,
+                                     reduction="none")
+        cont_loss = (w * bce).sum() / w.sum()
+    else:
+        cont_loss = F.binary_cross_entropy(c_pred.clamp(1e-4, 1 - 1e-4), continue_seq)
     total = kl + rew_loss + cont_loss
-    return dict(loss=total, kl=kl.detach(), rew=rew_loss.detach(), cont=cont_loss.detach())
+    result = dict(loss=total, kl=kl.detach(), rew=rew_loss.detach(), cont=cont_loss.detach())
+    with torch.no_grad():
+        result["cont_recall"] = (((c_pred < 0.5) & (continue_seq < 0.5)).float().sum()
+                                 / ((continue_seq < 0.5).float().sum() + 1e-6))
+
+    if recon_weight > 0.0 and model.decoder is not None:
+        B, T = reward_seq.shape
+        img = torch.cat([post.deter, post.sample], dim=-1)      # (B,T,det+stoch)
+        dec = model.decoder(img.reshape(B * T, -1)).view(B, T, *obs_seq.shape[2:])
+        recon_loss = F.mse_loss(dec, obs_seq)
+        result["loss"] = total + recon_weight * recon_loss
+        result["recon"] = recon_loss.detach()
+    return result
 
 
 def _index_latent(latent: Latent, t: int) -> Latent:

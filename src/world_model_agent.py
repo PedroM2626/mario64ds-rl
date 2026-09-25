@@ -51,7 +51,8 @@ class ActorCritic(nn.Module):
 @torch.no_grad()
 def imagine(model: WorldModel, ac: ActorCritic, start: Latent, horizon: int,
             gamma: float, lam: float, pessimism_beta: float = 0.0,
-            uncertainty_trunc: float = 1e9) -> Dict[str, torch.Tensor]:
+            uncertainty_trunc: float = 1e9, terminal_cost: float = 0.0,
+            death_thresh: float = 0.5) -> Dict[str, torch.Tensor]:
     """Roll the agent's policy forward inside the frozen model prior.
 
     ``start`` is a detached latent (batch of belief states seeded from real
@@ -62,10 +63,17 @@ def imagine(model: WorldModel, ac: ActorCritic, start: Latent, horizon: int,
     proxy (prior std) from the imagined reward and ``uncertainty_trunc`` ends the
     imagined rollout once uncertainty exceeds a threshold — this prevents the
     actor from exploiting regions where the learned model is unreliable.
+
+    ``terminal_cost`` applies a one-off penalty the first time the model predicts
+    death inside the horizon and stops accruing reward afterwards. This is
+    essential on these slides: the raw optical-flow reward keeps *paying* while
+    Mario falls off a cliff (falling is fast downward motion), so without an
+    in-horizon death term the actor is rewarded for suicide.
     """
     B = start.deter.shape[0]
     device = start.deter.device
     latent = start
+    alive = torch.ones(B, device=device)
     imgs, acts, logps, vals, rews, conts = [], [], [], [], [], []
     for _ in range(horizon):
         img = model.img(latent)
@@ -76,10 +84,13 @@ def imagine(model: WorldModel, ac: ActorCritic, start: Latent, horizon: int,
         logps.append(dist.log_prob(action))
         vals.append(ac.value(img))
         uncertainty = latent.std.mean(-1)  # epistemic proxy
-        r = model.reward(latent) - pessimism_beta * uncertainty
         cont = model.continue_prob(latent) * (uncertainty < uncertainty_trunc).float()
+        r = alive * (model.reward(latent) - pessimism_beta * uncertainty)
+        dying = ((cont < death_thresh) & (alive > 0.5)).float()
+        r = r - terminal_cost * dying
+        alive = alive * (1.0 - dying)
+        conts.append(cont * alive)  # cut the return once dead
         rews.append(r)
-        conts.append(cont)
         latent = model.imagine_step(latent, action)
 
     img = model.img(latent)
@@ -112,9 +123,11 @@ def actor_critic_update(model: WorldModel, ac: ActorCritic, optimizer: torch.opt
                         start: Latent, horizon: int = 15, gamma: float = 0.995,
                         lam: float = 0.95, ent_coef: float = 3e-3,
                         max_grad_norm: float = 0.5, pessimism_beta: float = 0.0,
-                        uncertainty_trunc: float = 1e9) -> Dict[str, float]:
+                        uncertainty_trunc: float = 1e9, terminal_cost: float = 0.0,
+                        death_thresh: float = 0.5) -> Dict[str, float]:
     """One imagination PPO-free (REINFORCE + baseline) update of actor & critic."""
-    data = imagine(model, ac, start, horizon, gamma, lam, pessimism_beta, uncertainty_trunc)
+    data = imagine(model, ac, start, horizon, gamma, lam, pessimism_beta,
+                   uncertainty_trunc, terminal_cost, death_thresh)
     imgs = data["imgs"].reshape(-1, data["imgs"].shape[-1])
     acts = data["acts"].reshape(-1)
     returns = data["returns"].reshape(-1)

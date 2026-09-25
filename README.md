@@ -265,10 +265,34 @@ world-model-only result: it clears 2/3 tracks in real time but is lured over
 cliffs on ds1 because the flow reward is hacked by the fast downward motion of
 falling.
 
+### 🔬 Can the world model do it *without* an expert? (controlled study)
+
+I also tried the two genuinely expert-free controllers — **CEM-MPC over the RSSM**
+and **imagination RL** — and documented the outcome in
+[`docs/WORLD_MODEL.md` §8](docs/WORLD_MODEL.md). It produced a real bug fix and a
+real negative result:
+
+- **Bug found & fixed:** the replay sampler's window bound (`T - seq_len - 1`) meant
+  a terminal death — which lives on the *final* frame — **never appeared in any
+  training window**. The continue head therefore learned "never die", which is
+  exactly why MPC walked off cliffs and the imagined actor collapsed to one action.
+  Fixed, plus regression tests; `scripts/diagnose_world_model.py` now catches both
+  failure modes directly instead of via slow end-to-end runs.
+- **Remaining wall (honest):** expert-free CEM-MPC reaches ~450–840 of 1350 steps
+  but does not reliably clear all three. The cause is structural: the optical-flow
+  reward **pays for falling** (downward pixel motion spikes in an abyss), and at the
+  decision point the fatal action is not identifiable from a short pixel window — so
+  no horizon both foresees the cliff and avoids prior-drift pessimism. This is
+  precisely the edge the reference's `smw-pinn` gains by modelling exact RAM state
+  (`x, y, vx, vy`) rather than pixels.
+
 ```bash
+# expert-free controllers + diagnostics
+python -m src.mpc_world_model --bundle models/wm_native_wm.pt --tracks ds2 --horizon 40 --terminal-cost 150
+python scripts/diagnose_world_model.py --bundle models/wm_bal_wm.pt --check model   # cliff-blind? collapsed?
+
 # collect -> fit world model -> train agent inside its imagination -> real eval
-python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo --ppo-deterministic
-python -m src.train_world_model --buffer data/wm_buffer.pkl --run-id wm_mario64ds --actor-updates-per-iter 0 --bc-iters 2000
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo --ppo-deterministicpython -m src.train_world_model --buffer data/wm_buffer.pkl --run-id wm_mario64ds --actor-updates-per-iter 0 --bc-iters 2000
 # CEM-MPC (pure dynamics) and/or memoryless distill+DAgger (completes all 3):
 python -m src.mpc_world_model --bundle models/wm_mario64ds_wm.pt --tracks ds2,ds3
 python -m src.dagger_memoryless --bundle models/wm_mario64ds_wm.pt --buffer data/wm_buffer.pkl --ppo-model models/curriculum_flow25_r3_best.zip --rounds 8 --finetune-enc

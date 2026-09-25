@@ -103,6 +103,65 @@ def test_replay_stacking_and_range():
     assert np.array_equal(padded[STACK - 1:], frames)
 
 
+def test_terminal_death_reaches_training_windows():
+    """Regression: terminal deaths sit on the FINAL frame, so a window sampler that
+    caps its start at T-seq_len-1 silently excludes every death and the continue
+    head learns "never die" (this blinded MPC/imagination to cliffs)."""
+    buf = EpisodeBuffer()
+    T, L = 60, 20
+    for _ in range(3):
+        frames = (np.random.rand(T, 84, 84) * 255).astype(np.uint8)
+        cont = np.ones(T, np.float32)
+        cont[-1] = 0.0                      # death on the final frame only
+        buf.add(frames, np.zeros(T, np.int64), np.zeros(T, np.float32),
+                cont, source="random")
+    # the death-window index must find windows that actually cover the final frame
+    dw = buf.death_windows(L)
+    assert len(dw) > 0, "death_windows() found no death despite terminal continues"
+    for _, lo, hi in dw:
+        assert hi >= lo
+        assert hi + L - 1 >= T - 1, "death window must reach the terminal frame"
+
+    # uniform sampling must be able to surface a death at all
+    rng = np.random.default_rng(0)
+    seen = 0
+    for _ in range(40):
+        _, _, _, conts = buf.sample(8, L, rng)
+        seen += int((conts < 0.5).sum())
+    assert seen > 0, "no terminal death ever appeared in uniform samples"
+
+    # death oversampling must surface deaths far more often
+    _, _, _, overs = buf.sample(8, L, np.random.default_rng(1), death_oversample=1.0)
+    assert (overs < 0.5).sum() >= 1, "death_oversample=1.0 produced no death"
+
+
+def test_mask_terminal_reward_ignores_death_spike():
+    """The -100 terminal spike must not enter the reward MSE, otherwise the fitted
+    dense flow prediction is dragged negative and the planner loses its gradient."""
+    model = _tiny_model()
+    obs, acts, rews, conts = _rand_batch(B=4, T=6)
+    rews = rews.clone(); conts = conts.clone()
+    rews[:, -1] = -100.0
+    conts[:, -1] = 0.0                      # terminal step carries the spike
+    masked = model_loss(model, obs, acts, rews, conts, mask_terminal_reward=True)
+    unmasked = model_loss(model, obs, acts, rews, conts)
+    assert float(masked["rew"]) < float(unmasked["rew"]), \
+        "masking terminal steps must remove the -100 outlier from the reward loss"
+    assert torch.isfinite(masked["loss"])
+
+
+def test_death_weight_changes_continue_loss_scale():
+    model = _tiny_model()
+    obs, acts, rews, conts = _rand_batch(B=4, T=6)
+    conts = conts.clone()
+    conts[:, -1] = 0.0                      # one death per row
+    base = model_loss(model, obs, acts, rews, conts, death_weight=1.0)
+    heavy = model_loss(model, obs, acts, rews, conts, death_weight=50.0)
+    assert torch.isfinite(heavy["loss"])
+    assert "cont_recall" in heavy
+    assert float(heavy["cont"]) != float(base["cont"])
+
+
 def test_controller_produces_valid_action():
     from src.world_model_controller import WorldModelController
     model = _tiny_model()

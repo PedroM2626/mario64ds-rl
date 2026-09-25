@@ -202,6 +202,9 @@ def main():
                     w.append_data(fr)
             print(f"{args.single}: reward={R:.1f} steps={steps}/{args.max_steps} "
                   f"{'COMPLETED' if steps>=args.max_steps else 'FAILED'} | {out}", flush=True)
+        else:
+            print(f"{args.single}: reward={R:.1f} steps={steps}/{args.max_steps} "
+                  f"{'COMPLETED' if steps>=args.max_steps else 'FAILED'}", flush=True)
         return
 
     # evaluation mode: N episodes per track on one persistent emulator
