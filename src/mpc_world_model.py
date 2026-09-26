@@ -243,8 +243,12 @@ def _probe_here(env, traj, ppo, steps_done, out_dir, collector, branch_len,
                 elif branch_policy == "hold":
                     a = a_probe
                 else:
-                    recent = np.stack(frames[-4:], axis=0)[np.newaxis, :]
-                    pred, _ = ppo.predict(recent, deterministic=True)
+                    recent = frames[-4:]
+                    if len(recent) < 4:  # early-episode probes: zero-pad the stack
+                        recent = ([np.zeros_like(frames[-1])] * (4 - len(recent))
+                                  + recent)
+                    stack = np.stack(recent, axis=0)[np.newaxis, :]
+                    pred, _ = ppo.predict(stack, deterministic=True)
                     a = int(pred[0])
             collector.add(np.array(frames), np.array(actions), np.array(rewards),
                            np.array(continues), source="probe_mpc", completed=not dead,
@@ -352,10 +356,10 @@ def main():
                    help="weight of the Q-head grounding of the first action "
                         "(real-state, real-return Q). Default: 1.0 when the "
                         "bundle trained a Q head, else 0.")
-    p.add_argument("--q-cont", type=int, choices=[0, 1], default=1,
-                   help="continuation semantics for the Q read: 1 = hold/commit "
-                        "(expert momentum patterns + lethal-direction contrast; "
-                        "default), 0 = noop-coast (raw caution)")
+    p.add_argument("--q-cont", type=int, choices=[0, 1, 2, 3], default=1,
+                   help="continuation semantics for the Q read: 1 = hold/commit, "
+                        "0 = noop-coast, 2 = expert recovery, 3 = hold + recovery "
+                        "(pattern preference on-line, escape gradient off-line)")
     p.add_argument("--cem-persistence", type=float, default=0.75,
                    help="probability that a sampled candidate step repeats the "
                         "previous action (momentum-biased proposals: surviving "

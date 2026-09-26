@@ -291,17 +291,22 @@ class WorldModel(nn.Module):
         alive = torch.ones(B, device=actions.device)
         value = torch.zeros(B, device=actions.device)
         if q_ground:
-            # The Q grounding is evaluated under the COMMITTED-continuation
-            # semantics (hold token) by default: the hold-probe branches measure
-            # "commit to this action", which both carries the expert's
-            # momentum patterns (jump-spam holds the racing line) and exposes
-            # lethal directions (holding toward an edge falls). The noop-coast
-            # token measured raw caution instead and taught the planner to
-            # brake through the opening, lose the line's momentum, and get
-            # pushed into hazards.
-            tok = torch.full((B,), int(q_cont), dtype=torch.long, device=actions.device)
-            value = value + q_weight * (self.q(latent, actions[0], cont_token=tok)
-                                         * self.ret_std + self.ret_mean)
+            # The Q grounding is evaluated under the probe branches' continuation
+            # semantics: hold (1) carries the expert momentum patterns
+            # (jump-spam holds the racing line) and lethal-direction contrast;
+            # expert-recovery (2) marks which actions keep recovery possible --
+            # the escape gradient at off-line states; noop-coast (0) measures
+            # raw caution (taught the planner to crawl instead). Token 3 sums
+            # hold + recovery: pattern preference on-line, escape gradient off-line.
+            if int(q_cont) == 3:
+                tok_h = torch.full((B,), 1, dtype=torch.long, device=actions.device)
+                tok_r = torch.full((B,), 2, dtype=torch.long, device=actions.device)
+                q_raw = self.q(latent, actions[0], cont_token=tok_h) \
+                    + self.q(latent, actions[0], cont_token=tok_r)
+            else:
+                tok = torch.full((B,), int(q_cont), dtype=torch.long, device=actions.device)
+                q_raw = self.q(latent, actions[0], cont_token=tok)
+            value = value + q_weight * (q_raw * self.ret_std + self.ret_mean)
         for t in range(actions.shape[0]):
             if t == 0 and q_ground:
                 # step 0 is carried by Q(s_0, a_0) (its target includes r_0 and
@@ -370,14 +375,19 @@ class WorldModel(nn.Module):
     def value_raw(self, latent: Latent, agg: str = "mean") -> torch.Tensor:
         """Ensemble value in RAW return units. agg='min' is the pessimistic read
         the planner bootstraps (a hazard-approach state with mixed data gets the
-        death-side interpretation from the most pessimistic head)."""
+        death-side interpretation from the most pessimistic head); 'max' is the
+        optimistic read used to bootstrap expert-recovery branches."""
         heads = self.value_heads()
         if not heads:
             return None
         img = self.img(latent)
         outs = [(h(img).squeeze(-1) * self.ret_std + self.ret_mean) for h in heads]
         stacked = torch.stack(outs, 0)
-        return stacked.min(0).values if agg == "min" else stacked.mean(0)
+        if agg == "min":
+            return stacked.min(0).values
+        if agg == "max":
+            return stacked.max(0).values
+        return stacked.mean(0)
 
     def q(self, latent: Latent, action: torch.Tensor,
            cont_token: torch.Tensor = None) -> torch.Tensor:
@@ -593,9 +603,18 @@ def model_loss(model: WorldModel, obs_seq: torch.Tensor, action_seq: torch.Tenso
                              out_b["post_mean"][rows, vend],
                              out_b["post_std"][rows, vend],
                              out_b["post_mean"][rows, vend])
-            # pessimistic (min) ensemble read, consistent with the planner's
-            # terminal bootstrap
-            v_end_raw = model.value_raw(lat_end, agg="min")
+            # bootstrap semantics per continuation token: noop/hold branches end
+            # under a non-expert policy -> pessimistic (min) read; expert-recovery
+            # branches end under expert control -> the OPTIMISTIC (max) read --
+            # the expert side of the data mixture. (Bootstrapping recovery with
+            # the pessimistic min, or supervising V along failure branches,
+            # both poison the recovery targets / the value landscape: measured,
+            # actions the expert demonstrably recovers from read ~-85.)
+            v_min = model.value_raw(lat_end, agg="min")
+            v_mean = model.value_raw(lat_end, agg="mean")
+            v_max = model.value_raw(lat_end, agg="max")
+            v_end_raw = torch.where(btok == 2, v_max,
+                                    torch.where(btok == 1, v_min, v_min))
             alive_end = (bconts[rows, vend] > 0.5).float()
         # raw target = branch rewards + gamma^len * V(end) if the branch survived
         k_len = (bvalid - bpa).clamp(min=0).float()

@@ -245,6 +245,9 @@ def _probe_branches(env, ppo, state, probe_every, branch_len, prefix_len,
                 else:
                     # PPO stack: last 4 frames, oldest..newest along axis 1, uint8
                     recent = frames[-4:]
+                    if len(recent) < 4:  # early-episode probes: zero-pad the stack
+                        recent = ([np.zeros_like(frames[-1])] * (4 - len(recent))
+                                  + recent)
                     stack = np.stack(recent, axis=0)[np.newaxis, :]
                     pred, _ = ppo.predict(stack, deterministic=True)
                     a = int(pred[0])

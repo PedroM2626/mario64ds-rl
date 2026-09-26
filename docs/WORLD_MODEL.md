@@ -369,7 +369,9 @@ Reliability, stated plainly: per-hazard threading is ~40-70%, so a full
 descent completes on ~5-15% of episodes on the clearable tracks (ds2 completed
 4 of ~20 logged episodes; ds3 2 of ~30; the ds3 video took 32 seeded attempts).
 **This is not the reliable 3/3 of the distilled controller in §7**, and ds1
-remains blocked.
+remains blocked: across 25+ logged episodes (including a 9-seed lottery with
+the best configuration) it clusters at 440-525 and brushes the wall at
+516-525 without ever crossing it (§9.7).
 
 ### 9.7 Why ds1 is still blocked
 
@@ -381,6 +383,32 @@ off-line, wanders 100+ steps in the dark, and dies at or just after the exit
 until ~6 steps before falls everywhere). The expert transits in ~15 steps by
 jump-spamming straight through — a reactive precision that outcome data alone
 has not reproduced.
+
+A dedicated follow-up hunt ("retome a caça ao ds1") mapped the remaining wall
+precisely and did not break it:
+
+* The **hard wall sits at steps 400-525** — no attempt in ~25 episodes ever
+  passed it; the best (q7 + noop-token Q) clusters tightly at 440-525 and
+  brushes 516-525 but does not cross.
+* **~850 counterfactual hold-continuation branches** were probed at exactly
+  the wall (21 partial-death states, 70 lethal committed-direction branches at
+  steps 400-460); **expert-recovery branches** were probed along the agent's
+  failure lines (302 states, 5 states where even the expert cannot recover
+  from some actions). Q trained on this separates some ground-truth states but
+  does not thread the wall on the emulator.
+* Two bootstrap designs were measured dead ends: supervising V *along* failure
+  branches creates a pessimistic fixed point (V-at-the-expert-opening collapsed
+  +68 → 0 and the planner regressed); bootstrapping recovery branches with the
+  pessimistic ensemble minimum poisons recovery targets (recoverable actions
+  read ~−85). The correct recovery bootstrap is the optimistic (max) head, but
+  the rare-contrast fitting limit (§9.4) still applies.
+* Four further model generations (q12-q16) with all of this data oscillate in
+  the 150-500 band — worse than the q7 sweet spot, i.e. the loop is sampling
+  noise around a capability ceiling, not climbing.
+
+Conclusion unchanged but sharpened: ds1 requires either the labelled-recovery
+route (§7's distillation) or a reactive state representation that survives
+optically featureless sections — not more outcome data.
 
 ### 9.8 Conclusion
 
@@ -414,9 +442,11 @@ python -m src.train_world_model --buffer data/wm_buffer_all.pkl --run-id wm_safe
 python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1,ds2,ds3 \
     --q-weight 3.0 --q-cont 0 --reward-cap 2.0 --replan-every 3 --cem-persistence 0.0 \
     --collect-to data/wm_mpc_fail.pkl
-#    ...and with in-episode probing (counterfactual data along the deployment trajectory):
-python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1 --probe-every 6 \
-    --collect-to data/wm_probe_mpc.pkl <same planner flags>
+#    ...and with in-episode probing (counterfactual data along the deployment
+#    trajectory; --probe-branch-policy ppo harvests recovery contrast, hold the
+#    committed-direction contrast, noop the raw-geometric one):
+python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1 --probe-every 4 \
+    --probe-branch-policy ppo --collect-to data/wm_probe_mpc.pkl <same planner flags>
 
 # 5. videos (retry seeds until a completion is captured; see §9.6 rates)
 python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds2 --record --seed 1 <planner flags>
