@@ -308,6 +308,13 @@ python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1,ds2,
     --q-weight 3.0 --q-cont 0 --reward-cap 2.0 --replan-every 3 --cem-persistence 0.0
 python scripts/diagnose_world_model.py --bundle models/wm_safe_q7_wm.pt --check model   # cliff-blind? collapsed?
 
+# the exact-state (RAM) route: find the physics struct, read it, learn dynamics, plan
+python -m src.ram_search --state ds2
+python -m src.ram_verify --state ds2
+python -m src.collect_state --states ds1,ds2,ds3 --episodes 3,6,4 --out data/state_transitions.pkl
+python -m src.state_model --data data/state_transitions.pkl --run-id state_wm
+python -m src.state_mpc --bundle models/state_wm.pt --tracks ds1,ds2,ds3
+
 # collect -> fit world model -> expert-free MPC (+ on-policy failure collection)
 python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo --ppo-model models/curriculum_flow25_r3_best.zip
 python -m src.train_world_model --buffer data/wm_buffer.pkl --run-id wm_mario64ds --model-iters 8000 --actor-iters 0 --bc-iters 0 --eval-episodes 0

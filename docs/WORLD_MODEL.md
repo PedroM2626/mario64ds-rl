@@ -384,8 +384,8 @@ until ~6 steps before falls everywhere). The expert transits in ~15 steps by
 jump-spamming straight through — a reactive precision that outcome data alone
 has not reproduced.
 
-A dedicated follow-up hunt ("retome a caça ao ds1") mapped the remaining wall
-precisely and did not break it:
+A dedicated follow-up hunt mapped the remaining wall precisely and did not
+break it:
 
 * The **hard wall sits at steps 400-525** — no attempt in ~25 episodes ever
   passed it; the best (q7 + noop-token Q) clusters tightly at 440-525 and
@@ -423,7 +423,74 @@ only toward labelled recovery actions (the §7 distillation path). The verified
 all-three-tracks controller in §7 therefore remains the distilled/DAgger one,
 labelled as such.
 
-Reproduce:
+---
+
+## 10. The exact-state route (the reference's actual advantage)
+
+The final avenue closed the pixel-vs-RAM question directly: Mario's physics
+struct was found and verified in RAM (see `src/ram_search.py` for the
+differential search methodology, `src/ram_trace.py`/`src/ram_verify.py` for
+the verification traces, `src/ram_state.py` for the reader):
+
+```
+0x0217F74C  heading-like state word
+0x0217F750  speed magnitude -- saturates at 409600 (100.0 units/s: the slide cap)
+0x0217F754  constant -16384 during descents
+0x0217F75C  LATERAL position (sign flips with LEFT/RIGHT; frozen at walls)
+0x0217F760  HEIGHT (-307200 = -75.0 kill-plane clamp during a death fall)
+0x0217F764  vertical velocity (spikes on jump)
+```
+
+*All three tracks verified; the address is stable across boots.* Slide-death
+semantics: the game respawns the agent mid-track after a kill-plane fall (no
+episode restart), and *terminal* black-screen deaths are sustained clamp
+states — both are cleanly readable from and *predictable within* a few steps
+of height trajectory.
+
+On this exact state the reference recipe was rebuilt end-to-end:
+`collect_state.py` + `state_model.py` + `state_mpc.py` train a 4-word dynamics
+model `[speed, lateral, height, vvel]` in **seconds** on CPU-free GPU batches
+(one-step err ~0.11-0.15 normalised, fall-head recall ~0.95+) and an MPC plans
+in it (physics-grounded score: speed + clamp-hit penalty + terminal head). The
+controller runs the real game with replanning every step.
+
+**Honest result**: the exact-state controller steers deliberately but dies at
+the slide boundaries -- contact/bounce physics on 3D shelves is the fallback.
+One-shot metrics over rounds and bundles showed per-action fall flags only
+~2-4 steps before contact, while the contact dynamics escape the learned model
+(the five-step drift concentrates on the unmeasured words: heading, surface
+contact normal). Rollouts run at ~1000 steps/s, so this is a coverage/
+representation problem rather than an algorithmic one, but within this session
+it is the same wall, so: \| Track | Expert-free state-MPC (RAM dynamics only)
+| --- | --- | | ds1 | ~100-460 steps (never the tunnel) | | ds2 (Peach) |
+~180-230 steps on refined models; the earlier plain model got to 691 in one
+run | | ds3 (Monkey) | ~85-115 steps | The pixel-only expert-free MPC from §9
+(`videos/mpc_ds2.mp4`, `videos/mpc_ds3.mp4`) therefore remains the stronger
+verifiable result, and the §7 distilled controller remains the only route that
+is *reliable* 3/3. The state pipeline stands as measured infrastructure:
+reader, model, MPC controller, savestate probing, DAgger loop -- and would pay
+off once the course mesh is decoded the way the NES reference had it.
+
+So: **the world-model branch of this project remains the pixel-only distillation
+pipeline of §7. The state-model pipeline stands as working infrastructure --
+RAM reader, four-word dynamics model, CEM-MPC on exact state, probing via
+savestates, DAgger data loop -- and would pay off with the course geometry
+decoded. Everything is documented in §10's commands above.**
+
+### Reproduce the state pipeline
+```bash
+python -m src.ram_search --state ds2                    # find the physics struct
+python -m src.ram_verify --state ds2                    # verify the axes
+python -m src.collect_state --states ds1,ds2,ds3 \
+    --episodes 3,6,4 --out data/state_transitions.pkl    # transitions + labels
+python -m src.state_model --data data/state_transitions.pkl --run-id state_wm
+python -m src.state_mpc --bundle models/state_wm.pt --tracks ds1,ds2,ds3
+```
+
+---
+
+*...the §9 pipeline revealed even the distilled controller needs the expert; §8's
+pixel-only study is how we got as far as we did:*
 
 ```bash
 # 1. near-cliff data: checkpoint-seeded exploration + perturbed-expert rollouts

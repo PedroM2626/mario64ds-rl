@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 import os
 
+from src.ram_state import Sm64DsState
+
 try:
     from desmume.emulator import DeSmuME
     from desmume.controls import Keys, keymask
@@ -61,6 +63,13 @@ class Mario64DSEnv(gym.Env):
             print(f"Failed to initialize emulator: {e}")
             self.has_emulator = False
             raise e
+
+        # Exact-state observation via RAM (see src/ram_state.py): the
+        # reference smw-pinn's decisive advantage over pixel-only models.
+        self.ram = Sm64DsState(self.emu)
+        if not self.ram.verify():
+            print("Warning: Mario physics RAM struct not at expected address; "
+                  "state-based controllers will be unreliable.")
 
         # Action space: 0: Noop, 1: Left, 2: Right, 3: Up (Accelerate), 4: Down (Decelerate), 5: Jump(B)
         self.action_space = spaces.Discrete(6)
@@ -122,7 +131,12 @@ class Mario64DSEnv(gym.Env):
             return np.zeros((84, 84, 1), dtype=np.uint8)
 
     def _get_info(self):
-        return {"steps": self.episode_steps}
+        info = {"steps": self.episode_steps}
+        try:
+            info["ram"] = self.ram.poll()
+        except Exception:
+            info["ram"] = None
+        return info
 
     def step(self, action):
         if not self.has_emulator:
