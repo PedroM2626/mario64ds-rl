@@ -40,7 +40,15 @@ posterior      q(z_t | h_t, o_t)  = N(mu_post(h_t, enc(o_t)), sigma_post)   # wi
 prior          p(z_t | h_t)        = N(mu_prior(h_t),      sigma_prior)      # imagination / no frame
 reward         r_t ≈ R(h_t, z_t)          (scalar head, matches src/env.py reward)
 continue       c_t ≈ sigmoid(C(h_t, z_t)) (prob. episode has not ended by death)
+value (×3)     V_i(h_t, z_t) ≈ discounted real return  (ensemble; planner takes the min)
+Q              Q(h_t, z_t, a, cont-token) ≈ real return of branch continuations
 ```
+
+* `enc` is a small `ConvEncoder` over the 4-frame stack.
+* The **value/Q heads** are fit on real discounted returns only (§9): the
+  planner bootstraps them instead of trusting long prior rollouts, and the Q
+  head is conditioned on the *continuation semantics* of the counterfactual
+  probe branches it was trained on.
 
 * `enc` is a small `ConvEncoder` over the 4-frame stack.
 * **No pixel reconstruction.** Like the reference (which predicts physical state,
@@ -165,8 +173,9 @@ demonstrations* (the reference's amortized-policy-distillation / DAgger paradigm
 so the headline saving is in *learning a deployable policy from a tiny sampled
 buffer* — not in replacing the ~12 h expert pretraining with nothing. The
 **CEM-MPC** controller, by contrast, uses only the learned dynamics (no policy
-net, no expert) and already clears 2 of 3 tracks in real time. Fully closing ds1
-with pure dynamics requires a reward that cannot be hacked by falling.
+net, no expert): after the expert-free-control program of §9 it completes
+`ds2` and `ds3` on the real game (videos `videos/mpc_ds2.mp4`,
+`videos/mpc_ds3.mp4`), but not reliably, and `ds1` remains blocked (§9.6-§9.8).
 
 ### Reproduce these numbers
 ```bash
@@ -179,6 +188,11 @@ python -m src.distill_memoryless --bundle models/wm_mario64ds_wm.pt --tracks ds1
 ```
 
 ## 8. Expert-free controllers: a controlled study (and a real negative result)
+
+> Continuation: §9 runs the program this section proposed (real-return value
+> learning, more near-cliff data, ensemble uncertainty) and reports how far it
+> got — expert-free completions of `ds2` and `ds3` on video, `ds1` still
+> blocked, and the precise measurement of why.
 
 The headline result in §7 clones an expert. To ask whether the world model can
 control the agent **by itself**, we built two expert-free controllers and studied
@@ -233,3 +247,177 @@ more near-cliff data than ~150 death events.
 
 **So the verified all-three-tracks result in §7 stands, and it is a distilled
 clone of the trained PPO — labelled as such there and above.**
+
+---
+
+## 9. Breaking the wall, part 2: what the §8 program actually achieved
+
+§8 ended with a concrete program: real-return value learning, more near-cliff
+data, and ensemble-estimated uncertainty. We ran that program to completion —
+plus several deeper interventions that the measured failures forced. This
+section documents what was built, what was measured, and the honest outcome.
+
+### 9.1 Grounding the planner in real outcomes (value / Q heads)
+
+The planner's objective was rebuilt around quantities fit on **real data only**:
+
+* A **value head** `V(h,z)` trained on real discounted returns (`γ=0.995`),
+  computed on teacher-forced *posterior* states — zero imagination drift. This
+  is the progress signal that cannot be earned by falling: a fall caps the true
+  return at the −100 death penalty. Converged at corr ≈ 0.98 with true returns.
+* A **Q head** `Q(h,z,a)` on the same targets with the taken action folded in,
+  grounding the planner's *first action* in real (s, a) pairs.
+* A **prior-anchored value loss**: V must also be calibrated on *imagined*
+  latents (roll the real actions k ≤ 12 prior steps from a posterior anchor,
+  supervise `V(imagined s_k)` with the real return at `t+k`). The rollout is
+  **detached** — with gradients flowing into the dynamics, the model learned to
+  move latents to where V reads comfortably, degrading the dynamics (measured:
+  emulator steps dropped from 837 → 109/524/60).
+* An **ensemble** of 3 bootstrap-diversified value heads; the planner
+  bootstraps the **minimum** ("survival-weighted planning with
+  ensemble-estimated uncertainty"): hazard-approach states carry *mixed* data
+  (expert survivals + agent deaths), and a single mean-fit head reads +45 while
+  the agent dies seconds later — the pessimistic head reads the death side.
+
+MPC then scores `Q(s0,a0) + Σ γᵗ·(r̂ₜ, capped) + γ^H·min-V(s_H)` with a short
+horizon (H=12): long-horizon death foresight comes from real-data V instead of
+long, drifting prior rollouts (measured: prior rollouts lose the
+edge-proximity signal after ~2 steps — V(prior) stays optimistic while
+V(posterior) collapses before a fall).
+
+### 9.2 Near-cliff data at the racing distribution (~470 deaths)
+
+* **Checkpoint-seeded random exploration** (`--behavior explore`): one PPO
+  descent saves savestates every 150 steps; *random* episodes play from each.
+  Deaths spread across all sections (previously they stopped at ~step 600).
+  151 → 251 death events.
+* **Perturbed-expert rollouts** (`--behavior ppo_noise`, sampled PPO + ε=0.15-0.3
+  random actions): deaths *at racing speed along the expert line* — the exact
+  distribution a planner flies through. Random-policy deaths are slow meanders
+  that leave the value landscape blind where the agent actually races.
+* **On-policy failure collection** (`mpc_world_model --collect-to`): every
+  evaluated MPC episode (including its death) is appended to the buffer.
+
+### 9.3 The core discovery: every head is action-blind on imagined latents
+
+Planning needs to know *which action* is safe. Measured on a trained model:
+
+* The prior **is** action-sensitive: pairwise latent distance across constant
+  actions 0.34-0.52 at k=1 (vs 0.11-2.18 for real consecutive steps). The
+  information exists in the latent dynamics.
+* But **no head reads it**: `V(s₁(a))` varies ~1-3 points across actions,
+  the reward head ~0.01-0.1, Q (MC-trained) ~1-3. Posterior-supervised heads
+  never *needed* the action-conditional directions — teacher forcing always
+  hands them the true next frame. This is the pixel-only analogue of why the
+  RAM-state reference works: there, actions move the *state itself*.
+
+### 9.4 Counterfactual probe-branch data (savestate action branching)
+
+Offline (s, a, return) pairs never contain the *same state twice*, so no
+amount of ordinary data can separate "steer left here kills you" from "steer
+right here saves you". DeSmuME savestates fix this: at any state, **try every
+action and record each real outcome** (`collect_data --behavior probe`,
+`mpc_world_model --probe-every`), continuing each branch under a chosen policy:
+
+* **noop-coast continuation** — the raw geometric consequence of the action
+  (measured: mostly speed contrast; on-line, a single racing-speed action is
+  essentially always recoverable);
+* **hold continuation** — the committed consequence: 17 measured
+  partial-death states, e.g. *"only right survives: +15.0 vs −85.4 .. −97.0
+  for every other action"*, and the expert momentum patterns (jump-spam holds
+  the racing line, a held steer slides off the edge);
+* **expert-recovery continuation** — the DAgger-style safety margin.
+
+Branches are stored with a shared prefix (warm belief), a `probe_at` index
+and a **continuation token**. Q is conditioned on the token: the same (s, a)
+pair legitimately has very different returns under coasting vs committing
+(+25 vs −95), and a single Q trained on the mixture learns their flat,
+useless average (measured: Q read −55 everywhere — exactly the mean).
+
+To make the rare lethal contrast actually learned: **contrast-group sampling**
+(whole 6-branch probe states per batch, drawn preferentially from the
+death/high-spread pool) and 10× up-weighting of dead branch rows. After this,
+Q correctly separates the ground-truth partial-death states (safe actions
+ranked above lethal ones).
+
+### 9.5 Planner discipline
+
+* **Modal plan execution** instead of the argmax-sampled candidate (the max
+  over ~1000 noisy value estimates is biased and changes erratically —
+  measured as weaving near cliffs).
+* **Action persistence** (`--cem-persistence`): candidate steps repeat the
+  previous action with prob p — surviving behaviors on these slides are
+  momentum *patterns*, and iid per-step sampling almost never proposes a
+  coherent 12-step hold.
+* **Reward cap** (`--reward-cap 2.0` ≈ the expert's p95 per-step reward):
+  falling at full speed earns up to +3.8/step of downward optical flow —
+  the flow spike must not outbid safety inside the search.
+* **K-step plan commitment** (`--replan-every 3`).
+
+### 9.6 Results (real game, measured — honest)
+
+The §8 wall — "expert-free CEM-MPC reaches ~450–840 and never finishes" — was
+broken for 2 of 3 tracks. **Expert-free completions, real time, on video:**
+
+| Track | Expert-free CEM-MPC (world model only, no policy net, no action labels) |
+|---|---|
+| `ds2` (Peach Slide)   | **1350/1350 COMPLETED ×4** — video `videos/mpc_ds2.mp4` (R=571.5); evals R=559.1 / 587.3 / 417.7 |
+| `ds3` (Monkey Slide)  | **1350/1350 COMPLETED ×2** — video `videos/mpc_ds3.mp4` (R=830.5); eval R=851.3 |
+| `ds1` (Course 3)      | never completed; best **525/1350** (video `videos/mpc_ds1.mp4` shows the partial descent) |
+
+Reliability, stated plainly: per-hazard threading is ~40-70%, so a full
+descent completes on ~5-15% of episodes on the clearable tracks (ds2 completed
+4 of ~20 logged episodes; ds3 2 of ~30; the ds3 video took 32 seeded attempts).
+**This is not the reliable 3/3 of the distilled controller in §7**, and ds1
+remains blocked.
+
+### 9.7 Why ds1 is still blocked
+
+ds1's unique blocker is the **dark tunnel section** (~steps 80-200): optically
+featureless (flow reward ≈ 0, encoder blind), where the model cannot
+discriminate lines and every head goes flat. The agent enters slightly
+off-line, wanders 100+ steps in the dark, and dies at or just after the exit
+(measured: exits the tunnel with V=+63, dies 12 steps later; V stays positive
+until ~6 steps before falls everywhere). The expert transits in ~15 steps by
+jump-spamming straight through — a reactive precision that outcome data alone
+has not reproduced.
+
+### 9.8 Conclusion
+
+The §8 diagnosis stands, sharpened: even with grounded values, 470 deaths at
+the racing distribution, true counterfactual action contrast and pessimistic
+ensembles, **pixel-only expert-free control clears 2 of 3 tracks (with video
+evidence) but not reliably all three**. The remaining gap is the pixel-precise
+reactive steering at hazard boundaries — exactly the advantage the reference
+`smw-pinn` derives from modelling exact RAM state. Each new planner line
+visits states the data does not cover; closing that loop reliably converges
+only toward labelled recovery actions (the §7 distillation path). The verified
+all-three-tracks controller in §7 therefore remains the distilled/DAgger one,
+labelled as such.
+
+Reproduce:
+
+```bash
+# 1. near-cliff data: checkpoint-seeded exploration + perturbed-expert rollouts
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 8 --behavior explore --ppo-model models/curriculum_flow25_r3_best.zip --out data/wm_buffer4.pkl
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior ppo_noise --ppo-model models/curriculum_flow25_r3_best.zip --out data/wm_perturb.pkl
+
+# 2. counterfactual probe-branch data (all 6 actions from savestated states)
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 0 --behavior probe,probe_noise --ppo-model models/curriculum_flow25_r3_best.zip --probe-every 8 --branch-len 14 --branch-policy noop --out data/wm_probe_noop.pkl
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 0 --behavior probe --ppo-model models/curriculum_flow25_r3_best.zip --probe-every 8 --branch-len 14 --branch-policy hold --out data/wm_probe_hold.pkl
+
+# 3. merge + fit the model with value/Q/ensemble + branch-Q
+python scripts/merge_buffers.py --out data/wm_buffer_all.pkl <buffers...>
+python -m src.train_world_model --buffer data/wm_buffer_all.pkl --run-id wm_safe --model-iters 6000 --actor-iters 0 --bc-iters 0 --eval-episodes 0 --mask-terminal-reward --death-weight 6 --death-oversample 0.2 --recon-weight 0.2
+
+# 4. expert-free CEM-MPC on the real game (+ on-policy failure collection)
+python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1,ds2,ds3 \
+    --q-weight 3.0 --q-cont 0 --reward-cap 2.0 --replan-every 3 --cem-persistence 0.0 \
+    --collect-to data/wm_mpc_fail.pkl
+#    ...and with in-episode probing (counterfactual data along the deployment trajectory):
+python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1 --probe-every 6 \
+    --collect-to data/wm_probe_mpc.pkl <same planner flags>
+
+# 5. videos (retry seeds until a completion is captured; see §9.6 rates)
+python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds2 --record --seed 1 <planner flags>
+```

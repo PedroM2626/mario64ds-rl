@@ -126,17 +126,38 @@ def train(args):
 
     wm_cfg = dict(deter_dim=args.deter_dim, stoch_dim=args.stoch_dim,
                   enc_dim=args.enc_dim, num_actions=6, obs_channels=4, hidden=args.hidden,
-                  use_decoder=args.use_decoder)
+                  use_decoder=args.use_decoder, use_value=args.value_weight > 0,
+                  use_q=args.value_weight > 0)
     model = WorldModel(**wm_cfg).to(device)
+    if args.value_weight > 0:
+        # Value targets: real discounted returns, normalized to unit scale so the
+        # value MSE cannot drown the KL/reward/continue losses. The normalization
+        # constants ride along in the checkpoint (registered buffers).
+        buffer.ensure_returns(args.value_gamma)
+        rmean, rstd = buffer.returns_stats(args.value_gamma)
+        model.ret_mean.fill_(rmean)
+        model.ret_std.fill_(rstd)
+        deaths = sum(1 for e in buffer.episodes
+                     if len(e["continues"]) and e["continues"][-1] < 0.5)
+        print(f"[wm] value head ON: returns mean={rmean:.1f} std={rstd:.1f} "
+              f"({deaths} death episodes in buffer)", flush=True)
     if args.load_model:
         # Start from an already-fitted world model and train ONLY the actor
         # (set --model-iters 0 to keep the dynamics frozen). This is what an
         # expert-free Dreamer-style run needs: no distillation, no BC.
         lm = args.load_model if os.path.isabs(args.load_model) else os.path.join(ROOT, args.load_model)
         ck = torch.load(lm, map_location=device)
-        missing, unexpected = model.load_state_dict(ck["model"], strict=False)
+        state = {k: v for k, v in ck["model"].items()}
+        model_state = model.state_dict()
+        skipped = [k for k, v in state.items()
+                   if k in model_state and model_state[k].shape != v.shape]
+        for k in skipped:
+            del state[k]
+        missing, unexpected = model.load_state_dict(state, strict=False)
         print(f"[wm] loaded world model from {os.path.basename(lm)} "
-              f"(missing={len(missing)} unexpected={len(unexpected)})", flush=True)
+              f"(missing={len(missing)} unexpected={len(unexpected)}"
+              + (f", re-initialized {len(skipped)} head(s): {skipped}" if skipped
+                 else "") + ")", flush=True)
     actor = ActorCritic(args.deter_dim, args.stoch_dim, 6, hidden=args.hidden).to(device)
     model_opt = torch.optim.AdamW(model.parameters(), lr=args.lr, eps=1e-5)
     actor_opt = torch.optim.AdamW(actor.parameters(), lr=args.lr, eps=1e-5)
@@ -161,17 +182,32 @@ def train(args):
     t0 = time.time()
 
     def batch():
-        obs, acts, rews, conts = buffer.sample(args.batch, args.seq_len, rng,
-                                               death_oversample=args.death_oversample)
-        return (obs.to(device), acts.to(device), rews.to(device), conts.to(device))
+        s = buffer.sample(args.batch, args.seq_len, rng,
+                          death_oversample=args.death_oversample,
+                          with_returns=args.value_weight > 0)
+        obs, acts, rews, conts = s[0].to(device), s[1].to(device), s[2].to(device), s[3].to(device)
+        rets = None
+        if args.value_weight > 0:
+            rets = (s[4].to(device) - model.ret_mean) / model.ret_std
+        br = None
+        if args.branch_q_weight > 0:
+            bb = buffer.sample_branches(args.branch_batch, rng,
+                                         contrast_oversample=args.branch_oversample)
+            if bb is not None:
+                br = tuple(x.to(device) for x in bb)
+        return obs, acts, rews, conts, rets, br
 
     n_iters = args.model_iters + max(args.actor_iters, args.bc_iters)
     # Persistent emulator for all evaluations (never re-initialized mid-process).
-    eval_env, existing_eval_states = make_eval_env(rom_path, eval_states,
+    # Expert-free MPC runs train no actor: --eval-episodes 0 skips this entirely
+    # (the bundle is persisted by the final save instead of eval-time best save).
+    do_eval = args.eval_episodes > 0
+    eval_env, existing_eval_states = (make_eval_env(rom_path, eval_states,
                                                     args.max_steps, args.flow_weight)
+                                      if do_eval else (None, []))
     try:
       for it in range(1, n_iters + 1):
-        obs, acts, rews, conts = batch()
+        obs, acts, rews, conts, rets, br = batch()
         am = bcm = None
 
         # --- world-model learning phase (real data) ---
@@ -180,7 +216,11 @@ def train(args):
             mloss = model_loss(model, obs, acts, rews, conts, free_nats=args.free_nats,
                                recon_weight=args.recon_weight, death_weight=args.death_weight,
                                reward_clip=args.reward_clip,
-                               mask_terminal_reward=args.mask_terminal_reward)
+                               mask_terminal_reward=args.mask_terminal_reward,
+                               returns_seq=rets, value_weight=args.value_weight,
+                               prior_rollout_max=args.value_prior_rollout,
+                               branch=br, branch_q_weight=args.branch_q_weight,
+                               branch_gamma=args.value_gamma)
             model_opt.zero_grad()
             mloss["loss"].backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
@@ -215,6 +255,14 @@ def train(args):
                         f"rew={float(mloss['rew']):.4f} cont={float(mloss['cont']):.4f}")
                 if "recon" in mloss:
                     msg += f" recon={float(mloss['recon']):.4f}"
+                if "value" in mloss:
+                    msg += (f" value={float(mloss['value']):.4f}"
+                            f" vcorr={float(mloss['value_corr']):.3f}")
+                if "q" in mloss:
+                    msg += (f" q={float(mloss['q']):.4f}"
+                            f" qcorr={float(mloss['q_corr']):.3f}")
+                if "branch_q" in mloss:
+                    msg += f" branch_q={float(mloss['branch_q']):.4f}"
                 if "cont_recall" in mloss:
                     msg += f" cont_recall={float(mloss['cont_recall']):.2f}"
             if am is not None:
@@ -223,7 +271,7 @@ def train(args):
                 msg += f" | bc_acc={bcm['bc_acc']:.3f} bc_loss={bcm['bc_loss']:.3f}"
             print(msg, flush=True)
 
-        if it % args.eval_every == 0 or it == n_iters:
+        if do_eval and (it % args.eval_every == 0 or it == n_iters):
             print(f"[wm] === REAL-EMULATOR EVAL @ iter {it} ===", flush=True)
             r = real_eval(model, actor, eval_env, existing_eval_states, device,
                           n_episodes=args.eval_episodes, max_steps=args.max_steps)
@@ -233,7 +281,10 @@ def train(args):
             if sig > best_sig:
                 best_sig = sig
                 torch.save(dict(world_model_cfg=wm_cfg, model=model.state_dict(),
-                                actor=actor.state_dict(), meta=dict(iter=it, eval=r)),
+                                actor=actor.state_dict(),
+                                meta=dict(iter=it, eval=r,
+                                          value_trained=args.value_weight > 0,
+                                          q_trained=args.value_weight > 0)),
                            out_bundle)
                 print(f"[wm] saved best world-model+actor bundle -> {out_bundle}", flush=True)
     finally:
@@ -243,7 +294,10 @@ def train(args):
     # final save (if never better than baseline, still persist)
     if not os.path.exists(out_bundle):
         torch.save(dict(world_model_cfg=wm_cfg, model=model.state_dict(),
-                        actor=actor.state_dict(), meta=dict(iter=n_iters)), out_bundle)
+                        actor=actor.state_dict(),
+                        meta=dict(iter=n_iters, value_trained=args.value_weight > 0,
+                                  q_trained=args.value_weight > 0)),
+                   out_bundle)
     print(f"[wm] done in {time.time()-t0:.0f}s. Bundle: {out_bundle}")
     return out_bundle
 
@@ -295,6 +349,26 @@ def main():
     p.add_argument("--mask-terminal-reward", action="store_true",
                    help="exclude death steps from the reward loss so the -100 spike "
                         "cannot drag the dense flow prediction negative")
+    p.add_argument("--value-weight", type=float, default=1.0,
+                   help="MSE weight for the value head (fit on real discounted "
+                        "returns; the planner bootstraps it as terminal value so a "
+                        "short horizon still sees cliffs -- 0 disables the head)")
+    p.add_argument("--value-gamma", type=float, default=0.995,
+                   help="discount used for the value-head return targets (should "
+                        "match the MPC planner's --gamma)")
+    p.add_argument("--value-prior-rollout", type=int, default=12,
+                   help="max prior-rollout distance for the value-anchoring loss "
+                        "(V is fit on imagined latents with real return targets so "
+                        "the planner's terminal bootstrap is drift-calibrated)")
+    p.add_argument("--branch-q-weight", type=float, default=1.0,
+                   help="weight of the counterfactual branch-Q loss (probe "
+                        "episodes: all 6 actions tried from the same savestate; "
+                        "gives Q true action contrast)")
+    p.add_argument("--branch-batch", type=int, default=8,
+                   help="probe branches per iteration for the branch-Q loss")
+    p.add_argument("--branch-oversample", type=float, default=0.75,
+                   help="probability of drawing probe groups from the "
+                        "high-contrast/death pool instead of uniformly")
     p.add_argument("--no-decoder", dest="use_decoder", action="store_false",
                    help="disable the reconstruction decoder (fully reconstruction-free)")
     p.set_defaults(use_decoder=True)

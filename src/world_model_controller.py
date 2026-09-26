@@ -66,7 +66,13 @@ def load_world_model_actor(model_path: str, device: str = "cuda"):
     ckpt = torch.load(model_path, map_location=device)
     wm_cfg = ckpt["world_model_cfg"]
     model = WorldModel(**wm_cfg).to(device)
-    model.load_state_dict(ckpt["model"], strict=False)
+    missing, unexpected = model.load_state_dict(ckpt["model"], strict=False)
+    # Ensemble heads that the checkpoint never trained must not participate in
+    # the pessimistic (min) planner read -- random heads would poison it.
+    if "value_net2.net.0.weight" not in ckpt["model"]:
+        model.value_net2 = None
+    if "value_net3.net.0.weight" not in ckpt["model"]:
+        model.value_net3 = None
     actor = ActorCritic(wm_cfg["deter_dim"], wm_cfg["stoch_dim"], wm_cfg["num_actions"])
     actor.load_state_dict(ckpt["actor"])
     return model, actor, ckpt.get("meta", {})

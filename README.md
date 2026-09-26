@@ -267,34 +267,51 @@ falling.
 
 ### 🔬 Can the world model do it *without* an expert? (controlled study)
 
-I also tried the two genuinely expert-free controllers — **CEM-MPC over the RSSM**
-and **imagination RL** — and documented the outcome in
-[`docs/WORLD_MODEL.md` §8](docs/WORLD_MODEL.md). It produced a real bug fix and a
-real negative result:
+We built and studied the two genuinely expert-free controllers — **CEM-MPC over
+the RSSM** and **imagination RL** — with a diagnostic harness instead of
+guessing from end-to-end runs. Full write-up with all measurements:
+[`docs/WORLD_MODEL.md` §8-§9](docs/WORLD_MODEL.md).
 
-- **Bug found & fixed:** the replay sampler's window bound (`T - seq_len - 1`) meant
-  a terminal death — which lives on the *final* frame — **never appeared in any
-  training window**. The continue head therefore learned "never die", which is
-  exactly why MPC walked off cliffs and the imagined actor collapsed to one action.
-  Fixed, plus regression tests; `scripts/diagnose_world_model.py` now catches both
-  failure modes directly instead of via slow end-to-end runs.
-- **Remaining wall (honest):** expert-free CEM-MPC reaches ~450–840 of 1350 steps
-  but does not reliably clear all three. The cause is structural: the optical-flow
-  reward **pays for falling** (downward pixel motion spikes in an abyss), and at the
-  decision point the fatal action is not identifiable from a short pixel window — so
-  no horizon both foresees the cliff and avoids prior-drift pessimism. This is
-  precisely the edge the reference's `smw-pinn` gains by modelling exact RAM state
-  (`x, y, vx, vy`) rather than pixels.
+**Bug found & fixed:** the replay sampler's window bound meant terminal deaths
+— which live on the *final* frame — **never appeared in any training window**.
+The continue head learned "never die", which is exactly why MPC walked off
+cliffs and the imagined actor collapsed. Fixed, with regression tests.
+
+**The §8 wall, and how far the follow-up program broke it (§9):** the root
+cause was measured precisely — every head is **action-blind on imagined
+latents** (the prior itself is action-sensitive; posterior-supervised heads
+never learned to read those directions), so no planner objective could steer.
+The fix program: real-return value/Q heads (corr ≈ 0.98), ~470 near-cliff deaths
+at the racing distribution, **counterfactual probe-branch data** (savestate
+branching: all 6 actions tried from the same real state, with continuation
+tokens), contrast-group sampling, pessimistic value ensembles, and planner
+discipline (modal plans, momentum-biased proposals, reward caps, Q-grounded
+first actions). Result, on the real game, in real time, **expert-free**:
+
+| Track | Expert-free CEM-MPC (world model only — no policy net, no action labels) |
+|---|---|
+| `ds2` (Peach Slide)  | **1350/1350 COMPLETED ×4** — `videos/mpc_ds2.mp4` (R=571.5) |
+| `ds3` (Monkey Slide) | **1350/1350 COMPLETED ×2** — `videos/mpc_ds3.mp4` (R=830.5) |
+| `ds1` (Course 3)     | never completed; best 525/1350 (`videos/mpc_ds1.mp4`, partial) |
+
+**Honest limits:** per-hazard threading is ~40-70%, so completions happen on
+~5-15% of episodes on the clearable tracks — not the reliable 3/3 of the
+distilled controller, and `ds1` is still blocked by its optically featureless
+tunnel section. §9 documents the measured dead ends (prior-anchoring with
+dynamics gradients corrupts the model; single-token Q averages contradictory
+targets flat; noop-coast Q semantics teaches crawling) and the reproducible
+pipeline (data collectors, `scripts/merge_buffers.py`, trainer, MPC flags).
 
 ```bash
 # expert-free controllers + diagnostics
-python -m src.mpc_world_model --bundle models/wm_native_wm.pt --tracks ds2 --horizon 40 --terminal-cost 150
-python scripts/diagnose_world_model.py --bundle models/wm_bal_wm.pt --check model   # cliff-blind? collapsed?
+python -m src.mpc_world_model --bundle models/wm_safe_q7_wm.pt --tracks ds1,ds2,ds3 \
+    --q-weight 3.0 --q-cont 0 --reward-cap 2.0 --replan-every 3 --cem-persistence 0.0
+python scripts/diagnose_world_model.py --bundle models/wm_safe_q7_wm.pt --check model   # cliff-blind? collapsed?
 
-# collect -> fit world model -> train agent inside its imagination -> real eval
-python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo --ppo-deterministicpython -m src.train_world_model --buffer data/wm_buffer.pkl --run-id wm_mario64ds --actor-updates-per-iter 0 --bc-iters 2000
-# CEM-MPC (pure dynamics) and/or memoryless distill+DAgger (completes all 3):
-python -m src.mpc_world_model --bundle models/wm_mario64ds_wm.pt --tracks ds2,ds3
+# collect -> fit world model -> expert-free MPC (+ on-policy failure collection)
+python -m src.collect_data --states ds1,ds2,ds3 --episodes-per-state 6 --behavior random,ppo --ppo-model models/curriculum_flow25_r3_best.zip
+python -m src.train_world_model --buffer data/wm_buffer.pkl --run-id wm_mario64ds --model-iters 8000 --actor-iters 0 --bc-iters 0 --eval-episodes 0
+# CEM-MPC (pure dynamics, no expert action labels) and the completing distilled head:
 python -m src.dagger_memoryless --bundle models/wm_mario64ds_wm.pt --buffer data/wm_buffer.pkl --ppo-model models/curriculum_flow25_r3_best.zip --rounds 8 --finetune-enc
 python -m src.distill_memoryless --bundle models/wm_mario64ds_wm.pt --tracks ds1,ds2,ds3 --record   # videos
 python -m pytest tests/test_world_model.py -v   # offline unit tests (no emulator)

@@ -32,7 +32,8 @@ class EpisodeBuffer:
     def add(self, frames: np.ndarray, actions: np.ndarray,
             rewards: np.ndarray, continues: np.ndarray,
             source: Optional[str] = None, completed: Optional[bool] = None,
-            labels: Optional[np.ndarray] = None):
+            labels: Optional[np.ndarray] = None, probe_at: Optional[int] = None,
+            probe_id: Optional[int] = None, branch_cont: Optional[int] = None):
         assert frames.ndim == 3, "frames must be (T,H,W)"
         if completed is None:
             # an episode that ended without a terminal death (continues[-1]==1)
@@ -48,11 +49,46 @@ class EpisodeBuffer:
         )
         if labels is not None:
             ep["labels"] = labels.astype(np.int64)
+        if probe_at is not None:
+            ep["probe_at"] = int(probe_at)
+        if probe_id is not None:
+            ep["probe_id"] = int(probe_id)
+        if branch_cont is not None:
+            ep["branch_cont"] = int(branch_cont)
         self.episodes.append(ep)
         self.total_steps += len(frames)
 
     def __len__(self):
         return len(self.episodes)
+
+    def ensure_returns(self, gamma: float = 0.995):
+        """Compute and cache the discounted return G_t for every step of every episode.
+
+        G_t = r_t + gamma * G_{t+1}, with G at the end of a *died* episode being
+        the -100 death spike (it is inside the rewards) and at the end of a
+        *survived* (completed) episode just the final dense reward. These targets
+        are what the world-model value head is fit on: they are the only progress
+        signal that provably cannot be earned by falling.
+        """
+        for e in self.episodes:
+            if "returns" in e and e.get("_ret_gamma") == gamma:
+                continue
+            r = e["rewards"].astype(np.float64)
+            T = len(r)
+            g = np.zeros(T, dtype=np.float32)
+            acc = 0.0
+            for t in reversed(range(T)):
+                acc = float(r[t]) + gamma * acc
+                g[t] = acc
+            e["returns"] = g
+            e["_ret_gamma"] = gamma
+
+    def returns_stats(self, gamma: float = 0.995):
+        """(mean, std) of all per-step returns, for value-target normalization."""
+        self.ensure_returns(gamma)
+        allg = np.concatenate([e["returns"] for e in self.episodes]) if self.episodes \
+            else np.zeros(1)
+        return float(allg.mean()), float(allg.std() + 1e-6)
 
     def save(self, path: str):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -64,6 +100,102 @@ class EpisodeBuffer:
             d = pickle.load(f)
         self.episodes = d["episodes"]
         self.total_steps = d["total_steps"]
+
+    def probe_episodes(self):
+        """Counterfactual branch episodes (source='probe*'): same prefix/belief,
+        different probe actions, real outcomes."""
+        return [e for e in self.episodes
+                if str(e.get("source", "")).startswith("probe") and "probe_at" in e]
+
+    def _branch_groups(self):
+        """Probe states -> their branch episodes (grouped by continuation
+        semantics), with a cached contrast score."""
+        import hashlib
+        from collections import defaultdict
+        eps = self.probe_episodes()
+        groups = defaultdict(list)
+        for e in eps:
+            pa = e["probe_at"]
+            cont = int(e.get("branch_cont", 0))
+            key = hashlib.md5(
+                np.ascontiguousarray(e["frames"][max(0, pa - 1)]).tobytes()
+                + bytes([pa, cont]) + str(e.get("probe_id", 0)).encode()
+            ).hexdigest()
+            groups[key].append(e)
+        out = []
+        for g in groups.values():
+            if len(g) < 2:
+                continue
+            if "branch_contrast" not in g[0]:
+                returns = [float(np.sum(e["rewards"][e["probe_at"]:])) for e in g]
+                deaths = any((len(e["continues"]) and e["continues"][-1] < 0.5)
+                             for e in g)
+                contrast = (max(returns) - min(returns)) + (100.0 if deaths else 0.0)
+                for e in g:
+                    e["branch_contrast"] = contrast
+            out.append(g)
+        return out
+
+    def sample_branches(self, batch: int, rng: Optional[np.random.Generator] = None,
+                        max_len: int = 44, contrast_oversample: float = 0.5):
+        """Batches of complete probe-state groups (all 6 branches together).
+
+        Sampling whole groups makes the counterfactual contrast the dominant
+        gradient: MSE-fitting branch episodes independently lets the Q head
+        average away rare lethal actions (measured: 2-17 contrast states among
+        ~1300 flat ones -> Q stayed flat). ``contrast_oversample`` is the
+        probability of drawing a group from the top-contrast quartile instead of
+        uniformly.
+
+        Returns (obs (B,T,4,84,84) in [0,1], acts (B,T), rews (B,T),
+        conts (B,T), probe_at (B,), valid_len (B,), cont_token (B,)) or None if
+        there are no probe episodes. Windows always start at the episode's first
+        frame so the posterior at ``probe_at - 1`` is warmed by the shared
+        prefix exactly as at deployment.
+        """
+        import torch
+        groups = self._branch_groups()
+        if not groups:
+            return None
+        rng = rng or np.random.default_rng()
+        contrasts = [g[0]["branch_contrast"] for g in groups]
+        hi_cut = float(np.percentile(contrasts, 75))
+        # death groups (contrast > 100 via the death bonus) are the rare,
+        # decision-critical ones: they are always in the oversample pool even
+        # when flat spread groups dominate the quartile
+        hi = [g for g in groups
+              if g[0]["branch_contrast"] >= hi_cut or g[0]["branch_contrast"] > 100.0] \
+            or groups
+        chosen = []
+        while len(chosen) < max(batch, 6):
+            src = hi if (rng.random() < contrast_oversample and hi) else groups
+            chosen.extend(src[int(rng.integers(len(src)))])
+        B, T = len(chosen), max_len
+        obs = np.zeros((B, T, STACK, 84, 84), dtype=np.float32)
+        acts = np.zeros((B, T), dtype=np.int64)
+        rews = np.zeros((B, T), dtype=np.float32)
+        conts = np.zeros((B, T), dtype=np.float32)
+        probe_at = np.zeros(B, dtype=np.int64)
+        valid = np.zeros(B, dtype=np.int64)
+        tokens = np.zeros(B, dtype=np.int64)
+        for b, e in enumerate(chosen):
+            L = min(T, len(e["frames"]))
+            padded = _pad_frames(e["frames"][:L])
+            for t in range(T):
+                win = padded[t:t + STACK]
+                if len(win) < STACK:
+                    win = np.concatenate([win, np.zeros((STACK - len(win),) + win.shape[1:], win.dtype)])
+                obs[b, t] = win.transpose(0, 1, 2).astype(np.float32) / 255.0
+                if t < L:
+                    acts[b, t] = e["actions"][t]
+                    rews[b, t] = e["rewards"][t]
+                    conts[b, t] = e["continues"][t]
+            probe_at[b] = min(e["probe_at"], T - 1)
+            valid[b] = L
+            tokens[b] = int(e.get("branch_cont", 0))
+        return (torch.from_numpy(obs), torch.from_numpy(acts), torch.from_numpy(rews),
+                torch.from_numpy(conts), torch.from_numpy(probe_at),
+                torch.from_numpy(valid), torch.from_numpy(tokens))
 
     def expert_episodes(self, require_completed: bool = True):
         """Episodes labeled as successful expert (e.g. PPO) demonstrations."""
@@ -122,9 +254,14 @@ class EpisodeBuffer:
         Deaths are ~0.1% of steps, so uniform window sampling almost never shows
         the continue head a death -- which is why it learned "never die" and let
         both MPC and imagination rollouts walk off cliffs unpenalized.
+
+        Probe-branch episodes are skipped: their returns are truncated by design
+        (they are branch data for the counterfactual Q loss, not full episodes).
         """
         out = []
         for ei, e in enumerate(self.episodes):
+            if "probe_at" in e:
+                continue
             T = len(e["continues"])
             if T < seq_len + 1:
                 continue
@@ -139,12 +276,19 @@ class EpisodeBuffer:
         return out
 
     def sample(self, batch: int, seq_len: int, rng: Optional[np.random.Generator] = None,
-               death_oversample: float = 0.0):
+               death_oversample: float = 0.0, with_returns: bool = False):
         import torch
         rng = rng or np.random.default_rng()
+        if with_returns and any("returns" not in e for e in self.episodes):
+            raise RuntimeError("call EpisodeBuffer.ensure_returns(gamma) before "
+                               "sampling with returns (train_world_model does this)")
         # Only episodes long enough to fill a sequence (else resample a long one).
+        # Probe-branch episodes are excluded from the standard model/value
+        # windows: their returns are truncated by design (branch data), and
+        # their prefixes are duplicated 6x; they enter training only through the
+        # counterfactual branch-Q loss (sample_branches).
         usable_idx = [i for i, e in enumerate(self.episodes)
-                      if len(e["frames"]) >= seq_len + 1]
+                      if len(e["frames"]) >= seq_len + 1 and "probe_at" not in e]
         if not usable_idx:
             usable_idx = list(range(len(self.episodes)))
         dw = self.death_windows(seq_len) if death_oversample > 0 else []
@@ -152,6 +296,7 @@ class EpisodeBuffer:
         acts = np.zeros((batch, seq_len), dtype=np.int64)
         rews = np.zeros((batch, seq_len), dtype=np.float32)
         conts = np.zeros((batch, seq_len), dtype=np.float32)
+        rets = np.zeros((batch, seq_len), dtype=np.float32) if with_returns else None
         for b in range(batch):
             if dw and rng.random() < death_oversample:
                 ei, lo, hi = dw[rng.integers(len(dw))]
@@ -173,5 +318,10 @@ class EpisodeBuffer:
                 acts[b, t] = e["actions"][idx]
                 rews[b, t] = e["rewards"][idx]
                 conts[b, t] = e["continues"][idx]
-        return (torch.from_numpy(obs), torch.from_numpy(acts),
-                torch.from_numpy(rews), torch.from_numpy(conts))
+                if with_returns:
+                    rets[b, t] = e["returns"][idx]
+        out = (torch.from_numpy(obs), torch.from_numpy(acts),
+               torch.from_numpy(rews), torch.from_numpy(conts))
+        if with_returns:
+            out = out + (torch.from_numpy(rets),)
+        return out

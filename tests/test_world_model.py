@@ -187,6 +187,219 @@ def test_mpc_rollout_value_finite_and_terminal_cost():
     assert (v_term <= v + 1e-5).all()
 
 
+def test_episode_returns_exact():
+    """Discounted returns must match the closed-form recursion, death spike included."""
+    buf = EpisodeBuffer()
+    T = 5
+    r = np.array([1.0, 2.0, 0.5, 3.0, -100.0], dtype=np.float32)
+    cont = np.ones(T, np.float32); cont[-1] = 0.0
+    frames = (np.random.rand(T, 84, 84) * 255).astype(np.uint8)
+    buf.add(frames, np.zeros(T, np.int64), r, cont, source="random")
+    gamma = 0.5
+    buf.ensure_returns(gamma)
+    g = buf.episodes[0]["returns"]
+    expected = np.zeros(T)
+    acc = 0.0
+    for t in reversed(range(T)):
+        acc = r[t] + gamma * acc
+        expected[t] = acc
+    assert np.allclose(g, expected, atol=1e-4), f"{g} vs {expected}"
+    # caching: second call with same gamma is a no-op, different gamma recomputes
+    buf.ensure_returns(gamma)
+    assert np.allclose(buf.episodes[0]["returns"], expected, atol=1e-4)
+    buf.ensure_returns(0.9)
+    assert not np.allclose(buf.episodes[0]["returns"], expected, atol=1e-4)
+
+
+def test_sample_with_returns_alignment():
+    """The returns channel must align with the reward channel of the same window."""
+    buf = EpisodeBuffer()
+    T, L = 40, 10
+    frames = (np.random.rand(T, 84, 84) * 255).astype(np.uint8)
+    r = np.ones(T, dtype=np.float32)  # constant reward -> strictly increasing return
+    buf.add(frames, np.zeros(T, np.int64), r, np.ones(T, np.float32), source="random")
+    buf.ensure_returns(0.99)
+    s = buf.sample(32, L, np.random.default_rng(0), with_returns=True)
+    obs, acts, rews, conts, rets = s
+    assert rets.shape == rews.shape
+    # G_t = 1 + gamma * G_{t+1} over a constant-reward episode shrinks as t
+    # advances (less future reward remains), so a correctly aligned returns
+    # window must be strictly decreasing
+    assert (rets[:, 1:] < rets[:, :-1]).all()
+    assert torch.allclose(rews, torch.ones_like(rews))
+    # and sampling with returns requires ensure_returns first
+    buf2 = EpisodeBuffer()
+    buf2.add(frames, np.zeros(T, np.int64), r, np.ones(T, np.float32))
+    try:
+        buf2.sample(2, L, np.random.default_rng(0), with_returns=True)
+        raised = False
+    except RuntimeError:
+        raised = True
+    assert raised
+
+
+def test_model_loss_trains_value_head():
+    """model_loss with returns must add a finite value loss that backprops."""
+    model = _tiny_model()
+    obs, acts, rews, conts = _rand_batch(B=4, T=6)
+    returns = torch.randn(4, 6)
+    out = model_loss(model, obs, acts, rews, conts, returns_seq=returns,
+                     value_weight=1.0)
+    assert "value" in out and torch.isfinite(out["value"])
+    assert "value_corr" in out
+    out["loss"].backward()
+    assert any(p.grad is not None and torch.isfinite(p.grad).all()
+               for p in model.value_net.parameters())
+    # value_weight=0 must keep the legacy behaviour (no value loss key)
+    out0 = model_loss(model, obs, acts, rews, conts, returns_seq=returns,
+                      value_weight=0.0)
+    assert "value" not in out0
+
+
+def test_model_loss_value_prior_anchoring_runs():
+    """The prior-rollout value anchor (k in [1, prior_rollout_max]) must train and
+    stay finite even when the window is too short for a rollout (k path skipped)."""
+    model = _tiny_model()
+    obs, acts, rews, conts = _rand_batch(B=4, T=20)
+    returns = torch.randn(4, 20)
+    out = model_loss(model, obs, acts, rews, conts, returns_seq=returns,
+                     value_weight=1.0, prior_rollout_max=12)
+    assert torch.isfinite(out["value"])
+    out["loss"].backward()
+    # rollout never longer than the window: k <= T-1
+    out2 = model_loss(model, obs, acts, rews, conts, returns_seq=returns,
+                      value_weight=1.0, prior_rollout_max=50)
+    assert torch.isfinite(out2["value"])
+    # too-short windows must not crash (K==0 path)
+    obs3, acts3, rews3, conts3 = _rand_batch(B=2, T=2)
+    r3 = torch.randn(2, 2)
+    out3 = model_loss(model, obs3, acts3, rews3, conts3, returns_seq=r3,
+                      value_weight=1.0)
+    assert torch.isfinite(out3["value"])
+
+
+def test_model_loss_trains_q_head():
+    """model_loss with returns must also fit Q(s, taken action) and report it."""
+    model = _tiny_model()
+    obs, acts, rews, conts = _rand_batch(B=4, T=10)
+    returns = torch.randn(4, 10)
+    out = model_loss(model, obs, acts, rews, conts, returns_seq=returns,
+                     value_weight=1.0)
+    assert "q" in out and torch.isfinite(out["q"])
+    assert "q_corr" in out
+    out["loss"].backward()
+    assert any(p.grad is not None and torch.isfinite(p.grad).all()
+               for p in model.q_net.parameters())
+
+
+def test_sample_branches_and_branch_q_loss():
+    """Probe-branch group sampling + the counterfactual branch-Q loss must run."""
+    buf = EpisodeBuffer()
+    P, K = 6, 5
+    pre_frames = (np.random.rand(P, 84, 84) * 255).astype(np.uint8)
+    pre_actions = np.zeros(P, np.int64)
+    pre_rewards = np.zeros(P, np.float32)
+    pre_continues = np.ones(P, np.float32)
+    for a in range(6):
+        br_frames = (np.random.rand(K, 84, 84) * 255).astype(np.uint8)
+        frames = np.concatenate([pre_frames, br_frames])
+        acts = np.concatenate([pre_actions, np.full(K, a, np.int64)])
+        rews = np.concatenate([pre_rewards, (a - 3.0) * np.ones(K, np.float32)])
+        cont = np.concatenate([pre_continues, np.ones(K, np.float32)])
+        cont[-1] = 0.0 if a == 0 else 1.0          # branch a=0 dies at the end
+        buf.add(frames, acts, rews, cont, source="probe", probe_at=P, probe_id=1,
+                branch_cont=0)
+    assert len(buf.probe_episodes()) == 6
+    s = buf.sample_branches(6, np.random.default_rng(0), max_len=P + K)
+    assert s is not None
+    obs, acts, rews, conts, bpa, bvalid, btok = s
+    assert obs.shape == (6, P + K, STACK, 84, 84)
+    assert bpa.shape == (6,) and bvalid.shape == (6,) and btok.shape == (6,)
+    assert int(bpa.min()) == P
+    assert int(btok.min()) == 0
+
+    model = _tiny_model()
+    model.ret_mean.fill_(0.0)
+    model.ret_std.fill_(1.0)
+    out = model_loss(model, obs[:, :6], acts[:, :6], rews[:, :6], conts[:, :6],
+                     value_weight=1.0, returns_seq=rews[:, :6],
+                     branch=(obs, acts, rews, conts, bpa, bvalid, btok),
+                     branch_q_weight=1.0, branch_gamma=0.9)
+    assert "branch_q" in out and torch.isfinite(out["branch_q"])
+    out["loss"].backward()
+    assert any(p.grad is not None and torch.isfinite(p.grad).all()
+               for p in model.q_net.parameters())
+
+
+def test_rollout_value_q_grounding_identity():
+    """With no predicted deaths, q_ground must REPLACE the t=0 model reward with
+    the Q term: value(qw) = value(0) - r_hat(s_1) + qw * Q(s_0, a_0)."""
+    from src.world_model import Latent
+    model = _tiny_model().eval()
+    model.ret_mean.fill_(0.0)
+    model.ret_std.fill_(1.0)
+    with torch.no_grad():  # continue head always alive -> no dying, exact identity
+        for p in model.continue_net.parameters():
+            p.fill_(10.0)
+    start = model.initial_state(1, torch.device("cpu"))
+    T, N = 5, 7
+    seq = torch.randint(0, 6, (T, N))
+    gamma = 0.9
+    v0 = model.rollout_value(start, seq, gamma=gamma, terminal_cost=0.0,
+                             death_thresh=0.5, q_weight=0.0)
+    vq = model.rollout_value(start, seq, gamma=gamma, terminal_cost=0.0,
+                              death_thresh=0.5, q_weight=1.0, q_cont=0)
+    # manual: first step reward and Q term (noop-token read, per --q-cont 0)
+    lat = Latent(*[t.expand(N, *t.shape[1:]) for t in start])
+    lat = Latent(lat.deter, lat.mean, lat.std, lat.mean)
+    lat1 = model.imagine_step(lat, seq[0], deterministic=True)
+    r0 = model.reward_net(model.img(lat1)).squeeze(-1)
+    q0 = model.q(lat, seq[0], cont_token=torch.zeros(N, dtype=torch.long))
+    expected = v0 - r0 + q0
+    assert torch.allclose(vq, expected, atol=1e-4), f"{vq} vs {expected}"
+
+
+def test_rollout_value_bootstrap_matches_head():
+    """With no predicted deaths, value_boot must add exactly gamma^T * V(s_T)."""
+    from src.world_model import Latent
+    model = _tiny_model().eval()
+    model.ret_mean.fill_(0.0)
+    model.ret_std.fill_(1.0)
+    # bias the continue head to always predict "alive" so no death intervenes
+    with torch.no_grad():
+        for p in model.continue_net.parameters():
+            p.fill_(10.0)
+    start = model.initial_state(1, torch.device("cpu"))  # planners tile batch-1 starts
+    T, N = 5, 7
+    seq = torch.randint(0, 6, (T, N))
+    gamma = 0.9
+    v0 = model.rollout_value(start, seq, gamma=gamma, terminal_cost=0.0,
+                             death_thresh=0.5, value_boot=False)
+    vb = model.rollout_value(start, seq, gamma=gamma, terminal_cost=0.0,
+                             death_thresh=0.5, value_boot=True)
+    # manual final latent + pessimistic (min) ensemble read
+    lat = Latent(*[t.expand(N, *t.shape[1:]) for t in start])
+    lat = Latent(lat.deter, lat.mean, lat.std, lat.mean)
+    for t in range(T):
+        lat = model.imagine_step(lat, seq[t], deterministic=True)
+    img_end = model.img(lat)
+    v_end = torch.stack([(h(img_end).squeeze(-1) * model.ret_std + model.ret_mean)
+                        for h in model.value_heads()], 0).min(0).values
+    expected = v0 + (gamma ** T) * v_end
+    assert torch.allclose(vb, expected, atol=1e-4), f"{vb} vs {expected}"
+
+
+def test_mpc_controller_value_boot_smoke():
+    """MPC must plan valid actions with the value bootstrap enabled."""
+    from src.mpc_world_model import MPCController
+    model = _tiny_model().eval()
+    ctrl = MPCController(model, device="cpu", horizon=4, candidates=8, elites=4,
+                         iters=2, value_boot=True)
+    a0 = ctrl.reset((np.random.rand(84, 84) * 255).astype(np.uint8))
+    a1 = ctrl.act((np.random.rand(84, 84) * 255).astype(np.uint8))
+    assert 0 <= a0 < 6 and 0 <= a1 < 6
+
+
 def test_memoryless_dataset_and_head():
     """Offline: memoryless BC dataset shape + head forward (no emulator)."""
     import torch as th
