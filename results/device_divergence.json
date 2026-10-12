@@ -1,0 +1,53 @@
+{
+  "max_steps": 1350,
+  "tracks": {
+    "ds1": {
+      "cuda": {
+        "steps": 1350,
+        "reward": 131.774617,
+        "actions_sha1": "f3a1b4e1e923"
+      },
+      "cpu": {
+        "steps": 1350,
+        "reward": 131.774617,
+        "actions_sha1": "f3a1b4e1e923"
+      },
+      "same_action_sequence": true,
+      "first_divergent_decision": null,
+      "margin_at_divergence": null,
+      "min_margin_over_run": 0.001062
+    },
+    "ds2": {
+      "cuda": {
+        "steps": 1350,
+        "reward": 329.915742,
+        "actions_sha1": "3cc3961bc264"
+      },
+      "cpu": {
+        "steps": 1350,
+        "reward": 329.915742,
+        "actions_sha1": "3cc3961bc264"
+      },
+      "same_action_sequence": true,
+      "first_divergent_decision": null,
+      "margin_at_divergence": null,
+      "min_margin_over_run": 0.000278
+    },
+    "ds3": {
+      "cuda": {
+        "steps": 218,
+        "reward": -3.061381,
+        "actions_sha1": "ce1420c976a7"
+      },
+      "cpu": {
+        "steps": 1350,
+        "reward": 185.404253,
+        "actions_sha1": "a8df52abeae8"
+      },
+      "same_action_sequence": false,
+      "first_divergent_decision": 33,
+      "margin_at_divergence": 0.000325,
+      "min_margin_over_run": 0.000325
+    }
+  }
+}

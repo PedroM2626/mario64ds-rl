@@ -1,0 +1,123 @@
+{
+  "steps_per_run": 40,
+  "tracks": "ds1,ds2,ds3",
+  "model": "models/curriculum_flow25_r3_best.zip",
+  "python_cmd": [
+    "D:\\mario64ds-rl\\.venv\\Scripts\\python.exe",
+    "D:\\mario64ds-rl\\scripts\\record_dashboard.py",
+    "--tracks",
+    "ds1,ds2,ds3",
+    "--max-steps",
+    "40",
+    "--out-dir",
+    "out/parity_python",
+    "--model",
+    "models/curriculum_flow25_r3_best.zip",
+    "--supervisor",
+    "python",
+    "--run-budget",
+    "300",
+    "--parallel",
+    "1"
+  ],
+  "rust_cmd": [
+    "D:\\mario64ds-rl\\.venv\\Scripts\\python.exe",
+    "D:\\mario64ds-rl\\scripts\\record_dashboard.py",
+    "--tracks",
+    "ds1,ds2,ds3",
+    "--max-steps",
+    "40",
+    "--out-dir",
+    "out/parity_rust",
+    "--model",
+    "models/curriculum_flow25_r3_best.zip",
+    "--supervisor",
+    "rust",
+    "--run-budget",
+    "300",
+    "--parallel",
+    "1"
+  ],
+  "rust_parallel_cmd": [
+    "D:\\mario64ds-rl\\.venv\\Scripts\\python.exe",
+    "D:\\mario64ds-rl\\scripts\\record_dashboard.py",
+    "--tracks",
+    "ds1,ds2,ds3",
+    "--max-steps",
+    "40",
+    "--out-dir",
+    "out/parity_rust_parallel",
+    "--model",
+    "models/curriculum_flow25_r3_best.zip",
+    "--supervisor",
+    "rust",
+    "--run-budget",
+    "300",
+    "--parallel",
+    "3"
+  ],
+  "python_exit": 0,
+  "rust_exit": 0,
+  "wall_seconds": {
+    "python": 22.2,
+    "rust": 21.8,
+    "rust_parallel": 9.0,
+    "parallel_workers": 3,
+    "speedup": 2.42
+  },
+  "save_files": {
+    "before": {
+      "rom": "14aa4cd7b7a63a1b",
+      "battery": "aa593a3dbef1fddc"
+    },
+    "after": {
+      "rom": "14aa4cd7b7a63a1b",
+      "battery": "aa593a3dbef1fddc"
+    },
+    "unchanged": true
+  },
+  "compared_fields": [
+    "steps",
+    "reward_recorded",
+    "flow_sum_raw",
+    "in_track_falls",
+    "deaths",
+    "completed",
+    "died",
+    "pi_argmax_mismatches",
+    "final_ram_units",
+    "frames_written",
+    "emulator_cycles"
+  ],
+  "rows": [
+    {
+      "track": "ds1",
+      "verdict": "identical",
+      "fields_compared": 11,
+      "diffs": {},
+      "reward": 12.0868
+    },
+    {
+      "track": "ds2",
+      "verdict": "identical",
+      "fields_compared": 11,
+      "diffs": {},
+      "reward": 8.3361
+    },
+    {
+      "track": "ds3",
+      "verdict": "identical",
+      "fields_compared": 11,
+      "diffs": {},
+      "reward": 21.7377
+    }
+  ],
+  "kill_test": {
+    "status": "killed:over-budget",
+    "seconds": 12.0,
+    "budget_s": 12.0,
+    "pass": true,
+    "supervisor_exit": 1
+  },
+  "verdict": "PASS"
+}

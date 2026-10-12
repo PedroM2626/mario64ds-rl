@@ -1,5 +1,6 @@
 Desmume/
 venv/
+.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -30,3 +31,9 @@ logs/
 # Intermediate single-run evaluation CSVs
 eval_*.csv
 results/eval_*.csv
+# Scratch artifacts (profiling, parity runs, supervisor logs, MJPG temporaries)
+out/
+# Locally built supervisor binaries (rust/build.sh; app control blocks by hash)
+rust/*.exe
+# Per-decision snapshots the dashboard recorder writes next to its videos
+videos/dashboard/frames/

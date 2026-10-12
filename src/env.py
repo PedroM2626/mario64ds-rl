@@ -79,6 +79,11 @@ class Mario64DSEnv(gym.Env):
 
         self.prev_gray = None
         self.episode_steps = 0
+        # Reward-source instrumentation, exposed for the dashboard recorder so the
+        # frame can show the numbers the reward was actually built from.
+        self.last_flow = None
+        self.last_flow_mean = 0.0
+        self.last_flow_reward = 0.0
 
     def _get_obs(self):
         if not self.has_emulator:
@@ -138,6 +143,13 @@ class Mario64DSEnv(gym.Env):
             info["ram"] = None
         return info
 
+    def _emit_cycle(self):
+        """Fired after every emulated frame so a recorder can capture true 60 Hz
+        footage instead of one image per action. Set env.on_cycle = callable."""
+        cb = getattr(self, "on_cycle", None)
+        if cb is not None:
+            cb()
+
     def step(self, action):
         if not self.has_emulator:
             self.episode_steps += 1
@@ -157,7 +169,8 @@ class Mario64DSEnv(gym.Env):
             
         for _ in range(self.frameskip):
             self.emu.cycle()
-            
+            self._emit_cycle()
+
         for key in keys:
             self.emu.input.keypad_rm_key(keymask(key))
 
@@ -188,6 +201,9 @@ class Mario64DSEnv(gym.Env):
             reward += self.last_coin_reward
 
         # Optical Flow (Fast 32x32)
+        # Zeroed before the gate below so a consumer always reads the term that
+        # was actually added to this step's reward (skipped on terminal steps).
+        self.last_flow, self.last_flow_mean, self.last_flow_reward = None, 0.0, 0.0
         if not done and not truncated:
             curr_gray_small = cv2.resize(obs_2d, (32, 32), interpolation=cv2.INTER_AREA)
             if self.prev_gray is not None:
@@ -198,6 +214,9 @@ class Mario64DSEnv(gym.Env):
                 # alone (~0.1-0.25/step) required stronger weighting against the -100 death penalty
                 # in stochastic rollouts to guide forward progress.
                 flow_reward = np.clip(np.mean(flow_y), 0, None) * self.flow_weight
+                self.last_flow = flow
+                self.last_flow_mean = float(np.mean(flow_y))
+                self.last_flow_reward = float(flow_reward)
                 reward += flow_reward
             self.prev_gray = curr_gray_small
 

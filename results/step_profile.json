@@ -1,0 +1,25 @@
+{
+  "ms_per_call": {
+    "emulator_cycles": 17.2056,
+    "get_obs": 0.352,
+    "buffer_view": 0.0888,
+    "farneback_flow": 0.1034,
+    "ram_info": 0.0027,
+    "full_step": 18.0695,
+    "ppo_predict": 0.8695,
+    "torch_device": "cuda:0",
+    "cuda_available": true,
+    "cycles_share_of_step": 95.22,
+    "python_share_of_step": 2.53,
+    "steps_per_second": 55.34,
+    "frames_per_second": 221.4
+  },
+  "meta": {
+    "n_steps": 200,
+    "track": "ds2",
+    "frameskip": 4,
+    "python": "3.11.9",
+    "cv2": "5.0.0",
+    "numpy": "2.4.6"
+  }
+}

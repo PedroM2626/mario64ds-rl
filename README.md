@@ -9,6 +9,70 @@ This project is a Deep Reinforcement Learning implementation that trains an auto
 
 ---
 
+## 🎥 Watch a decision being made
+
+![The PPO agent descending the ds1 Course 3 slide in Super Mario 64 DS: gameplay at the emulator's true 60 Hz, the 84x84 grayscale CNN input, the 32x32 window the optical-flow reward is measured on, the policy's real action probabilities, the critic's value, the RAM physics struct and the reward instrument.](videos/dashboard/m64_dashboard_preview.gif)
+
+One deterministic 1350-decision episode per track, recorded by
+`scripts/record_dashboard.py` under the [`rust/`](rust/README.md) supervisor
+(`--supervisor rust --parallel 3`). Every figure below is what the clip itself
+displayed, and `tools/check_readme_numbers.py` re-derives each cell from
+`videos/dashboard/dashboard_*.json` — including the $\times 2.5$ column, which is
+recomputed from the logged weight-free flow sum rather than copied.
+
+| Track | Steps survived | R at flow $\times 1.0$ (single recorded episode) | R re-priced at $\times 2.5$ | In-track falls | Near-stationary decisions | Clip |
+|---|---|---|---|---|---|---|
+| `ds1` (Course 3) | 1350 / 1350 | +131.77 | +369.94 | 2 | 695 | `videos/dashboard/dashboard_ds1.mp4` (90.0 s, 60 fps, policy on cpu) |
+| `ds2` (Peach Slide) | 1350 / 1350 | +329.92 | +865.29 | 1 | 226 | `videos/dashboard/dashboard_ds2.mp4` (90.0 s, 60 fps, policy on cpu) |
+| `ds3` (Monkey Slide) | 1350 / 1350 | +185.40 | +504.01 | 3 | 298 | `videos/dashboard/dashboard_ds3.mp4` (90.0 s, 60 fps, policy on cpu) |
+
+**What "1350 / 1350" does and does not mean.** The environment has no
+finish-line detector: an episode ends either on the black-screen death or on the
+horizon, so surviving all 1350 decisions is the repo's completion criterion, not
+a verified traversal. The per-decision traces
+(`videos/dashboard/dashboard_*_trace.json`) make the difference visible — on
+`ds1` the agent is nearly stationary (speed below 0.5 track units in magnitude) for **695** of
+the 1350 decisions and gets zero forward flow for 585 of them, yet still scores
++131.77, because the flow reward pays for sliding and the step cost is only
+0.02. It also falls to the kill plane twice mid-course and respawns
+(`in-track falls 2`), which a pixel-only reward cannot see.
+
+### ⚠️ One checkpoint, two outcomes: `ds3` depends on the arithmetic
+
+The same `curriculum_flow25_r3_best.zip`, same savestate, same deterministic
+policy, with the torch device as the only variable
+([`results/device_divergence.json`](results/device_divergence.json), measured
+2026-10-12):
+
+| Track | policy on cpu | policy on cuda | first divergent decision |
+|---|---|---|---|
+| `ds1` | 1350 steps, +131.77 | 1350 steps, +131.77 | none (identical action sequences) |
+| `ds2` | 1350 steps, +329.92 | 1350 steps, +329.92 | none (identical action sequences) |
+| `ds3` | **1350 steps, +185.40** | **218 steps, -3.06 (died)** | 33 |
+
+On `ds3` the two arms part company at decision **33**, where the gap between the
+top two action probabilities was **0.000325** — and the GPU trajectory ends in
+the abyss at decision 218. So the published `ds3` benchmark is real and
+reproducible, but only on the CPU instrument (which is what `src/eval.py` and
+these recordings use); the checkpoint's competence on that track rests on a
+three-in-ten-thousand margin, not on a robust racing line. `tools/probe_device_divergence.py`
+re-runs all six arms.
+
+The recordings, the traces and the supervisor's own parity report
+([`results/supervisor_parity.json`](results/supervisor_parity.json): Python
+22.2 s, Rust sequential 21.8 s, Rust `--parallel 3` 9.0 s → **2.42×**, 3/3 tracks
+identical on 11 compared fields, over-budget worker killed at 12 s, ROM and
+battery hashes unchanged) are all regenerable with:
+
+```bash
+python scripts/record_dashboard.py --supervisor rust --parallel 3
+python tools/parity_supervisor.py --steps 40
+python tools/probe_device_divergence.py
+python tools/check_readme_numbers.py        # gate: prose must equal the artifacts
+```
+
+---
+
 ## 🎯 Objective
 The agent's primary objective is to **complete the descent** (not merely survive by idling), navigating forward along the downhill gradient and collecting coins along the trajectory using solely the raw visual screen feed (pixels) as observation. Episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track.
 
@@ -24,9 +88,18 @@ The agent's primary objective is to **complete the descent** (not merely survive
 | `ds2` (Peach Slide) | +865.29 | **1350 / 1350** | `videos/phase_ds2.mp4` |
 | `ds3` (Monkey Slide) | +504.01 | **1350 / 1350** | `videos/phase_ds3.mp4` |
 
+**Instrument.** Those numbers were produced with the policy evaluated on the
+**CPU** — `src/eval.py` loads the checkpoint with SB3's default device handling,
+and on this machine that detail decides `ds3`: the same weights on the GPU die at
+decision 218 (see *One checkpoint, two outcomes* at the top). The three
+deterministic evaluation episodes per track come out identical, so the published
+mean is one trajectory replayed three times, and the dashboard recordings at the
+top of this file reproduce each of these cells to the cent.
+
 To re-record the demonstration videos:
 ```bash
 python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
+python scripts/record_dashboard.py --supervisor rust --parallel 3   # annotated 60 Hz
 ```
 
 ---
@@ -75,7 +148,9 @@ Each training round initially consolidated one track at the expense of another; 
   - **QR-DQN** (sb3-contrib, `src/train_qrdqn.py`) supporting both NatureCNN and IMPALA feature extractors.
 - **Experiment Tracking**: `MLflow` (SQLite backend `mlflow.db`) + `TensorBoard` (`tensorboard_logs/<run-id>`).
 - **Evaluation Engine**: `src/eval.py` ($N$ deterministic/stochastic episodes, fixed seeds, CSV exports).
-- **Video Rendering**: `scripts/record_phases.py` (records real-time RGB MP4 demonstration footage across all tracks).
+- **Video Rendering**: `scripts/record_phases.py` (real-time RGB MP4 per track) and `scripts/record_dashboard.py` (annotated 60 Hz dashboard: gameplay, CNN input, flow window, $\pi(a|s)$, critic value, RAM struct, reward instrument; plus a per-decision trace JSON).
+- **Process Supervision**: `rust/sm64_sup.exe` (std-only Rust; one process per track because two DeSmuME cores in one process crash, with live streaming, per-run budget, kill on overrun and result collection — see [`rust/README.md`](rust/README.md)).
+- **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (where a step's milliseconds go), `tools/check_readme_numbers.py` (re-derives every figure quoted here).
 - **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
 - **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
 - **Consolidated Empirical Data**: `results/` (stores consolidated experimental CSV tables for 100k grid, 500k scale, 2M steps, and curriculum rounds).
@@ -382,6 +457,21 @@ python -m src.play --algo ppo --model models/curriculum_flow25_r3_best.zip --det
 **Record high-definition demonstration MP4s:**
 ```bash
 python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip --fps 15
+```
+
+**Record the annotated 60 Hz dashboard (one process per track, supervised by Rust):**
+```bash
+bash rust/build.sh                                                  # std-only rustc build
+python scripts/record_dashboard.py --supervisor rust --parallel 3   # videos/dashboard/*.mp4
+python scripts/record_dashboard.py --supervisor python              # legacy orchestrator
+```
+
+**Re-derive the evidence the README quotes:**
+```bash
+python tools/parity_supervisor.py --steps 40          # results/supervisor_parity.json
+python tools/probe_device_divergence.py               # results/device_divergence.json
+python tools/profile_step.py --steps 200              # results/step_profile.json
+python tools/check_readme_numbers.py                  # gate: prose must equal artifacts
 ```
 
 ### Automated Testing
