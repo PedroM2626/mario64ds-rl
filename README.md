@@ -22,9 +22,17 @@ recomputed from the logged weight-free flow sum rather than copied.
 
 | Track | Steps survived | R at flow $\times 1.0$ (single recorded episode) | R re-priced at $\times 2.5$ | In-track falls | Near-stationary decisions | Clip |
 |---|---|---|---|---|---|---|
-| `ds1` (Course 3) | 1350 / 1350 | +131.77 | +369.94 | 2 | 695 | `videos/dashboard/dashboard_ds1.mp4` (90.0 s, 60 fps, policy on cpu) |
-| `ds2` (Peach Slide) | 1350 / 1350 | +329.92 | +865.29 | 1 | 226 | `videos/dashboard/dashboard_ds2.mp4` (90.0 s, 60 fps, policy on cpu) |
-| `ds3` (Monkey Slide) | 1350 / 1350 | +185.40 | +504.01 | 3 | 298 | `videos/dashboard/dashboard_ds3.mp4` (90.0 s, 60 fps, policy on cpu) |
+| `ds1` (Course 3) | 1350 / 1350 | +131.77 | +369.94 | 2 | 695 | [dashboard_ds1.mp4](videos/dashboard/dashboard_ds1.mp4) — 90.0 s, 60 fps, policy on cpu |
+| `ds2` (Peach Slide) | 1350 / 1350 | +329.92 | +865.29 | 1 | 226 | [dashboard_ds2.mp4](videos/dashboard/dashboard_ds2.mp4) — 90.0 s, 60 fps, policy on cpu |
+| `ds3` (Monkey Slide) | 1350 / 1350 | +185.40 | +504.01 | 3 | 298 | [dashboard_ds3.mp4](videos/dashboard/dashboard_ds3.mp4) — 90.0 s, 60 fps, policy on cpu |
+
+**Where the video is.** All three full clips live in
+[`videos/dashboard/`](videos/dashboard) next to the JSON each run wrote about
+itself (`dashboard_<track>.json`) and its per-decision trace
+(`dashboard_<track>_trace.json`). The animation at the top is the closing 10 s
+of `ds1` as an inline GIF, because GitHub strips `<video>` from README markdown
+and serves repository `.mp4` as a download rather than a stream — the links above
+open the real 90-second, 60 fps files.
 
 **What "1350 / 1350" does and does not mean.** The environment has no
 finish-line detector: an episode ends either on the black-screen death or on the
