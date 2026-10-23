@@ -24,6 +24,7 @@ from collections import deque
 import numpy as np
 import torch
 
+from src.device import resolve_device
 from src.env import Mario64DSEnv
 from src.wm_replay import EpisodeBuffer
 from src.world_model_controller import WorldModelController, load_world_model_actor
@@ -84,12 +85,13 @@ def main():
     p.add_argument("--lr", type=float, default=5e-5)
     p.add_argument("--batch", type=int, default=16)
     p.add_argument("--seq-len", type=int, default=40)
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     p.add_argument("--max-steps", type=int, default=1350)
     p.add_argument("--flow-weight", type=float, default=2.5)
     args = p.parse_args()
 
-    device = args.device if torch.cuda.is_available() or args.device == "cpu" else "cpu"
+    device = resolve_device(args.device)
     bundle = args.bundle if os.path.isabs(args.bundle) else os.path.join(ROOT, args.bundle)
     model, actor, meta = load_world_model_actor(bundle, device=device)
     model.eval()

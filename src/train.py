@@ -1,5 +1,6 @@
 import os
 import argparse
+import random
 import mlflow
 import torch
 import numpy as np
@@ -14,7 +15,10 @@ from tianshou.utils import TensorboardLogger
 from torch.utils.tensorboard import SummaryWriter
 
 from gymnasium.wrappers import FrameStackObservation
+from src.artifacts import log_model_reference
+from src.device import resolve_device
 from src.env import Mario64DSEnv
+from src.envs import savestate_paths
 from src.impala_cnn import ImpalaCNN, TianshouNatureCNN, RainbowNet
 
 # C51 support bounds: death penalty (-100) and max timeout ceiling define the support.
@@ -22,11 +26,13 @@ V_MIN = -100.0
 V_MAX = 100.0
 
 
-def make_env(rom_path, state_path, seed=0, max_steps=1350, frameskip=4):
+def make_env(rom_path, state_path, seed=0, max_steps=1350, frameskip=4,
+             step_penalty=0.02, flow_weight=1.0):
     def _init():
         env = Mario64DSEnv(
             rom_path=rom_path, state_path=state_path,
             max_steps=max_steps, frameskip=frameskip,
+            step_penalty=step_penalty, flow_weight=flow_weight,
         )
         # FrameStack stacks the last 4 frames into a single observation array
         env = FrameStackObservation(env, stack_size=4)
@@ -48,7 +54,10 @@ def build_feature_net(features: str):
 def main():
     parser = argparse.ArgumentParser(description="Train Mario 64 DS RL Agent with Tianshou Rainbow")
     parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds", help="Path to NDS ROM")
-    parser.add_argument("--state", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).ds1", help="Path to Savestate")
+    parser.add_argument("--states", type=str, default="ds1,ds3",
+                        help="Savestates in the training mix (comma-separated ids)")
+    parser.add_argument("--state", type=str, default=None,
+                        help="Deprecated single-savestate alias; overrides --states when set")
     parser.add_argument("--timesteps", type=int, default=500000, help="Total timesteps to train")
     parser.add_argument("--test-run", action="store_true", help="Run a short test to verify environment")
     parser.add_argument("--run-id", type=str, default="rainbow_mario64ds", help="Name/ID for this training run")
@@ -57,6 +66,16 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument("--max-steps", type=int, default=1350, help="Maximum steps per episode")
     parser.add_argument("--frameskip", type=int, default=4, help="Emulator frameskip")
+    parser.add_argument("--flow-weight", type=float, default=1.0,
+                        help="Optical-flow reward weight in the TRAINING env "
+                             "(1.0 is the historical grid setting)")
+    parser.add_argument("--eval-flow-weight", type=float, default=1.0,
+                        help="Optical-flow weight in the test collector used for "
+                             "checkpoint selection (default 1.0)")
+    parser.add_argument("--step-penalty", type=float, default=0.02,
+                        help="Per-step cost in the environment")
+    parser.add_argument("--device", type=str, default="auto",
+                        help="Torch device: auto, cpu or cuda")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,23 +85,38 @@ def main():
     mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
     mlflow.set_experiment("Mario64_NDS_RL")
 
-    state_ds1 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds1")
-    state_ds3 = os.path.join(base_dir, "data", "Super Mario 64 DS (USA) (Rev 1).ds3")
+    if args.state:
+        state_paths = [args.state if os.path.isabs(args.state)
+                       else os.path.join(base_dir, args.state)]
+    else:
+        state_paths = savestate_paths(args.states, base_dir)
+    for sp in state_paths:
+        if not os.path.exists(sp):
+            raise FileNotFoundError(f"Savestate not found: {sp}")
 
     # IMPORTANT: DeSmuME C-Library causes Access Violation if multiple emulators are created
     # in the same Python process. Tianshou must use SubprocVectorEnv to isolate memory across processes.
     env_fns = [
-        make_env(rom_full, state_ds1, seed=args.seed, max_steps=args.max_steps, frameskip=args.frameskip),
-        make_env(rom_full, state_ds3, seed=args.seed + 1, max_steps=args.max_steps, frameskip=args.frameskip)
+        make_env(rom_full, sp, seed=args.seed + i, max_steps=args.max_steps,
+                 frameskip=args.frameskip, step_penalty=args.step_penalty,
+                 flow_weight=args.flow_weight)
+        for i, sp in enumerate(state_paths)
     ]
     train_envs = SubprocVectorEnv(env_fns)
-    test_envs = SubprocVectorEnv([make_env(rom_full, state_ds1, seed=args.seed + 999,
-                                           max_steps=args.max_steps, frameskip=args.frameskip)])
+    # Evaluate every track in the mix, not only the first: a checkpoint that
+    # regressed on ds3 should not be selected because ds1 still looks good.
+    test_envs = SubprocVectorEnv([
+        make_env(rom_full, sp, seed=args.seed + 999 + i,
+                 max_steps=args.max_steps, frameskip=args.frameskip,
+                 step_penalty=args.step_penalty, flow_weight=args.eval_flow_weight)
+        for i, sp in enumerate(state_paths)
+    ])
 
     # Architecture
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = resolve_device(args.device)
     print(f"Using device: {device}")
 
+    random.seed(args.seed)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
@@ -158,6 +192,15 @@ def main():
         mlflow.log_param("seed", args.seed)
         mlflow.log_param("max_steps", args.max_steps)
         mlflow.log_param("frameskip", args.frameskip)
+        mlflow.log_param(
+            "states",
+            ",".join(os.path.basename(p).rsplit(".", 1)[-1] for p in state_paths),
+        )
+        mlflow.log_param("flow_weight", args.flow_weight)
+        mlflow.log_param("eval_flow_weight", args.eval_flow_weight)
+        mlflow.log_param("step_penalty", args.step_penalty)
+        mlflow.log_param("requested_device", args.device)
+        mlflow.log_param("resolved_device", str(device))
         mlflow.log_param("v_min", V_MIN)
         mlflow.log_param("v_max", V_MAX)
         try:
@@ -169,7 +212,7 @@ def main():
 
         model_path = os.path.join(base_dir, 'models', f"{args.run_id}_final.pth")
         torch.save(algorithm.policy.model.state_dict(), model_path)
-        mlflow.log_artifact(model_path, artifact_path="models")
+        log_model_reference(model_path)
 
 
 if __name__ == "__main__":

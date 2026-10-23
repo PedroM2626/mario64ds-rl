@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "generated": "2026-10-23",
+  "notes": "Flagship assets are not committed (they are large). The sha256/size values are the local hashes measured on 2026-10-23; publish the same bytes as GitHub Release or LFS assets so a clean clone can reproduce the benchmark. Run 'python tools/verify_assets.py' after downloading; use --require to make missing required assets fatal.",
+  "release": "GitHub Releases / Git LFS",
+  "assets": [
+    {
+      "path": "models/curriculum_flow25_r3_best.zip",
+      "role": "PPO + NatureCNN flagship (all 3 tracks, flow x2.5 training)",
+      "required": true,
+      "size": 20590768,
+      "sha256": "c763cbf30b3eb4203a111e030aca00d017e5e4f6778a560c566fae28f0a86df6"
+    },
+    {
+      "path": "models/wm_safe_q7_wm.pt",
+      "role": "RSSM bundle used by the expert-free CEM-MPC experiments",
+      "required": true,
+      "size": 8421900,
+      "sha256": "7f9e5bc3bf64a38db1d99574b52e5216d6e3473c361ed33a4ad70165a51eb7e7"
+    },
+    {
+      "path": "models/wm_mario64ds_wm.pt",
+      "role": "RSSM bundle used by distillation/DAgger",
+      "required": true,
+      "size": 4753520,
+      "sha256": "68d73ecd907128dad9621835e00bd377b6107bf542837a23bce2affacb80205d"
+    },
+    {
+      "path": "models/wm_mario64ds_mem.pt",
+      "role": "Memoryless distilled head clearing all three tracks",
+      "required": true,
+      "size": 3755738,
+      "sha256": "203d992b0fa2e683d6e1e814fced920ac38ffe3285b44658db050cfe20497f66"
+    },
+    {
+      "path": "models/state_wm.pt",
+      "role": "Exact-state (RAM) dynamics bundle (negative result, infrastructure only)",
+      "required": false,
+      "size": 441658,
+      "sha256": "0ce511913f4267127562731cda8982e902fae78398054fd8b926b29a535031a2"
+    },
+    {
+      "path": "data/wm_buffer.pkl",
+      "role": "Base world-model replay buffer (~35k real transitions, random + PPO)",
+      "required": false,
+      "size": 248589332,
+      "sha256": "557d099b5d6cb7e6ec7b5f5e588bd372edddb8748a15072fe074e28da497843d"
+    }
+  ]
+}

@@ -2,15 +2,25 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import cv2
+import logging
 import os
 
 from src.ram_state import Sm64DsState
+
+logger = logging.getLogger(__name__)
+
+# Canonical action order. Keep display labels next to the semantics so the
+# dashboard, collectors and trainers cannot drift apart.
+ACTION_NAMES = ("noop", "left", "right", "up (accelerate)", "down (brake)", "B (jump)")
+ACTION_BUTTONS = ((), ("left",), ("right",), ("up",), ("down",), ("B",))
 
 try:
     from desmume.emulator import DeSmuME
     from desmume.controls import Keys, keymask
 except ImportError:
-    print("Warning: py-desmume is not installed or failed to load.")
+    logger.warning("py-desmume is not installed or failed to load; "
+                   "Mario64DSEnv can only be used with a mocked emulator.")
+    DeSmuME = None
     class Keys:
         KEY_A = 1; KEY_B = 2; KEY_X = 4; KEY_Y = 8; KEY_UP = 16; KEY_DOWN = 32; KEY_LEFT = 64; KEY_RIGHT = 128
         KEY_START = 256; KEY_SELECT = 512; KEY_L = 1024; KEY_R = 2048
@@ -22,7 +32,8 @@ class Mario64DSEnv(gym.Env):
 
     def __init__(self, rom_path, state_path, render_mode=None, max_steps=1350, frameskip=4,
                  death_penalty=100.0, timeout_penalty=0.0, step_penalty=0.02,
-                 coin_reward_enabled=False, flow_weight=1.0):
+                 coin_reward_enabled=False, flow_weight=1.0, verbose=False,
+                 strict_errors=False):
         super(Mario64DSEnv, self).__init__()
         
         self.rom_path = rom_path
@@ -30,6 +41,13 @@ class Mario64DSEnv(gym.Env):
         self.render_mode = render_mode
         self.max_steps = max_steps
         self.frameskip = frameskip
+        # verbose is opt-in: training loops can run millions of steps and the
+        # old unconditional prints were both noisy and a pipe-pressure risk.
+        self.verbose = bool(verbose)
+        # strict_errors turns a display/memory read failure into an exception
+        # instead of a silent black frame that the env would later call "death".
+        self.strict_errors = bool(strict_errors)
+        self._obs_error_logged = False
         # Reward convention (see README "Suicide Paradox"):
         # timeout = survival -> no penalty; abyss death -> -100.
         # Keep death_penalty > timeout_penalty, otherwise the agent learns to commit suicide.
@@ -60,16 +78,16 @@ class Mario64DSEnv(gym.Env):
             self.emu.savestate.load_file(self.state_path)
             self.has_emulator = True
         except Exception as e:
-            print(f"Failed to initialize emulator: {e}")
+            logger.error("failed to initialize emulator: %s", e)
             self.has_emulator = False
-            raise e
+            raise
 
         # Exact-state observation via RAM (see src/ram_state.py): the
         # reference smw-pinn's decisive advantage over pixel-only models.
         self.ram = Sm64DsState(self.emu)
         if not self.ram.verify():
-            print("Warning: Mario physics RAM struct not at expected address; "
-                  "state-based controllers will be unreliable.")
+            logger.warning("Mario physics RAM struct not at expected address; "
+                           "state-based controllers will be unreliable.")
 
         # Action space: 0: Noop, 1: Left, 2: Right, 3: Up (Accelerate), 4: Down (Decelerate), 5: Jump(B)
         self.action_space = spaces.Discrete(6)
@@ -84,6 +102,7 @@ class Mario64DSEnv(gym.Env):
         self.last_flow = None
         self.last_flow_mean = 0.0
         self.last_flow_reward = 0.0
+        self.last_coin_reward = 0.0
 
     def _get_obs(self):
         if not self.has_emulator:
@@ -129,9 +148,17 @@ class Mario64DSEnv(gym.Env):
                         coin_reward = max(0, (128.0 - dist) / 128.0 * 0.5)
                         
             self.last_coin_reward = coin_reward
-            
+
             return np.expand_dims(resized, axis=-1)
-        except Exception:
+        except Exception as exc:
+            # A display-buffer failure used to silently produce a black frame,
+            # which the death detector then interpreted as a terminal state.
+            if self.strict_errors:
+                raise
+            if not self._obs_error_logged:
+                logger.exception("frame read failed; returning black observation "
+                                 "(further failures will be silent): %s", exc)
+                self._obs_error_logged = True
             self.last_coin_reward = 0.0
             return np.zeros((84, 84, 1), dtype=np.uint8)
 
@@ -139,7 +166,10 @@ class Mario64DSEnv(gym.Env):
         info = {"steps": self.episode_steps}
         try:
             info["ram"] = self.ram.poll()
-        except Exception:
+        except Exception as exc:
+            if self.strict_errors:
+                raise
+            logger.debug("RAM poll failed: %s", exc)
             info["ram"] = None
         return info
 
@@ -187,14 +217,17 @@ class Mario64DSEnv(gym.Env):
             truncated = True
             # Timeout = survival (no explicit finish line detected).
             reward -= self.timeout_penalty
-            print("Timeout detected!")
+            if self.verbose:
+                logger.info("timeout at step %d", self.episode_steps)
 
         # Death Check: Black screen
         obs_2d = np.squeeze(obs)
         if np.mean(obs_2d < 10) > 0.95:
             done = True
             reward -= self.death_penalty
-            print(f"Death detected! (Black Screen, penalty=-{self.death_penalty:g})")
+            if self.verbose:
+                logger.info("death detected (black screen, penalty=-%g) at step %d",
+                            self.death_penalty, self.episode_steps)
                 
         # Coin Tracking / Guidance via HSV
         if not done and hasattr(self, 'last_coin_reward'):
@@ -243,8 +276,13 @@ class Mario64DSEnv(gym.Env):
             obs = self._get_obs()
             if obs is not None:
                 display_img = cv2.resize(obs, (336, 336), interpolation=cv2.INTER_NEAREST)
-                cv2.imshow("Mario 64 DS RL", display_img)
-                cv2.waitKey(1)
+                try:
+                    cv2.imshow("Mario 64 DS RL", display_img)
+                    cv2.waitKey(1)
+                except cv2.error as exc:
+                    # Headless containers (and CI) do not have a GUI backend.
+                    logger.warning("cv2.imshow unavailable in this environment: %s", exc)
+                    self.render_mode = None
         elif self.render_mode == 'rgb_array':
             return self._get_obs()
 
@@ -258,5 +296,9 @@ class Mario64DSEnv(gym.Env):
         return frame[:192, :, [2, 1, 0]]
 
     def close(self):
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            pass
         if self.has_emulator:
             self.emu.destroy()

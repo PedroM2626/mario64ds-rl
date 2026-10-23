@@ -31,47 +31,19 @@ import mlflow
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
 
-from src.env import Mario64DSEnv
+from src.artifacts import log_model_reference
+from src.envs import build_vec, savestate_paths
 from src.train_ppo import MLflowCallback
 
 PHASES_DEFAULT = "200000:1e-4,200000:5e-5,200000:2.5e-5"
 
 
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4,
-             step_penalty=0.02, flow_weight=1.0):
-    def _init():
-        env = Mario64DSEnv(
-            rom_path=rom_path, state_path=state_path,
-            max_steps=max_steps, frameskip=frameskip,
-            step_penalty=step_penalty, flow_weight=flow_weight,
-        )
-        env = Monitor(env)
-        env.reset(seed=seed + rank)
-        return env
-    return _init
-
-
-def build_vec(rom_path, states, rank0, seed, max_steps, frameskip, n_stack=4,
-              step_penalty=0.02, flow_weight=1.0):
-    vec = SubprocVecEnv([
-        make_env(rom_path, sp, rank=rank0 + i, seed=seed,
-                 max_steps=max_steps, frameskip=frameskip,
-                 step_penalty=step_penalty, flow_weight=flow_weight)
-        for i, sp in enumerate(states)
-    ])
-    vec = VecFrameStack(vec, n_stack=n_stack)
-    vec = VecTransposeImage(vec)
-    return vec
-
-
 def eval_tracks(model_path, rom_path, states, seed, n_eps=3, max_steps=1350,
-                step_penalty=0.02, flow_weight=2.5):
+                step_penalty=0.02, flow_weight=1.0, device="auto"):
     """Deterministic evaluation per track (sequential SubprocVecEnv for process isolation)."""
     from src.eval import _load_sb3_with_legacy_patch
-    model = _load_sb3_with_legacy_patch(PPO, model_path, device="auto")
+    model = _load_sb3_with_legacy_patch(PPO, model_path, device=device)
 
     rows = []
     for s_idx, sp in enumerate(states):
@@ -112,7 +84,13 @@ def main():
     parser.add_argument("--step-penalty", type=float, default=0.02,
                         help="Per-step penalty (anti-camping)")
     parser.add_argument("--flow-weight", type=float, default=2.5,
-                        help="Optical flow weight (2.5: dense forward signal overcoming abyss death noise)")
+                        help="Optical flow weight in the TRAINING env (2.5: dense forward signal)")
+    parser.add_argument("--eval-flow-weight", type=float, default=1.0,
+                        help="Flow weight used by EvalCallback and the phase evaluation. "
+                             "Default 1.0 matches the published independent evaluation; "
+                             "the training env still uses --flow-weight.")
+    parser.add_argument("--device", type=str, default="auto",
+                        help="Torch device for training and evaluation: auto, cpu or cuda")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -123,10 +101,10 @@ def main():
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     rom_full = os.path.join(base_dir, args.rom)
-    states = [
-        os.path.join(base_dir, "data", f"Super Mario 64 DS (USA) (Rev 1).{s.strip()}")
-        for s in args.states.split(",") if s.strip()
-    ]
+    states = savestate_paths(args.states, base_dir)
+    # The training mix may repeat a track to emphasize it (r2 used ds3 twice,
+    # r3 used ds1 twice); the evaluation set must not double-count it.
+    states_unique = list(dict.fromkeys(states))
     for sp in states:
         if not os.path.exists(sp):
             raise FileNotFoundError(f"Savestate not found: {sp}")
@@ -144,6 +122,10 @@ def main():
     all_rows = []
     current_model = args.start_model
     global_best_path, global_best_mean = None, -np.inf
+    # Scale-free selection: worst-track survival first, then total survival,
+    # then mean reward. Selecting on mean reward alone lets a high-reward track
+    # hide a track that regressed.
+    global_best_key = (-1.0, -1, -np.inf)
 
     with mlflow.start_run(run_name=args.run_id):
         mlflow.log_param("model_type", "PPO_Nature_Curriculum")
@@ -152,6 +134,9 @@ def main():
         mlflow.log_param("phases", args.phases)
         mlflow.log_param("seed", args.seed)
         mlflow.log_param("n_envs", args.n_envs)
+        mlflow.log_param("flow_weight", args.flow_weight)
+        mlflow.log_param("eval_flow_weight", args.eval_flow_weight)
+        mlflow.log_param("device", args.device)
 
         for i, (steps, lr) in enumerate(phases, 1):
             phase_id = f"{args.run_id}_p{i}"
@@ -162,10 +147,11 @@ def main():
                                    step_penalty=args.step_penalty, flow_weight=args.flow_weight)
             # Eval env contains ALL tracks (1 env per track): mean reward
             # from EvalCallback selects the balanced model across all geometries.
-            eval_env = build_vec(rom_full, states, 1000 + i, args.seed, 1350, 4, n_stack=4,
-                                 step_penalty=args.step_penalty, flow_weight=args.flow_weight)
+            eval_env = build_vec(rom_full, states_unique, 1000 + i, args.seed, 1350, 4,
+                                 n_stack=4, step_penalty=args.step_penalty,
+                                 flow_weight=args.eval_flow_weight)
 
-            model = PPO.load(current_model, env=train_envs, device="auto")
+            model = PPO.load(current_model, env=train_envs, device=args.device)
             # Override learning rate schedule with current curriculum phase LR
             model.learning_rate = lr
             model.lr_schedule = lambda _: lr
@@ -198,31 +184,40 @@ def main():
                 print(f"PHASE {i}: best_model.zip not found; skipping evaluation", flush=True)
                 continue
 
-            rows = eval_tracks(phase_best, rom_full, states, args.seed, n_eps=3,
+            rows = eval_tracks(phase_best, rom_full, states_unique, args.seed, n_eps=3,
                                max_steps=1350,
                                step_penalty=args.step_penalty,
-                               flow_weight=args.flow_weight)
+                               flow_weight=args.eval_flow_weight,
+                               device=args.device)
             track_means = {}
             for track in sorted(set(r["track"] for r in rows)):
                 vv = [r for r in rows if r["track"] == track]
                 track_means[track] = (np.mean([r["reward"] for r in vv]),
                                       sum(1 for r in vv if r["survived"]), len(vv))
             balanced_mean = float(np.mean([m[0] for m in track_means.values()]))
-            all_survived = all(m[1] == m[2] for m in track_means.values())
+            min_surv = float(min(m[1] / m[2] for m in track_means.values()))
+            total_surv = int(sum(m[1] for m in track_means.values()))
+            all_survived = min_surv >= 1.0
+            selection_key = (min_surv, total_surv, balanced_mean)
 
             for track, (mean_r, surv, n) in track_means.items():
                 print(f"  {track}: {mean_r:.2f} · surv {surv}/{n}", flush=True)
                 mlflow.log_metric(f"{track}_reward", mean_r, step=i)
                 mlflow.log_metric(f"{track}_surv", surv / n, step=i)
             mlflow.log_metric("balanced_mean", balanced_mean, step=i)
-            print(f"  BALANCED MEAN: {balanced_mean:.2f} | all tracks survived: {all_survived}", flush=True)
+            mlflow.log_metric("min_track_survival", min_surv, step=i)
+            mlflow.log_metric("total_survivals", total_surv, step=i)
+            print(f"  BALANCED MEAN: {balanced_mean:.2f} | min-track survival: "
+                  f"{min_surv:.2f} | total survivals: {total_surv} | "
+                  f"all tracks survived: {all_survived}", flush=True)
 
             for r in rows:
                 r["phase"] = i
                 r["lr"] = lr
                 all_rows.append(r)
 
-            if balanced_mean > global_best_mean:
+            if selection_key > global_best_key:
+                global_best_key = selection_key
                 global_best_mean = balanced_mean
                 global_best_path = phase_best
 
@@ -245,8 +240,10 @@ def main():
             import shutil
             final_dst = os.path.join(models_dir, f"{args.run_id}_best.zip")
             shutil.copy2(global_best_path, final_dst)
-            mlflow.log_artifact(final_dst, artifact_path="models")
-            print(f"\nBest balanced model: {final_dst} (mean reward {global_best_mean:.2f})", flush=True)
+            log_model_reference(final_dst)
+            print(f"\nBest balanced model: {final_dst} "
+                  f"(mean reward {global_best_mean:.2f}; selection key {global_best_key})",
+                  flush=True)
 
         print(f"Curriculum completed. CSV saved to: {results_csv}", flush=True)
 

@@ -336,7 +336,8 @@ def main():
     p.add_argument("--episodes", type=int, default=3)
     p.add_argument("--max-steps", type=int, default=1350)
     p.add_argument("--flow-weight", type=float, default=2.5)
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     # CEM / planning
     p.add_argument("--horizon", type=int, default=12)
     p.add_argument("--candidates", type=int, default=240)
@@ -396,6 +397,8 @@ def main():
                    help="controller seed for --single/--record episodes")
     p.add_argument("--single", default=None, help=argparse.SUPPRESS)
     args = p.parse_args()
+    from src.device import resolve_device
+    args.device = resolve_device(args.device)
     args.warmstart = not args.no_warmstart
 
     import subprocess, sys

@@ -38,6 +38,8 @@ def test_sb3_impala_extractor_forward():
 
 
 def test_rainbow_net_dueling_output():
+    import pytest
+    pytest.importorskip("tianshou")
     from src.impala_cnn import ImpalaCNN, RainbowNet
     feature_net = ImpalaCNN(c=4, h=84, w=84, features_dim=256)
     model = RainbowNet(feature_net, 6, 51)

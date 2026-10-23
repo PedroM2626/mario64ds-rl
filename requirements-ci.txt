@@ -1,0 +1,10 @@
+# Minimal offline-test environment (no emulator, no MLflow, no training).
+# The full environment used to produce the benchmark is requirements.txt.
+--extra-index-url https://download.pytorch.org/whl/cpu
+numpy==1.26.4
+torch==2.5.1
+gymnasium==1.2.3
+opencv-python-headless==4.11.0.86
+pytest==9.1.0
+tianshou==2.0.1
+stable-baselines3==2.8.0

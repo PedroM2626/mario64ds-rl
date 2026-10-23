@@ -51,11 +51,13 @@ Q              Q(h_t, z_t, a, cont-token) ≈ real return of branch continuation
   probe branches it was trained on.
 
 * `enc` is a small `ConvEncoder` over the 4-frame stack.
-* **No pixel reconstruction.** Like the reference (which predicts physical state,
-  not images), the model only needs to be predictive *for control*: it is trained
-  with `KL(q ‖ p)` (with free-nats) + reward MSE + continue BCE. The KL forces the
-  **prior** (used when we have no observation, i.e. during imagination and
-  long-horizon rollouts) to match the **posterior**.
+* **Reconstruction is optional, not required.** Like the reference (which
+  predicts physical state, not images), the model only needs to be predictive
+  *for control*: the default loss is `KL(q ‖ p)` (with free-nats) + reward MSE +
+  continue BCE, with no pixel decoder. Enabling `--recon-weight > 0` adds a
+  decoder as a representation regularizer (and only then is the decoder built);
+  the §9 command below does this explicitly. The KL forces the **prior** (used
+  during imagination and long-horizon rollouts) to match the **posterior**.
 * `latent = [h, z]` is the belief state consumed by the policy.
 
 ## 3. Fast training loop (`src/train_world_model.py`)
@@ -461,10 +463,15 @@ One-shot metrics over rounds and bundles showed per-action fall flags only
 (the five-step drift concentrates on the unmeasured words: heading, surface
 contact normal). Rollouts run at ~1000 steps/s, so this is a coverage/
 representation problem rather than an algorithmic one, but within this session
-it is the same wall, so: \| Track | Expert-free state-MPC (RAM dynamics only)
-| --- | --- | | ds1 | ~100-460 steps (never the tunnel) | | ds2 (Peach) |
-~180-230 steps on refined models; the earlier plain model got to 691 in one
-run | | ds3 (Monkey) | ~85-115 steps | The pixel-only expert-free MPC from §9
+it is the same wall:
+
+| Track | Expert-free state-MPC (RAM dynamics only) |
+|---|---|
+| `ds1` | ~100-460 steps (never the tunnel) |
+| `ds2` (Peach) | ~180-230 steps on refined models; the earlier plain model got to 691 in one run |
+| `ds3` (Monkey) | ~85-115 steps |
+
+The pixel-only expert-free MPC from §9
 (`videos/mpc_ds2.mp4`, `videos/mpc_ds3.mp4`) therefore remains the stronger
 verifiable result, and the §7 distilled controller remains the only route that
 is *reliable* 3/3. The state pipeline stands as measured infrastructure:

@@ -26,6 +26,7 @@ from collections import deque
 import numpy as np
 import torch
 
+from src.device import resolve_device
 from src.env import Mario64DSEnv
 from src.wm_replay import EpisodeBuffer
 from src.world_model import WorldModel, Latent, model_loss, _gauss_sample
@@ -116,7 +117,7 @@ def real_eval(model, actor, env, existing_states, device, n_episodes=1, max_step
 
 
 def train(args):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = resolve_device(args.device)
     torch.manual_seed(args.seed); np.random.seed(args.seed)
 
     buffer = EpisodeBuffer()
@@ -126,7 +127,11 @@ def train(args):
 
     wm_cfg = dict(deter_dim=args.deter_dim, stoch_dim=args.stoch_dim,
                   enc_dim=args.enc_dim, num_actions=6, obs_channels=4, hidden=args.hidden,
-                  use_decoder=args.use_decoder, use_value=args.value_weight > 0,
+                  # The decoder is only a representation regularizer; keeping it
+                  # when recon_weight=0 shipped an untrained decoder in every
+                  # bundle and contradicted the "reconstruction-free" docstring.
+                  use_decoder=bool(args.use_decoder and args.recon_weight > 0),
+                  use_value=args.value_weight > 0,
                   use_q=args.value_weight > 0)
     model = WorldModel(**wm_cfg).to(device)
     if args.value_weight > 0:
@@ -312,6 +317,8 @@ def main():
     p.add_argument("--rom", default="data/Super Mario 64 DS (USA) (Rev 1).nds")
     p.add_argument("--states", default="ds1,ds2,ds3", help="tracks for periodic real eval")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     # model / actor architecture
     p.add_argument("--deter-dim", type=int, default=128)
     p.add_argument("--stoch-dim", type=int, default=32)

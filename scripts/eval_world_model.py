@@ -18,6 +18,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from src.device import resolve_device  # noqa: E402
+
 TRACKS = ["ds1", "ds2", "ds3"]
 
 
@@ -28,10 +30,12 @@ def main():
     p.add_argument("--episodes", type=int, default=5)
     p.add_argument("--max-steps", type=int, default=1350)
     p.add_argument("--flow-weight", type=float, default=2.5)
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     p.add_argument("--stochastic", action="store_true")
     p.add_argument("--tracks", default=",".join(TRACKS))
     args = p.parse_args()
+    args.device = resolve_device(args.device)
 
     from src.env import Mario64DSEnv
     from src.world_model_controller import WorldModelController, load_world_model_actor

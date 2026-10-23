@@ -124,14 +124,17 @@ class TianshouNatureCNN(nn.Module):
             observations = observations.float() / 255.0
         return self.linear(self.cnn(observations)), state
 
-from tianshou.utils.net.discrete import NoisyLinear
-
 class RainbowNet(nn.Module):
     """
     Combines visual feature extractor with Dueling Network heads and NoisyLinear layers.
     Returns probability distributions (batch_size, action_shape, num_atoms) for C51 / RainbowPolicy.
     """
     def __init__(self, feature_net, action_shape, num_atoms=51, noisy_std=0.1):
+        # Imported lazily so the SB3 extractor (src/sb3_impala.py) can reuse
+        # ImpalaBlock without requiring Tianshou. This is what made the SB3-only
+        # feature tests fail in environments that installed only SB3.
+        from tianshou.utils.net.discrete import NoisyLinear
+
         super().__init__()
         self.feature_net = feature_net
         self.action_shape = action_shape

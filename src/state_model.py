@@ -30,6 +30,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.device import resolve_device
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 NUM_ACTIONS = 6
@@ -282,10 +284,11 @@ def main():
     ap.add_argument("--data", default="data/state_transitions.pkl")
     ap.add_argument("--run-id", default="state_wm")
     ap.add_argument("--epochs", type=int, default=60)
-    ap.add_argument("--device", default="cuda")
+    ap.add_argument("--device", default="auto",
+                    help="torch device: auto (cuda if available), cpu or cuda")
     args = ap.parse_args()
 
-    device = args.device if torch.cuda.is_available() else "cpu"
+    device = resolve_device(args.device)
     with open(os.path.join(ROOT, args.data), "rb") as f:
         data = pickle.load(f)
 

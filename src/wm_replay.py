@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 STACK = 4
+BUFFER_VERSION = 2
 
 
 def _pad_frames(frames: np.ndarray) -> np.ndarray:
@@ -24,10 +25,29 @@ def _pad_frames(frames: np.ndarray) -> np.ndarray:
     return np.concatenate([z, frames], axis=0)
 
 
+def _window(frames: np.ndarray, i: int) -> np.ndarray:
+    """(STACK,H,W) window ending at frame i, zero-padded before frame 0.
+
+    This is the allocation-light equivalent of slicing _pad_frames(frames): the
+    sampling loops used to copy the entire episode (up to ~10 MB) just to read
+    four frames. For i >= len(frames) the window is all zeros, matching the
+    previous behavior for short/fallback episodes.
+    """
+    out = np.zeros((STACK,) + frames.shape[1:], dtype=frames.dtype)
+    T = len(frames)
+    for k in range(STACK):
+        idx = i - (STACK - 1) + k
+        if 0 <= idx < T:
+            out[k] = frames[idx]
+    return out
+
+
 class EpisodeBuffer:
-    def __init__(self):
+    def __init__(self, meta: Optional[dict] = None):
         self.episodes: List[Dict[str, np.ndarray]] = []
         self.total_steps = 0
+        self.version = BUFFER_VERSION
+        self.meta: Dict[str, object] = dict(meta or {})
 
     def add(self, frames: np.ndarray, actions: np.ndarray,
             rewards: np.ndarray, continues: np.ndarray,
@@ -93,13 +113,64 @@ class EpisodeBuffer:
     def save(self, path: str):
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, "wb") as f:
-            pickle.dump(dict(episodes=self.episodes, total_steps=self.total_steps), f)
+            pickle.dump(dict(version=BUFFER_VERSION, meta=self.meta,
+                             episodes=self.episodes,
+                             total_steps=self.total_steps), f)
 
     def load(self, path: str):
         with open(path, "rb") as f:
             d = pickle.load(f)
+        # schema v0 files (before this header) contain only the two payload keys.
+        self.version = int(d.get("version", 0))
+        self.meta = dict(d.get("meta", {}) or {})
         self.episodes = d["episodes"]
-        self.total_steps = d["total_steps"]
+        self.total_steps = int(d["total_steps"])
+        actual = sum(len(e["frames"]) for e in self.episodes)
+        if actual != self.total_steps:
+            # Keep the payload usable but make the inconsistency visible; the
+            # merge tool reports the same numbers.
+            self.total_steps = actual
+
+    @staticmethod
+    def episode_signature(episode: Dict[str, np.ndarray]) -> str:
+        """Cheap content hash used to drop duplicate episodes on merge.
+
+        Hashing every frame of a multi-GB buffer is needlessly slow; shape,
+        actions, rewards, continues, source/probe metadata and the first/last
+        frames are enough to identify a duplicated collection.
+        """
+        import hashlib
+
+        h = hashlib.blake2b(digest_size=16)
+        frames = episode["frames"]
+        h.update(str(frames.shape).encode())
+        for key in ("actions", "rewards", "continues"):
+            h.update(np.ascontiguousarray(episode[key]).tobytes())
+        if len(frames):
+            h.update(np.ascontiguousarray(frames[0]).tobytes())
+            h.update(np.ascontiguousarray(frames[-1]).tobytes())
+        if "labels" in episode:
+            h.update(np.ascontiguousarray(episode["labels"]).tobytes())
+        h.update(str(episode.get("source")).encode())
+        h.update(str(episode.get("completed")).encode())
+        h.update(str(episode.get("probe_at")).encode())
+        h.update(str(episode.get("probe_id")).encode())
+        h.update(str(episode.get("branch_cont")).encode())
+        return h.hexdigest()
+
+    def dedupe(self) -> int:
+        """Remove exact duplicate episodes; returns the number removed."""
+        seen, keep = set(), []
+        for e in self.episodes:
+            sig = self.episode_signature(e)
+            if sig in seen:
+                continue
+            seen.add(sig)
+            keep.append(e)
+        removed = len(self.episodes) - len(keep)
+        self.episodes = keep
+        self.total_steps = sum(len(e["frames"]) for e in self.episodes)
+        return removed
 
     def probe_episodes(self):
         """Counterfactual branch episodes (source='probe*'): same prefix/belief,
@@ -180,12 +251,10 @@ class EpisodeBuffer:
         tokens = np.zeros(B, dtype=np.int64)
         for b, e in enumerate(chosen):
             L = min(T, len(e["frames"]))
-            padded = _pad_frames(e["frames"][:L])
+            frames = e["frames"][:L]
             for t in range(T):
-                win = padded[t:t + STACK]
-                if len(win) < STACK:
-                    win = np.concatenate([win, np.zeros((STACK - len(win),) + win.shape[1:], win.dtype)])
-                obs[b, t] = win.transpose(0, 1, 2).astype(np.float32) / 255.0
+                win = _window(frames, t)
+                obs[b, t] = win.astype(np.float32) / 255.0
                 if t < L:
                     acts[b, t] = e["actions"][t]
                     rews[b, t] = e["rewards"][t]
@@ -230,17 +299,14 @@ class EpisodeBuffer:
         for b in range(batch):
             e = usable[rng.integers(len(usable))]
             T = len(e["frames"])
-            padded = _pad_frames(e["frames"])
             if from_start:
                 start = 0
             else:
                 start = int(rng.integers(0, max(1, T - seq_len - 1)))
             for t in range(seq_len):
                 i = start + t
-                win = padded[i:i + STACK]
-                if len(win) < STACK:
-                    win = np.concatenate([win, np.zeros((STACK - len(win),) + win.shape[1:], win.dtype)])
-                obs[b, t] = win.transpose(0, 1, 2).astype(np.float32) / 255.0
+                win = _window(e["frames"], i)
+                obs[b, t] = win.astype(np.float32) / 255.0
                 act_in[b, t] = e["actions"][min(i, T - 1)]
                 if "labels" in e:  # DAgger: expert label for the visited state
                     label[b, t] = e["labels"][min(i, T - 1)]
@@ -307,13 +373,10 @@ class EpisodeBuffer:
                 # inclusive upper bound so a window can reach the final (terminal) frame
                 start = int(rng.integers(0, max(1, len(e["frames"]) - seq_len + 1)))
             T = len(e["frames"])
-            padded = _pad_frames(e["frames"])
             for t in range(seq_len):
                 i = start + t
-                win = padded[i:i + STACK]
-                if len(win) < STACK:  # safety pad
-                    win = np.concatenate([win, np.zeros((STACK - len(win),) + win.shape[1:], win.dtype)])
-                obs[b, t] = win.transpose(0, 1, 2).astype(np.float32) / 255.0
+                win = _window(e["frames"], i)
+                obs[b, t] = win.astype(np.float32) / 255.0
                 idx = min(i, T - 1)
                 acts[b, t] = e["actions"][idx]
                 rews[b, t] = e["rewards"][idx]

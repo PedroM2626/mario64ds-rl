@@ -21,6 +21,7 @@ bottleneck.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -32,6 +33,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
+from src.device import resolve_device
 from src.env import Mario64DSEnv
 from src.wm_replay import EpisodeBuffer
 from src.world_model_controller import load_world_model_actor
@@ -167,6 +169,8 @@ def _select(bundle, device, head_path, tracks, args):
     X, Y = build_dataset(buffer, np.random.default_rng(0))
     best_path = head_path + ".best"
     best = -1
+    best_seed = None
+    candidates = []
     for s in range(args.tries):
         model = _fresh_model(bundle, device)
         head = MemorylessPolicy(model.encoder.out_dim, 6, args.hidden).to(device)
@@ -182,15 +186,34 @@ def _select(bundle, device, head_path, tracks, args):
         print(f"[select] seed {args.seed + s}: cleared {cleared}/{len(tracks)}  "
               + "  ".join(f"{t}={res[t][1]}({'ok' if res[t][0] else 'x'})" for t in tracks),
               flush=True)
+        candidates.append({"seed": args.seed + s, "cleared": cleared,
+                           "tracks": {t: {"cleared": c, "steps": st}
+                                      for t, (c, st) in res.items()}})
         if cleared > best:
-            best = cleared; shutil.copyfile(head_path, best_path)
+            best = cleared
+            best_seed = args.seed + s
+            shutil.copyfile(head_path, best_path)
         if cleared == len(tracks):
             break
-    if best == len(tracks) and os.path.exists(best_path):
-        shutil.copyfile(best_path, head_path)
+    # Always keep the best candidate, even when no seed clears all tracks.
+    # The previous code left whichever head the last try produced on disk.
     if os.path.exists(best_path):
+        shutil.copyfile(best_path, head_path)
         os.remove(best_path)
-    print(f"[select] best cleared {best}/{len(tracks)} -> {head_path}", flush=True)
+    report = {
+        "selection": "best_of_tries",
+        "tries": args.tries,
+        "tracks": tracks,
+        "best_cleared": best,
+        "best_seed": best_seed,
+        "selected": head_path,
+        "candidates": candidates,
+    }
+    report_path = os.path.splitext(head_path)[0] + ".selection.json"
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"[select] best cleared {best}/{len(tracks)} (seed {best_seed}) -> {head_path}; "
+          f"report {report_path}", flush=True)
 
 
 def main():
@@ -203,7 +226,8 @@ def main():
     p.add_argument("--iters", type=int, default=1200)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--hidden", type=int, default=128)
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     p.add_argument("--max-steps", type=int, default=1350)
     p.add_argument("--flow-weight", type=float, default=2.5)
     p.add_argument("--save", default="models/wm_mario64ds_mem.pt")
@@ -226,7 +250,7 @@ def main():
     args = p.parse_args()
     if args.single is not None:
         args.tracks = args.single
-    device = args.device if torch.cuda.is_available() else "cpu"
+    device = resolve_device(args.device)
     bundle = args.bundle if os.path.isabs(args.bundle) else os.path.join(ROOT, args.bundle)
     head_path = (args.out_head or
                  (args.save if os.path.isabs(args.save) else os.path.join(ROOT, args.save)))
@@ -268,7 +292,6 @@ def main():
             subprocess.run(child, cwd=ROOT)
         return
 
-    device = args.device if torch.cuda.is_available() else "cpu"
     bundle = args.bundle if os.path.isabs(args.bundle) else os.path.join(ROOT, args.bundle)
     model, _, _ = load_world_model_actor(bundle, device=device)
     model.eval()

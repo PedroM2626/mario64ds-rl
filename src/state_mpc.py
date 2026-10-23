@@ -22,6 +22,7 @@ import numpy as np
 import torch
 from torch.distributions import Categorical
 
+from src.device import resolve_device
 from src.env import Mario64DSEnv
 from src.ram_state import Sm64DsState
 from src.state_model import (StateDynamicsModel, STATE_COLS, GAMMA, FALL_PENALTY)
@@ -228,7 +229,8 @@ def main():
     p.add_argument("--episodes", type=int, default=3)
     p.add_argument("--max-steps", type=int, default=1350)
     p.add_argument("--flow-weight", type=float, default=2.5)
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     p.add_argument("--horizon", type=int, default=6)
     p.add_argument("--candidates", type=int, default=256)
     p.add_argument("--elites", type=int, default=32)
@@ -252,7 +254,7 @@ def main():
     p.add_argument("--fps", type=int, default=15)
     args = p.parse_args()
 
-    device = args.device if torch.cuda.is_available() else "cpu"
+    device = resolve_device(args.device)
     ctrls = load_state_bundle(os.path.join(ROOT, args.bundle), device)
     rom = os.path.join(ROOT, args.rom)
     tracks = [t.strip() for t in args.tracks.split(",") if t.strip()]

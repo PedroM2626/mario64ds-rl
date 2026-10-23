@@ -110,6 +110,23 @@ python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
 python scripts/record_dashboard.py --supervisor rust --parallel 3   # annotated 60 Hz
 ```
 
+### 📦 Model assets (a clean clone does not contain them)
+
+The checkpoints are large and are **not committed**; the commands above expect
+them under `models/`. The versioned contract for those bytes (role, size,
+SHA256) is [models/ASSETS.json](models/ASSETS.json), documented in
+[docs/MODEL_ZOO.md](docs/MODEL_ZOO.md). Download the release/LFS assets, or
+train them with the commands below, then verify:
+
+```bash
+python tools/verify_assets.py             # report present / missing / hash mismatch
+python tools/verify_assets.py --require   # fail when a required asset is absent
+```
+
+The same applies to the world-model bundles and the base replay buffer. The
+experiment artifacts and their known provenance gaps are listed in
+[results/MANIFEST.md](results/MANIFEST.md).
+
 ---
 
 ## 🧭 Theoretical Analysis: The Complete Causal Chain
@@ -219,6 +236,13 @@ Evaluating `(PPO, Rainbow, QR-DQN) × (NatureCNN, IMPALA) × Seeds {0, 1, 2}` ov
 2. PPO and QR-DQN showed high seed sensitivity at short training horizons, overfitting to one savestate while failing the other.
 3. At 100k steps, single-track specialization dominated; multi-track generalizability required longer horizons and structured curricula.
 
+*Effective sample size*: the "3 episodes" per track here are the same
+deterministic rollout repeated three times, not three independent trials. The
+committed CSV has 108 rows but only 36 unique (run, track, reward, steps)
+trajectories; the new `src/eval.py` JSON reports `n_unique` and a Wilson
+interval so this is visible at the point of use. See
+[results/MANIFEST.md](results/MANIFEST.md).
+
 ### 500k Regime Scaling & Generalization
 Increasing training to 500k timesteps on two tracks (`ds1` + `ds3`) tested whether scale broke single-track specialization (`results/results_grid_500k.csv`):
 
@@ -228,6 +252,12 @@ Increasing training to 500k timesteps on two tracks (`ds1` + `ds3`) tested wheth
 | **Rainbow + NatureCNN (500k)** | +90.77 (450/450) | -63.41 (201 steps) | -37.78 (357 steps, 79%) | 3/9 |
 
 *Zero-Shot Generalization*: The 500k PPO agent, trained strictly on `ds1` and `ds3`, completed 98% of `ds2` (Peach Slide) on its very first evaluation without prior gradient updates on that track.
+
+> **Provenance note.** The committed [results_grid_500k.csv](results/results_grid_500k.csv)
+> contains only `ds1` and `ds3` rows. The `ds2` 440/450 cell above came from a
+> separate evaluation and is not backed by that CSV; see
+> [results/MANIFEST.md](results/MANIFEST.md). Treat it as a historical claim
+> until the evaluation is regenerated with the current `src/eval.py`.
 
 ---
 
@@ -433,6 +463,14 @@ python -m src.train_curriculum --run-id curriculum_flow25_r2 --start-model model
 python -m src.train_curriculum --run-id curriculum_flow25_r3 --start-model models/curriculum_flow25_r2_best.zip --states ds1,ds2,ds3,ds1 --n-envs 4 --phases "500000:5e-5,300000:2.5e-5" --flow-weight 2.5 --eval-freq 10000
 ```
 
+> **Selection weight.** `train_curriculum` now defaults `--eval-flow-weight` to
+> 1.0, the instrument used by the independent evaluation table. The historical
+> r1-r3 checkpoints were selected at the *training* weight (2.5); pass
+> --eval-flow-weight 2.5 to reproduce that exact selection rule. The phase log
+> records both weights, and the global best is now chosen by worst-track
+> survival first, then total survival, then mean reward.
+
+
 ### Training Other Baselines
 
 **PPO with IMPALA ResNet:**
@@ -454,7 +492,9 @@ python -m src.train_qrdqn --run-id qrdqn_run --features nature --n-envs 4 --seed
 
 **Evaluate checkpoint across tracks:**
 ```bash
-python -m src.eval --algo ppo --model models/curriculum_flow25_r3_best.zip --n-episodes 5 --deterministic --seed 0
+python -m src.eval --algo ppo --model models/curriculum_flow25_r3_best.zip \
+    --n-episodes 5 --deterministic --seed 0 --device cpu --flow-weight 1.0
+# writes eval_ppo.csv plus eval_ppo.json (device, model SHA256, n_unique, Wilson CI)
 ```
 
 **Visualize agent playing in real-time:**
@@ -480,6 +520,7 @@ python tools/parity_supervisor.py --steps 40          # results/supervisor_parit
 python tools/probe_device_divergence.py               # results/device_divergence.json
 python tools/profile_step.py --steps 200              # results/step_profile.json
 python tools/check_readme_numbers.py                  # gate: prose must equal artifacts
+python tools/verify_assets.py                         # model/data asset manifest
 ```
 
 ### Automated Testing
@@ -501,6 +542,17 @@ tensorboard --logdir tensorboard_logs --port 6006
 # Build container image
 docker build -t mario64ds-rl .
 
-# Run container with GPU acceleration
-docker run --gpus all -v ${PWD}/data:/app/data -v ${PWD}/models:/app/models mario64ds-rl
+# Run with the ROM/savestates and checkpoints mounted (data/models are in .dockerignore)
+docker run --rm -v ${PWD}/data:/app/data -v ${PWD}/models:/app/models mario64ds-rl
 ```
+
+The image is CPU-oriented (the published evaluation is defined on CPU); add
+`--gpus all` only if you intentionally study the CUDA arm.
+
+---
+
+## 📄 License and asset scope
+
+The code is MIT ([LICENSE](LICENSE)). The game, ROM, savestates, screenshots and
+gameplay recordings are Nintendo property and are not relicensed by MIT; see
+[NOTICE.md](NOTICE.md). No ROM or savestate is distributed here.

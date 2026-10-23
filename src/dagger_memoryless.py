@@ -27,6 +27,7 @@ from collections import deque
 import numpy as np
 import torch
 
+from src.device import resolve_device
 from src.env import Mario64DSEnv
 from src.wm_replay import EpisodeBuffer
 from src.distill_memoryless import (ROOT, STACK, MemorylessPolicy, build_dataset,
@@ -99,7 +100,8 @@ def main():
     p.add_argument("--iters", type=int, default=1200)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--hidden", type=int, default=128)
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (cuda if available), cpu or cuda")
     p.add_argument("--max-steps", type=int, default=1350)
     p.add_argument("--flow-weight", type=float, default=2.5)
     p.add_argument("--save", default="models/wm_mario64ds_mem.pt")
@@ -107,7 +109,7 @@ def main():
     args = p.parse_args()
 
     import shutil
-    device = args.device if torch.cuda.is_available() else "cpu"
+    device = resolve_device(args.device)
     bundle = args.bundle if os.path.isabs(args.bundle) else os.path.join(ROOT, args.bundle)
     head_path = args.save if os.path.isabs(args.save) else os.path.join(ROOT, args.save)
     best_path = head_path + ".best"

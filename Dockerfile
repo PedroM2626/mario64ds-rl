@@ -5,7 +5,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
+    libsdl2-2.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
 

@@ -39,3 +39,18 @@ def test_custom_max_steps_frameskip():
     env = _make_env(max_steps=100, frameskip=2)
     assert env.max_steps == 100
     assert env.frameskip == 2
+
+
+def test_obs_failure_returns_black_but_strict_raises():
+    import pytest
+
+    env = _make_env()
+    env.emu.display_buffer_as_rgbx.side_effect = RuntimeError("display unavailable")
+    obs = env._get_obs()
+    assert obs.shape == (84, 84, 1)
+    assert obs.max() == 0
+
+    strict = _make_env(strict_errors=True)
+    strict.emu.display_buffer_as_rgbx.side_effect = RuntimeError("display unavailable")
+    with pytest.raises(RuntimeError):
+        strict._get_obs()

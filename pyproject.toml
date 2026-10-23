@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mario64ds-rl"
+version = "0.2.0"
+description = "Deep RL for Super Mario 64 DS slide tracks (PPO, Rainbow, QR-DQN, latent world models)"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Pedro M." }]
+dependencies = [
+    "numpy>=1.26,<2",
+    "gymnasium>=1.2,<2",
+    "opencv-python>=4.11,<5",
+]
+
+[project.optional-dependencies]
+emu = ["py-desmume==0.0.9"]
+ppo = ["stable-baselines3>=2.8,<3", "sb3-contrib>=2.8,<3"]
+rainbow = ["tianshou>=2.0,<3"]
+wm = ["torch>=2.5"]
+tracking = ["mlflow>=3.13,<4", "tensorboard>=2.20,<3"]
+dev = ["pytest>=9,<10", "ruff>=0.6"]
+
+[project.urls]
+Repository = "https://github.com/PedroM2626/mario64ds-rl"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

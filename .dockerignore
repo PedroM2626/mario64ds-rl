@@ -1,0 +1,19 @@
+# Keep the image build context small: data/models/videos are mounted, not baked in.
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+data
+models
+videos
+images
+mlruns
+tensorboard_logs
+logs
+out
+results
+_ref_smw_pinn
+*.log

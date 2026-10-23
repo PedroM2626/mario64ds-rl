@@ -7,23 +7,9 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
-from stable_baselines3.common.monitor import Monitor
 
-from src.env import Mario64DSEnv
-
-
-def make_env(rom_path, state_path, rank=0, seed=0, max_steps=1350, frameskip=4,
-             step_penalty=0.02, flow_weight=1.0):
-    def _init():
-        env = Mario64DSEnv(
-            rom_path=rom_path, state_path=state_path,
-            max_steps=max_steps, frameskip=frameskip,
-            step_penalty=step_penalty, flow_weight=flow_weight,
-        )
-        env = Monitor(env)
-        env.reset(seed=seed + rank)
-        return env
-    return _init
+from src.artifacts import log_model_reference
+from src.envs import build_vec, make_env, savestate_paths
 
 
 class MLflowCallback(BaseCallback):
@@ -76,8 +62,16 @@ def main():
     parser.add_argument("--step-penalty", type=float, default=0.02,
                         help="Time penalty per step (anti-camping)")
     parser.add_argument("--flow-weight", type=float, default=2.5,
-                        help="Weight for optical flow reward (2.5 validated: dense forward progress "
-                             "signal overcomes abyss death noise; 0.5/1.0 causes fresh runs to degrade)")
+                        help="Weight for optical flow reward in the TRAINING env (2.5 validated: "
+                             "dense forward progress signal overcomes abyss death noise)")
+    parser.add_argument("--eval-flow-weight", type=float, default=1.0,
+                        help="Flow weight in the EvalCallback env. The published independent "
+                             "evaluation uses 1.0; selecting checkpoints on the training weight "
+                             "2.5 can pick a different model. Default 1.0.")
+    parser.add_argument("--eval-stochastic", action="store_true",
+                        help="Use stochastic actions for checkpoint selection (default: deterministic)")
+    parser.add_argument("--device", type=str, default="auto",
+                        help="Torch device for training and evaluation: auto, cpu or cuda")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,10 +81,7 @@ def main():
     mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
     mlflow.set_experiment("Mario64_NDS_RL")
 
-    savestates = [
-        os.path.join(base_dir, "data", f"Super Mario 64 DS (USA) (Rev 1).{s.strip()}")
-        for s in args.states.split(",") if s.strip()
-    ]
+    savestates = savestate_paths(args.states, base_dir)
     for sp in savestates:
         if not os.path.exists(sp):
             raise FileNotFoundError(f"Savestate not found: {sp}")
@@ -107,11 +98,17 @@ def main():
     # Explicit transpose: (B, 84, 84, 4) HWC -> (B, 4, 84, 84) CHW for CNN input
     train_envs = VecTransposeImage(train_envs)
 
-    # Eval env (single instance, primary savestate = first in mix)
-    eval_env = SubprocVecEnv([make_env(rom_full, savestates[0], rank=1000, seed=args.seed,
-                                       max_steps=args.max_steps, frameskip=args.frameskip)])
-    eval_env = VecFrameStack(eval_env, n_stack=4)
-    eval_env = VecTransposeImage(eval_env)
+    # Eval env: one process per track, balanced over the whole --states mix.
+    # Previously this used only the first savestate and the env defaults
+    # (flow=1.0, step_penalty=0.02), so checkpoint selection was scored on a
+    # different reward function than training. --eval-flow-weight makes that
+    # choice explicit and keeps it at the published 1.0.
+    eval_states = list(dict.fromkeys(savestates))
+    eval_env = build_vec(
+        rom_full, eval_states, rank0=1000, seed=args.seed,
+        max_steps=args.max_steps, frameskip=args.frameskip,
+        step_penalty=args.step_penalty, flow_weight=args.eval_flow_weight,
+    )
 
     # TensorBoard logging
     log_path = os.path.join(base_dir, "tensorboard_logs", args.run_id)
@@ -128,7 +125,7 @@ def main():
         log_path=log_path,
         eval_freq=5000,
         n_eval_episodes=3,
-        deterministic=False,
+        deterministic=not args.eval_stochastic,
         render=False
     )
 
@@ -136,7 +133,8 @@ def main():
 
     if args.resume:
         print(f"Resuming training from {args.resume}...")
-        model = PPO.load(args.resume, env=train_envs, device="auto", custom_objects={"tensorboard_log": log_path})
+        model = PPO.load(args.resume, env=train_envs, device=args.device,
+                         custom_objects={"tensorboard_log": log_path})
     else:
         model = PPO(
             policy,
@@ -153,7 +151,7 @@ def main():
             ent_coef=0.01,  # Encourages exploration
             seed=args.seed,
             policy_kwargs=policy_kwargs,
-            device="auto"
+            device=args.device
         )
 
     print(f"Starting PPO ({args.features}) training with {args.n_envs} parallel environments...")
@@ -172,6 +170,11 @@ def main():
         mlflow.log_param("seed", args.seed)
         mlflow.log_param("max_steps", args.max_steps)
         mlflow.log_param("frameskip", args.frameskip)
+        mlflow.log_param("flow_weight", args.flow_weight)
+        mlflow.log_param("eval_flow_weight", args.eval_flow_weight)
+        mlflow.log_param("eval_deterministic", not args.eval_stochastic)
+        mlflow.log_param("requested_device", args.device)
+        mlflow.log_param("resolved_device", str(model.device))
 
         try:
             model.learn(
@@ -187,7 +190,7 @@ def main():
         # Save final model
         final_path = os.path.join(models_dir, f"{args.run_id}_final")
         model.save(final_path)
-        mlflow.log_artifact(final_path + ".zip", artifact_path="models")
+        log_model_reference(final_path + ".zip")
 
         # EvalCallback saves the best model in <models>/<run_id>/best_model.zip
         best_path = os.path.join(best_model_dir, "best_model.zip")
@@ -195,7 +198,7 @@ def main():
             import shutil
             renamed = os.path.join(models_dir, f"{args.run_id}_best.zip")
             shutil.copy2(best_path, renamed)
-            mlflow.log_artifact(renamed, artifact_path="models")
+            log_model_reference(renamed)
 
         print(f"Training complete! Models saved to {models_dir}")
 

@@ -26,9 +26,10 @@ emulator steps) is reused for many GPU imagination updates.
 
 Key design choices for robustness on this task:
 * Gaussian diagonal latents (no discrete EMAs to tune).
-* Reconstruction-free model loss (KL + reward + continue). We never decode
-  pixels, so the model only needs to be predictive for control, matching the
-  reference's state-based world-model philosophy.
+* Reconstruction is optional: by default the loss is KL + reward + continue
+  (no pixels decoded), so the model only needs to be predictive for control,
+  matching the reference's state-based world-model philosophy. A decoder can be
+  enabled as a representation regularizer with --recon-weight > 0.
 * Free-nats KL and gradient clipping for stability.
 """
 
@@ -349,10 +350,10 @@ class WorldModel(nn.Module):
         """
         B, T = action_seq.shape
         latent = self.initial_state(B, obs_seq.device)
+        feats = self.encoder(obs_seq.reshape(B * T, *obs_seq.shape[2:])).reshape(B, T, -1)
         imgs = []
         for t in range(T):
-            enc_feat = self.encoder(obs_seq[:, t])
-            post, _ = self.observe_step(latent, action_seq[:, t], enc_feat)
+            post, _ = self.observe_step(latent, action_seq[:, t], feats[:, t])
             imgs.append(self.img(post))
             latent = post
         return torch.stack(imgs, 1)  # (B, T, deter+stoch)
@@ -418,11 +419,14 @@ class WorldModel(nn.Module):
         """
         B, T = action_seq.shape
         device = obs_seq.device
+        # Encode all frames in one convolution batch; the per-step loop then
+        # only carries the GRU/prior state. This is the same computation as
+        # encoder(obs_seq[:, t]) for each t, but with far less launch overhead.
+        feats = self.encoder(obs_seq.reshape(B * T, *obs_seq.shape[2:])).reshape(B, T, -1)
         post_list, prior_list = [], []
         latent = self.initial_state(B, device)
         for t in range(T):
-            enc_feat = self.encoder(obs_seq[:, t])
-            post, prior = self.observe_step(latent, action_seq[:, t], enc_feat)
+            post, prior = self.observe_step(latent, action_seq[:, t], feats[:, t])
             post_list.append(post)
             prior_list.append(prior)
             latent = post
@@ -464,11 +468,13 @@ def model_loss(model: WorldModel, obs_seq: torch.Tensor, action_seq: torch.Tenso
 
     post = Latent(out["post_deter"], out["post_mean"], out["post_std"],
                   _gauss_sample(out["post_mean"], out["post_std"]))
-    # Teacher-forced per-step prediction targets aligned with (B, T).
-    r_pred = torch.stack([model.reward(_index_latent(post, t))
-                          for t in range(reward_seq.shape[1])], 1)
-    c_pred = torch.stack([model.continue_prob(_index_latent(post, t))
-                          for t in range(continue_seq.shape[1])], 1)
+    # Teacher-forced per-step prediction targets aligned with (B, T). The heads
+    # are MLPs over the last dimension, so evaluating them on the whole (B,T)
+    # tensor has the same result as one call per timestep, without the Python
+    # dispatch overhead.
+    post_img = torch.cat([post.deter, post.sample], dim=-1)
+    r_pred = model.reward_net(post_img).squeeze(-1)
+    c_pred = torch.sigmoid(model.continue_net(post_img)).squeeze(-1)
     # Terminality is owned by the continue head (and injected by the planner as a
     # terminal cost). The -100 death spike must not enter the reward MSE: with the
     # clip it drags the predicted dense flow negative (~-0.2/step vs a true +0.5),
@@ -517,11 +523,10 @@ def model_loss(model: WorldModel, obs_seq: torch.Tensor, action_seq: torch.Tenso
         value_loss = torch.zeros((), device=obs_seq.device)
         v_pred = None
         for head in heads:
-            # bootstrapped rows per head (deep-ensemble diversity): heads diverge
+            # Bootstrapped rows per head (deep-ensemble diversity): heads diverge
             # exactly on ambiguous (mixed-outcome) states, which is the point.
             m = (torch.rand(returns_seq.shape, device=obs_seq.device) > 0.2).float()
-            v_pred = torch.stack([head(model.img(_index_latent(post, t))).squeeze(-1)
-                                  for t in range(returns_seq.shape[1])], 1)
+            v_pred = head(post_img).squeeze(-1)
             num = (m * (v_pred - returns_seq) ** 2).sum()
             value_loss = value_loss + num / (m.sum() + 1e-6)
         value_loss = value_loss / max(1, len(heads))

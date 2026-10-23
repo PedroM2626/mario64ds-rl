@@ -3,8 +3,8 @@ must equal what the recorded runs actually displayed, or what the code says.
 
 This project has already published a table cell that no run produced, so prose
 figures are not trusted here. Each check re-derives its expected value from the
-run artifacts (videos/dashboard/dashboard_*.json, out/supervisor_parity.json,
-out/step_profile.json) or from the source itself -- not from the README.
+run artifacts (videos/dashboard/dashboard_*.json, results/supervisor_parity.json,
+results/step_profile.json) or from the source itself -- not from the README.
 
     python tools/check_readme_numbers.py
 """
@@ -131,6 +131,8 @@ def parallel_checks(readme):
         RUST_README) else ""
     body = readme + rust_readme
     if not os.path.exists(PARITY):
+        check("results/supervisor_parity.json", "present",
+              "MISSING (run tools/parity_supervisor.py --steps 40)")
         return
     rep = load(PARITY)
     wall = rep.get("wall_seconds", {})
@@ -224,6 +226,25 @@ def rust_checks(readme):
         check("out/step_profile.json", "present", "MISSING (run tools/profile_step.py)")
 
 
+def asset_checks(readme):
+    """The flagship checkpoints are release assets, not Git blobs; their manifest
+    is versioned and must stay valid even on a clean clone."""
+    manifest = os.path.join(ROOT, "models", "ASSETS.json")
+    if not os.path.exists(manifest):
+        check("models/ASSETS.json", "present", "MISSING")
+        return
+    data = load(manifest)
+    check("asset manifest schema", 1, data.get("schema"),
+          ok=int(data.get("schema", 0)) == 1)
+    assets = data.get("assets", [])
+    check("asset manifest has entries", ">=4", len(assets), ok=len(assets) >= 4)
+    for a in assets:
+        check(f"{a.get('path')} has sha256", "present", bool(a.get("sha256")),
+              ok=bool(a.get("sha256")))
+    check("README links docs/MODEL_ZOO.md", "linked",
+          "docs/MODEL_ZOO.md" in readme, ok="docs/MODEL_ZOO.md" in readme)
+
+
 def main():
     readme = open(README, encoding="utf-8").read()
     payloads = {}
@@ -239,6 +260,7 @@ def main():
     rust_checks(readme)
     repro_checks(readme)
     parallel_checks(readme)
+    asset_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

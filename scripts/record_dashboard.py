@@ -43,6 +43,7 @@ if ROOT_DIR not in sys.path:
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
+from src.env import ACTION_BUTTONS, ACTION_NAMES  # noqa: E402
 from src.ram_state import Sm64DsState, NAMES, KILL_PLANE, SCALE  # noqa: E402
 
 TRACKS = ["ds1", "ds2", "ds3"]
@@ -66,9 +67,8 @@ BAD = (80, 90, 235)
 GRID = (52, 48, 42)
 
 # action_space = Discrete(6); src/env.py holds the mapped key for the whole
-# frameskip window, so "held" below is literally the keypad state.
-ACTION_NAMES = ["noop", "left", "right", "up (accelerate)", "down (brake)", "B (jump)"]
-ACTION_BUTTONS = [[], ["left"], ["right"], ["up"], ["down"], ["B"]]
+# frameskip window, so "held" below is literally the keypad state. The names and
+# button labels live in src/env.py so the dashboard cannot drift from the env.
 WINDOW = 60  # decisions behind the rolling action mix
 
 
