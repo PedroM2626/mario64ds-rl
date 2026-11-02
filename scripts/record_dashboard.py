@@ -46,14 +46,18 @@ import numpy as np  # noqa: E402
 from src.env import ACTION_BUTTONS, ACTION_NAMES  # noqa: E402
 from src.ram_state import Sm64DsState, NAMES, KILL_PLANE, SCALE  # noqa: E402
 
-TRACKS = ["ds1", "ds2", "ds3"]
+ALL_TRACKS = ["ds1", "ds2", "ds3", "ds8", "ds9"]
+DEFAULT_TRACKS = ["ds1", "ds2", "ds3"]
+TRACKS = ALL_TRACKS
 TRACK_NAMES = {
     "ds1": "Course 3 slide (Cool, Cool Mountain)",
     "ds2": "Princess Peach's Secret Slide",
     "ds3": "Tall, Tall Mountain slide (Monkey)",
+    "ds8": "Tick Tock Clock (Course 14) - Slow Mode",
+    "ds9": "Tick Tock Clock - Star Platform",
 }
 STATE_PATH = {t: os.path.join(ROOT_DIR, "data",
-                              f"Super Mario 64 DS (USA) (Rev 1).{t}") for t in TRACKS}
+                              f"Super Mario 64 DS (USA) (Rev 1).{t}") for t in ALL_TRACKS}
 RUST_SUP = os.path.join(ROOT_DIR, "rust", "sm64_sup.exe")
 
 W, H = 1280, 720
@@ -150,6 +154,8 @@ def draw_probs(img, x, y, w, h, probs, taken, recent):
 
 def draw_series(img, x, y, w, h, arr, color, lo, hi, thick=2):
     a = np.asarray(arr, dtype=float)
+    if len(a) < 2 or np.any(np.isnan(a)):
+        return
     xs = np.linspace(x, x + w, len(a))
     ys = y + h - (a - lo) / ((hi - lo) or 1.0) * h
     cv2.polylines(img, [np.stack([xs, ys], 1).astype(np.int32)], False, color, thick,
@@ -198,20 +204,35 @@ def draw_descent(img, x, y, w, h, st):
     if len(hist) < 2:
         return
     v = np.asarray(hist, dtype=float)
-    lo, hi = min(float(v.min()), st["kill_plane"]), float(v.max())
-    draw_series(img, x, y, w, h, v, ACCENT, lo, hi, 1)
-    yk = int(y + h - (st["kill_plane"] - lo) / ((hi - lo) or 1.0) * h)
-    cv2.line(img, (x, yk), (x + w, yk), BAD, 1, cv2.LINE_AA)
-    text(img, f"height {v[-1]:+.2f} (kill plane {st['kill_plane']:.1f})", x, y + h + 14,
-         0.30, DIM)
+    if st["track"] in ("ds8", "ds9"):
+        target_y = 7145.0
+        lo = min(float(v.min()), st["kill_plane"], -4800.0)
+        hi = max(float(v.max()), target_y + 200.0)
+        draw_series(img, x, y, w, h, v, ACCENT, lo, hi, 1)
+        yt = int(y + h - (target_y - lo) / ((hi - lo) or 1.0) * h)
+        cv2.line(img, (x, yt), (x + w, yt), GOOD, 1, cv2.LINE_AA)
+        yk = int(y + h - (st["kill_plane"] - lo) / ((hi - lo) or 1.0) * h)
+        cv2.line(img, (x, yk), (x + w, yk), BAD, 1, cv2.LINE_AA)
+        text(img, f"height {v[-1]:+.1f} (star {target_y:.0f}, kill {st['kill_plane']:.0f})",
+             x, y + h + 14, 0.28, DIM)
+    else:
+        lo, hi = min(float(v.min()), st["kill_plane"]), float(v.max())
+        draw_series(img, x, y, w, h, v, ACCENT, lo, hi, 1)
+        yk = int(y + h - (st["kill_plane"] - lo) / ((hi - lo) or 1.0) * h)
+        cv2.line(img, (x, yk), (x + w, yk), BAD, 1, cv2.LINE_AA)
+        text(img, f"height {v[-1]:+.2f} (kill plane {st['kill_plane']:.1f})", x, y + h + 14,
+             0.30, DIM)
 
 
 # ----------------------------------------------------------------- compose
 def compose(game_bgr, st):
     img = np.full((H, W, 3), BG, dtype=np.uint8)
-    text(img, "Reinforcement learning on Super Mario 64 DS slide courses", 24, 30, 0.70,
-         FG, 2)
-    text(img, f"{st['track_name']}   ·   savestate {st['track']}   ·   PPO + NatureCNN, "
+    header_title = ("Reinforcement learning on Super Mario 64 DS (Tick Tock Clock)"
+                    if st["track"] in ("ds8", "ds9")
+                    else "Reinforcement learning on Super Mario 64 DS slide courses")
+    text(img, header_title, 24, 30, 0.70, FG, 2)
+    algo_lbl = st.get("algo_label", "PPO + NatureCNN")
+    text(img, f"{st['track_name']}   ·   savestate {st['track']}   ·   {algo_lbl}, "
               f"deterministic, policy on {st['device']}", 24, 48, 0.42, DIM)
     text(img, os.path.basename(st["model"]), W - 340, 34, 0.38, ACCENT)
     text(img, f"decision {st['step']} / {st['max_steps']}", W - 340, 52, 0.38, DIM)
@@ -224,9 +245,18 @@ def compose(game_bgr, st):
               f"({st['cycles']} cycles so far)", gx, 490, 0.40, DIM)
     text(img, f"R = {st['total_reward']:+.2f}   survived {st['step']} / {st['max_steps']} "
               f"decisions   in-track falls {st['falls']}", gx, 512, 0.46, FG)
-    text(img, f"R = flow {st['flow_term']:+.2f}  -  step cost "
-              f"{st['step_penalty'] * st['step']:.2f}  -  death "
-              f"{st['deaths']} x {st['death_penalty']:g}", gx, 534, 0.38, ACCENT)
+
+    if st.get("dist_reward_enabled"):
+        star_str = f"  +  star {st.get('star_bonus', 0.0):+.1f}" if st.get("star_bonus", 0.0) > 0 else ""
+        goal_str = f"  +  goal {st.get('goal_bonus', 0.0):+.1f}" if st.get("goal_bonus", 0.0) > 0 else ""
+        text(img, f"R = dist {st.get('dist_term', 0.0):+.2f}  +  flow {st['flow_term']:+.2f}  "
+                  f"-  step cost {st['step_penalty'] * st['step']:.2f}  -  death "
+                  f"{st['deaths']} x {st['death_penalty']:g}{star_str}{goal_str}", gx, 534, 0.36, ACCENT)
+    else:
+        text(img, f"R = flow {st['flow_term']:+.2f}  -  step cost "
+                  f"{st['step_penalty'] * st['step']:.2f}  -  death "
+                  f"{st['deaths']} x {st['death_penalty']:g}", gx, 534, 0.38, ACCENT)
+
     text(img, f"action {ACTION_NAMES[st['action_idx']]}  "
               f"[{', '.join(st['held']) or 'no input'}]  "
               f"pi(chosen)={st['pi_chosen'] * 100:.1f}%", gx, 556, 0.38, DIM)
@@ -250,18 +280,24 @@ def compose(game_bgr, st):
         text(img, k, 1034, yy, 0.28, DIM)
         text(img, v, 1034, yy + 14, 0.28, FG)
 
-    panel_box(img, 1024, 528, 248, 88, "descent")
+    box_title = "vertical ascent" if st["track"] in ("ds8", "ds9") else "descent"
+    panel_box(img, 1024, 528, 248, 88, box_title)
     draw_descent(img, 1034, 556, 228, 34, st)
 
     y = 640
-    text(img, "horizon: 1350 decisions; the env has no finish-line detector, so a "
-              "timeout records survival, not a verified traversal", 24, y - 8, 0.38, DIM)
+    if st.get("dist_reward_enabled"):
+        goal_desc = "target: Power Star (height 7145)" if st["track"] in ("ds8", "ds9") else "target: course terminus"
+        text(img, f"horizon: {st['max_steps']} decisions; 3D proximity reward shaping enabled ({goal_desc})", 24, y - 8, 0.38, DIM)
+    else:
+        text(img, "horizon: 1350 decisions; the env has no finish-line detector, so a "
+                  "timeout records survival, not a verified traversal", 24, y - 8, 0.38, DIM)
     frac = max(0.0, min(1.0, st["step"] / float(st["max_steps"])))
     cv2.rectangle(img, (24, y), (W - 24, y + 22), GRID, -1)
     cv2.rectangle(img, (24, y), (int(24 + (W - 48) * frac), y + 22), ACCENT, -1)
     text(img, f"{frac * 100:.1f}%", W - 92, y + 17, 0.48, BG if frac > 0.06 else FG, 2)
     if st["outcome"]:
-        text(img, st["outcome"], 24, y + 50, 0.52, GOOD if st["completed"] else BAD, 2)
+        is_success = bool(st["completed"] or "STAR" in st["outcome"] or "GOAL" in st["outcome"])
+        text(img, st["outcome"], 24, y + 50, 0.52, GOOD if is_success else BAD, 2)
     if st["completed"]:
         text(img, f"{st['stationary']} of {st['max_steps']} decisions had |speed| < 0.5 "
                   f"(the flow reward pays for sliding, not for arriving)",
@@ -270,20 +306,72 @@ def compose(game_bgr, st):
 
 
 # ----------------------------------------------------------------- inference
+def load_policy_model(model_path, device):
+    """Load either a PPO or QR-DQN policy and detect its feature extractor."""
+    import zipfile
+    from stable_baselines3 import PPO
+
+    is_qrdqn = False
+    try:
+        with zipfile.ZipFile(model_path, "r") as z:
+            if "data" in z.namelist():
+                raw = z.read("data").decode("utf-8", errors="ignore")
+                if "QRDQN" in raw or "qrdqn" in raw:
+                    is_qrdqn = True
+    except Exception:
+        pass
+
+    if is_qrdqn:
+        from sb3_contrib import QRDQN
+        model = QRDQN.load(model_path, device=device)
+        algo_name = "QR-DQN"
+    else:
+        try:
+            model = PPO.load(model_path, device=device)
+            algo_name = "PPO"
+        except Exception:
+            from sb3_contrib import QRDQN
+            model = QRDQN.load(model_path, device=device)
+            algo_name = "QR-DQN"
+
+    feat_name = "NatureCNN"
+    ext = getattr(model.policy, "features_extractor", None)
+    if ext is None and hasattr(model.policy, "quantile_net"):
+        ext = getattr(model.policy.quantile_net, "features_extractor", None)
+    if ext is not None:
+        cls_name = ext.__class__.__name__
+        if "Impala" in cls_name:
+            feat_name = "IMPALA CNN"
+        elif "Nature" in cls_name:
+            feat_name = "NatureCNN"
+
+    return model, f"{algo_name} + {feat_name}"
+
+
 def policy_head(model, stack):
-    """pi(a|s) and V(s) from the loaded PPO, on a tensor built by obs_to_tensor()
-    -- the same conversion predict() applies, so the numbers describe the decision
-    the agent actually makes rather than a re-implementation of preprocessing."""
+    """pi(a|s) and V(s) from the loaded policy (PPO or QR-DQN), on a tensor built
+    by obs_to_tensor() -- the same conversion predict() applies, so the numbers describe
+    the decision the agent actually makes rather than a re-implementation of preprocessing."""
     import torch
     pol = model.policy
     with torch.no_grad():
         obs_t = pol.obs_to_tensor(stack)[0]
-        dist = pol.get_distribution(obs_t)
-        probs = dist.distribution.probs[0].detach().float().cpu().numpy()
-        ent = float(dist.distribution.entropy()[0].item())
-        mode = int(dist.mode()[0].item())
-        value = float(pol.predict_values(obs_t).reshape(-1)[0])
-    return probs, value, ent, mode
+        if hasattr(pol, "quantile_net"):
+            quantiles = pol.quantile_net(obs_t)
+            q_values = quantiles.mean(dim=1)
+            mode = int(torch.argmax(q_values, dim=1)[0].item())
+            value = float(q_values.max().item())
+            probs_t = torch.softmax(q_values, dim=1)[0]
+            probs = probs_t.detach().float().cpu().numpy()
+            ent = float(-(probs_t * torch.log(probs_t.clamp(min=1e-8))).sum().item())
+            return probs, value, ent, mode
+        else:
+            dist = pol.get_distribution(obs_t)
+            probs = dist.distribution.probs[0].detach().float().cpu().numpy()
+            ent = float(dist.distribution.entropy()[0].item())
+            mode = int(dist.mode()[0].item())
+            value = float(pol.predict_values(obs_t).reshape(-1)[0])
+            return probs, value, ent, mode
 
 
 def load_state_model(track, device):
@@ -334,8 +422,6 @@ def grab_bgr(emu):
 
 def _record_single(args, out_dir_full):
     import torch
-    from stable_baselines3 import PPO
-
     from src.env import Mario64DSEnv
 
     track = args.single
@@ -348,17 +434,24 @@ def _record_single(args, out_dir_full):
     # process all 32 cores: three parallel workers then took 144.8 s for what
     # sequential did in 24.3 s (measured, out/supervisor_parity.json).
     torch.set_num_threads(max(1, int(args.torch_threads)))
-    model = PPO.load(model_path, device=args.device)
+    model, algo_label = load_policy_model(model_path, device=args.device)
     device = str(next(model.policy.parameters()).device)
-    print(f"[dash] {track}: policy device {device} (instrument; ds3's published "
-          f"result only holds on cpu -- see tools/probe_device_divergence.py)",
-          flush=True)
+    print(f"[dash] {track}: policy device {device} ({algo_label})", flush=True)
     sm = load_state_model(track, device) if not args.no_state_model else None
 
+    dist_reward = args.dist_reward if args.dist_reward is not None else (track in ("ds8", "ds9"))
+    use_ram_death = args.use_ram_death if args.use_ram_death is not None else (track in ("ds8", "ds9"))
+    flow_weight = args.flow_weight
+    if track in ("ds8", "ds9") and args.flow_weight == 1.0:
+        flow_weight = 0.2
+
     env = Mario64DSEnv(rom_path=rom, state_path=STATE_PATH[track], max_steps=args.max_steps,
-                       frameskip=args.frameskip, flow_weight=args.flow_weight,
+                       frameskip=args.frameskip, flow_weight=flow_weight,
                        step_penalty=args.step_penalty, death_penalty=args.death_penalty,
-                       timeout_penalty=args.timeout_penalty)
+                       timeout_penalty=args.timeout_penalty,
+                       dist_reward_enabled=dist_reward, dist_weight=args.dist_weight,
+                       goal_reward=args.goal_reward, star_reward=args.star_reward,
+                       use_ram_death=use_ram_death)
     obs, info = env.reset()
 
     # SB3 VecFrameStack convention: the stack opens as [0, 0, 0, reset_frame],
@@ -387,6 +480,9 @@ def _record_single(args, out_dir_full):
     total_reward = 0.0
     flow_sum_raw = 0.0     # weight-free sum of clip(mean flow_y, 0): re-prices R
     flow_term = 0.0        # the term actually added, at this run's weight
+    dist_term = 0.0
+    goal_bonus = 0.0
+    star_bonus = 0.0
     deaths = falls = 0
     stationary = 0
     pi_mismatch = 0
@@ -399,13 +495,15 @@ def _record_single(args, out_dir_full):
     wm_pred = state_model_pred(sm, ram_prev, 0) if sm else None
 
     st = {"track": track, "track_name": TRACK_NAMES[track], "model": model_path,
-          "device": device,
-          "max_steps": args.max_steps, "flow_weight": args.flow_weight,
+          "device": device, "algo_label": algo_label,
+          "max_steps": args.max_steps, "flow_weight": flow_weight,
           "step_penalty": args.step_penalty, "death_penalty": args.death_penalty,
           "kill_plane": KILL_PLANE / SCALE, "physics": [], "probs": None,
           "obs84": first, "flow": None, "flow_win": None, "flow_reward": 0.0,
           "step": 0, "cycles": 0, "held": [], "action_idx": 0, "pi_chosen": 0.0,
           "total_reward": 0.0, "flow_term": 0.0, "falls": 0, "deaths": 0,
+          "dist_reward_enabled": dist_reward, "dist_term": 0.0,
+          "goal_bonus": 0.0, "star_bonus": 0.0,
           "stationary": 0,
           "value": float("nan"), "step_reward": 0.0, "wm_pred": wm_pred,
           "hist_v": hist_v, "hist_r": hist_r, "hist_wm": hist_wm,
@@ -443,6 +541,11 @@ def _record_single(args, out_dir_full):
             deaths += 1
         flow_sum_raw += env.last_flow_mean if env.last_flow_mean > 0 else 0.0
         flow_term += env.last_flow_reward
+        dist_term += getattr(env, "last_dist_reward", 0.0)
+        if info.get("star_collected"):
+            star_bonus += args.star_reward
+        if info.get("reached_goal"):
+            goal_bonus += args.goal_reward
 
         units = Sm64DsState.units(ram) if ram is not None else np.zeros(6)
         if abs(float(units[1])) < 0.5:
@@ -463,11 +566,24 @@ def _record_single(args, out_dir_full):
             recent.pop(0)
 
         completed = bool(trunc) and step >= args.max_steps
+        if info.get("star_collected"):
+            outcome = f"STAR COLLECTED at decision {step}! (+{args.star_reward:g})"
+        elif info.get("reached_goal"):
+            outcome = f"GOAL REACHED at decision {step}! (+{args.goal_reward:g})"
+        elif completed:
+            outcome = (f"TIMEOUT at decision {step} - survived 1350 horizon" if dist_reward
+                       else f"TIMEOUT at decision {step} - the agent did not die; the env has no finish-line detector")
+        elif done:
+            outcome = f"DEATH at decision {step} - {'RAM kill plane' if use_ram_death else 'black screen'}, -{args.death_penalty:g}"
+        else:
+            outcome = ""
+
         st.update({
             "step": step, "cycles": cycles, "held": ACTION_BUTTONS[a], "action_idx": a,
             "probs": probs, "pi_chosen": float(probs[a]), "value": value,
             "step_reward": float(reward), "total_reward": total_reward,
             "flow_term": flow_term, "flow_reward": env.last_flow_reward,
+            "dist_term": dist_term, "goal_bonus": goal_bonus, "star_bonus": star_bonus,
             "flow": env.last_flow, "obs84": obs[:, :, 0],
             "flow_win": (cv2.resize(obs[:, :, 0], (32, 32), interpolation=cv2.INTER_AREA)
                          if env.last_flow is not None else None),
@@ -476,10 +592,7 @@ def _record_single(args, out_dir_full):
             "physics": physics_rows(env, NAMES, KILL_PLANE, SCALE, ram,
                                     total_reward, flow_sum_raw),
             "completed": completed,
-            "outcome": (f"TIMEOUT at decision {step} - the agent did not die; the env "
-                        f"has no finish-line detector" if completed else
-                        (f"DEATH at decision {step} - black screen, "
-                         f"-{args.death_penalty:g}" if done else "")),
+            "outcome": outcome,
         })
 
         seq = cycle_frames or [grab_bgr(env.emu)]
@@ -495,12 +608,14 @@ def _record_single(args, out_dir_full):
     writer.release()
 
     # the identity the decomposition line claims: R == flow terms - step cost - deaths
-    recomputed = flow_term - args.step_penalty * step - args.death_penalty * deaths \
+    recomputed = flow_term + dist_term + goal_bonus + star_bonus \
+        - args.step_penalty * step - args.death_penalty * deaths \
         - args.timeout_penalty * (1 if trunc else 0)
     resid = abs(recomputed - total_reward)
     priced = {}
     for w in (1.0, 2.5):
-        priced[f"{w:g}"] = round(-args.step_penalty * step + w * flow_sum_raw
+        priced[f"{w:g}"] = round(dist_term + goal_bonus + star_bonus
+                                 - args.step_penalty * step + w * flow_sum_raw
                                  - args.death_penalty * deaths
                                  - args.timeout_penalty * (1 if trunc else 0), 4)
 
@@ -519,10 +634,15 @@ def _record_single(args, out_dir_full):
         "model": os.path.basename(model_path), "video": os.path.basename(out_mp4),
         "steps": step, "max_steps": args.max_steps,
         "completed": bool(trunc and step >= args.max_steps),
+        "star_collected": bool(star_bonus > 0),
+        "reached_goal": bool(goal_bonus > 0),
         "died": bool(done), "deaths": deaths, "in_track_falls": falls,
         "reward_recorded": round(total_reward, 4),
-        "flow_weight": args.flow_weight, "step_penalty": args.step_penalty,
+        "flow_weight": flow_weight, "step_penalty": args.step_penalty,
         "death_penalty": args.death_penalty, "timeout_penalty": args.timeout_penalty,
+        "dist_reward_enabled": dist_reward, "dist_weight": args.dist_weight,
+        "dist_term_sum": round(dist_term, 6), "goal_bonus": round(goal_bonus, 2),
+        "star_bonus": round(star_bonus, 2),
         "frameskip": args.frameskip,
         "flow_sum_raw": round(flow_sum_raw, 6), "flow_term_sum": round(flow_term, 6),
         "reward_at_flow_weight": priced, "decomposition_residual": round(resid, 9),
@@ -577,6 +697,15 @@ def physics_rows(env, names, kill_plane, scale, ram, total_reward, flow_sum):
     drift from the instrument that actually scored the run. Eight rows: the
     SciML panel fits exactly this many at 24 px."""
     u = Sm64DsState.units(ram) if ram is not None else np.zeros(len(names))
+    if getattr(env, "dist_reward_enabled", False):
+        last_d = f"{env.last_dist:.1f}" if env.last_dist is not None else "n/a"
+        row7 = (f"dist to goal: {last_d}", f"weight x{env.dist_weight:g}")
+        row8 = ("terminal rewards", f"star +{env.star_reward:g}, goal +{env.goal_reward:g}")
+    else:
+        row7 = ("reward terms", f"flow x{env.flow_weight:g}, step -{env.step_penalty:g}, "
+                                f"death -{env.death_penalty:g}")
+        row8 = ("flow sum at x1.0", f"{flow_sum:+.2f}")
+
     return [
         ("RAM struct 20.12 fixed point", "0x0217F74C..764, /4096"),
         (f"{names[1]} (track units)", f"{u[1]:+.2f}   cap 100.0"),
@@ -585,9 +714,8 @@ def physics_rows(env, names, kill_plane, scale, ram, total_reward, flow_sum):
         (f"{names[5]}", f"{u[5]:+.2f}"),
         ("decisions per second", f"{60.0 / env.frameskip:.0f} (frameskip "
                                  f"{env.frameskip})"),
-        ("reward terms", f"flow x{env.flow_weight:g}, step -{env.step_penalty:g}, "
-                         f"death -{env.death_penalty:g}"),
-        ("flow sum at x1.0", f"{flow_sum:+.2f}"),
+        row7,
+        row8,
     ]
 
 
@@ -615,16 +743,31 @@ def find_ffmpeg():
 
 # ------------------------------------------------------------- orchestration
 def _job_cmd(args, track):
-    return [sys.executable, os.path.abspath(__file__),
-            "--model", args.model, "--rom", args.rom, "--out-dir", args.out_dir,
-            "--fps", str(args.fps), "--max-steps", str(args.max_steps),
-            "--flow-weight", str(args.flow_weight), "--step-penalty", str(args.step_penalty),
-            "--death-penalty", str(args.death_penalty),
-            "--timeout-penalty", str(args.timeout_penalty),
-            "--frameskip", str(args.frameskip), "--device", args.device,
-            "--torch-threads", str(args.torch_threads),
-            "--snapshot-every", str(args.snapshot_every),
-            "--supervisor", args.supervisor_label, "--single", track]
+    cmd = [sys.executable, os.path.abspath(__file__),
+           "--model", args.model, "--rom", args.rom, "--out-dir", args.out_dir,
+           "--fps", str(args.fps), "--max-steps", str(args.max_steps),
+           "--flow-weight", str(args.flow_weight), "--step-penalty", str(args.step_penalty),
+           "--death-penalty", str(args.death_penalty),
+           "--timeout-penalty", str(args.timeout_penalty),
+           "--frameskip", str(args.frameskip), "--device", args.device,
+           "--torch-threads", str(args.torch_threads),
+           "--dist-weight", str(args.dist_weight),
+           "--goal-reward", str(args.goal_reward),
+           "--star-reward", str(args.star_reward),
+           "--snapshot-every", str(args.snapshot_every),
+           "--supervisor", args.supervisor_label]
+    if args.dist_reward is True:
+        cmd.append("--dist-reward")
+    elif args.dist_reward is False:
+        cmd.append("--no-dist-reward")
+    if args.use_ram_death is True:
+        cmd.append("--use-ram-death")
+    elif args.use_ram_death is False:
+        cmd.append("--no-ram-death")
+    if args.no_state_model:
+        cmd.append("--no-state-model")
+    cmd += ["--single", track]
+    return cmd
 
 
 def _parse_stream(lines, results):
@@ -679,7 +822,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--model", default="models/curriculum_flow25_r3_best.zip")
     ap.add_argument("--rom", default="data/Super Mario 64 DS (USA) (Rev 1).nds")
-    ap.add_argument("--tracks", default=",".join(TRACKS))
+    ap.add_argument("--tracks", default=",".join(DEFAULT_TRACKS))
     ap.add_argument("--out-dir", default="videos/dashboard")
     ap.add_argument("--fps", type=int, default=60, help="1 frame per emulated cycle")
     ap.add_argument("--max-steps", type=int, default=1350)
@@ -698,6 +841,20 @@ def main():
                     help="intra-op threads per worker; the default (all cores) makes "
                          "parallel workers slower than sequential ones")
     ap.add_argument("--snapshot-every", type=int, default=300)
+    ap.add_argument("--dist-reward", dest="dist_reward", action="store_true", default=None,
+                    help="Enable 3D distance potential reward shaping")
+    ap.add_argument("--no-dist-reward", dest="dist_reward", action="store_false",
+                    help="Force disable 3D distance potential reward shaping")
+    ap.add_argument("--dist-weight", type=float, default=0.05,
+                    help="Weight for 3D potential distance shaping (default: 0.05)")
+    ap.add_argument("--goal-reward", type=float, default=200.0,
+                    help="Terminal bonus for reaching goal coordinates")
+    ap.add_argument("--star-reward", type=float, default=500.0,
+                    help="Terminal bonus for star collection")
+    ap.add_argument("--use-ram-death", dest="use_ram_death", action="store_true", default=None,
+                    help="Enable instantaneous RAM-based kill-plane detection")
+    ap.add_argument("--no-ram-death", dest="use_ram_death", action="store_false",
+                    help="Force disable instantaneous RAM-based kill-plane detection")
     ap.add_argument("--run-budget", type=float, default=1800.0,
                     help="wall-clock seconds allowed per track before it is killed")
     ap.add_argument("--parallel", type=int, default=1,

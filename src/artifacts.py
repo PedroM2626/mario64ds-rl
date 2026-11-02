@@ -32,8 +32,11 @@ def file_record(path: str) -> dict:
 
 def log_model_reference(path: str, artifact_path: str = "models") -> dict:
     """Log a JSON reference instead of the whole checkpoint to the active MLflow run."""
-    import mlflow
-
     rec = file_record(path)
-    mlflow.log_dict(rec, artifact_file=f"{artifact_path}/{rec['name']}.json")
+    try:
+        import mlflow
+        if mlflow.active_run():
+            mlflow.log_dict(rec, artifact_file=f"{artifact_path}/{rec['name']}.json")
+    except Exception:
+        pass
     return rec

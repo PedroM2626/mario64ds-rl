@@ -191,3 +191,113 @@ To maintain zero copyrighted binaries in Git while providing seamless reproducib
 - `python scripts/manage_states.py verify`: Boots DeSmuME, loads each state, and confirms Mario's 3D coordinates and course ID against `TRACK_GOALS`.
 - `python scripts/manage_states.py bundle --out assets/sm64ds_states.tar.gz`: Compresses active states with a cryptographically hashed `manifest.json` for hosting on external storage (e.g. Hugging Face Hub / GitHub Releases).
 - `python scripts/manage_states.py unpack --bundle assets/sm64ds_states.tar.gz`: Restores and verifies states into `data/` in a single command.
+
+---
+
+## 10. Hyperparameter Calibration & Training Regimes for Tick Tock Clock (`ds8`)
+
+### 10.1 Structural Contrast: Slide Gravity Courses vs. Vertical Platforming Tower
+The transition from slide courses (`ds1`, `ds2`, `ds3`) to Tick Tock Clock (`ds8`) represents a fundamental shift in environment topology, physical dynamics, and reward landscapes:
+
+| Property | Slide Courses (`ds1`, `ds2`, `ds3`) | Tick Tock Clock (`ds8`) |
+|---|---|---|
+| **Dominant Motion Vector** | Downward vertical descent ($\Delta Y < 0$) with forward slide | Upward vertical ascent ($\Delta Y = +11{,}855.0$ units) |
+| **Terminal Objective** | Spatial finish coordinate plane ($d \le 250.0$) | Power Star actor acquisition ($d \le 80.0$ or Star $+1$) |
+| **Environmental Dynamics** | Static terrain geometry (ramps, ice boundaries) | Dynamic periodic hazards (pendulums, rotating gears, conveyor belts) |
+| **Optical Flow Correlation** | Downward pixel flow ($\bar{v}_y > 0$) directly correlates with progress | Downward pixel flow ($\bar{v}_y > 0$) corresponds to catastrophic abyss falling |
+| **Initial 3D Distance ($D_0$)** | $7{,}974$ (`ds1`), $14{,}644$ (`ds2`), $29{,}352$ (`ds3`) | $12{,}093.0$ units |
+
+### 10.2 Mathematical Derivation of Calibrated Hyperparameters
+
+```
+                ┌────────────────────────────────────────────────────────┐
+                │         Power Star Goal: (2350, 7145, 2350)            │
+                └───────────────────────────▲────────────────────────────┘
+                                            │  ΔY = +11,855.0
+                                            │  Total Distance D_0 ≈ 12,093.0
+                                            │  Potential: +604.65 (w_dist = 0.05)
+                                            │
+                ┌───────────────────────────┴────────────────────────────┐
+                │         Mario Start: (1470, -4710, 128) [ds8]          │
+                └────────────────────────────────────────────────────────┘
+```
+
+#### 1. Optical Flow Weight ($w_{\text{flow}} = 0.2$)
+In slide courses, $w_{\text{flow}} = 2.5$ acted as the primary surrogate reward. In `ds8`, setting $w_{\text{flow}} \ge 1.0$ is counterproductive: Mario must jump vertically to ascend. Under camera follow mechanics, falling down into the abyss creates rapid downward visual flow on the upper screen, which would award substantial artificial reward immediately prior to death. 
+We dampen $w_{\text{flow}}$ from $2.5 \to 0.2$ (or $0.0$). A slight positive coefficient ($0.2$) provides gentle exploratory kinetic incentive without overpowering the directional distance signal.
+
+#### 2. Potential Distance Shaping ($w_{\text{dist}} = 0.05$)
+With Mario starting at $(1470, -4710, 128)$ and the Star at $(2350, 7145, 2350)$, initial Euclidean distance is:
+$$D_0 = \sqrt{(2350 - 1470)^2 + (7145 - (-4710))^2 + (2350 - 128)^2} \approx 12{,}093.0 \text{ units}$$
+Applying potential-based shaping with $w_{\text{dist}} = 0.05$:
+$$\Delta \Phi_{\text{total}} = w_{\text{dist}} \cdot D_0 = 0.05 \times 12{,}093.0 = +604.65$$
+This theoretical cumulative reward:
+- Matches the order of magnitude of the terminal star reward ($R_{\text{star}} = +500.0$).
+- Grants $+5.0$ points per $100$ units climbed vertically, providing dense gradient feedback for landing jumps on successive ascending platforms.
+
+#### 3. Temporal Step Cost ($c_{\text{step}} = 0.02$)
+Tick Tock Clock contains several stationary safe ledges. Without a step cost, an agent could achieve optimal return by idling indefinitely on the starting platform ($R = 0.0$). At $c_{\text{step}} = 0.02$, an episode idling to timeout ($T_{\max} = 1350$) incurs a penalty of $-27.0$. This balances urgency against the requirement to pause briefly for periodic hazards ($T = 180$ frames = 45 decision steps).
+
+#### 4. Instantaneous Void Death Detection (`use_ram_death = True`)
+In `ds8`, the baseline platform is at $Y = -4710.0$. Slipping off any gear precipitates an irreversible fall into the void. Visual black-screen detection wastes $60\text{--}80$ frames in camera-tracking animation. By monitoring RAM register `0x0217F760 <= -300000` or $Y < -5500.0$, death is registered on frame 0 with an immediate $-100.0$ penalty, truncating wasteful uninformative transitions.
+
+#### 5. Terminal Star Acquisition Bonus ($R_{\text{star}} = +500.0$)
+Verified on `ds9`: when Mario's bounding box intersects the Power Star ($d \le 80.0$ or global star counter increments $25 \to 26$), a $+500.0$ terminal bonus is granted and the episode terminates successfully.
+
+---
+
+### 10.3 Algorithmic Paradigm: QR-DQN + IMPALA CNN vs. PPO + NatureCNN
+
+For sample-efficient training in Tick Tock Clock, the value-based **Quantile Regression DQN (QR-DQN)** paired with the **IMPALA CNN** visual representation architecture was selected over standard on-policy PPO + NatureCNN:
+
+```
++-----------------------------------------------------------------------------------------+
+|                                    QR-DQN ARCHITECTURE                                  |
+|                                                                                         |
+| Observation (4x84x84) ---> [ IMPALA CNN Extractor ] ---> Feature Vector (256-d)         |
+|                                                                   │                     |
+|                                                                   ▼                     |
+|                                                       [ Quantile Network ]              |
+|                                                                   │                     |
+|                                                                   ▼                     |
+|                                                        θ_i(s, a) ∈ R^{200 x 6}          |
+|                                                                   │                     |
+|                                                 Q(s, a) = (1/N) ∑_i θ_i(s, a)           |
++-----------------------------------------------------------------------------------------+
+```
+
+#### 1. Replay Buffer Sample Efficiency
+On-policy algorithms (e.g. PPO) collect batches of rollouts, execute 4 mini-batch gradient epochs, and discard all collected transitions. In a 3D platformer with sparse jumping milestones, successfully scaling a moving platform occurs infrequently during early exploration; PPO forgets these rare events rapidly. QR-DQN maintains an experience replay buffer ($N = 20{,}000$ transitions), allowing critical ascent transitions to be sampled and trained upon hundreds of times.
+
+#### 2. Distributional Value Representation under Risk
+Platforming over the void exhibits severe multi-modal risk: jumping from an oscillating clock hand either reaches safety ($V \approx +200$) or results in death ($V \approx -100$). Standard DQN collapses this to an expected scalar mean $\mathbb{E}[Q]$, losing information about return variance. QR-DQN models the full return distribution via $N = 200$ discrete quantiles:
+$$\mathcal{L}_{\text{QR}}(\theta) = \sum_{i=1}^N \mathbb{E}_{j} \left[ \rho_{\tau_i}^{\kappa} \left( r + \gamma \theta_j(s', a^*) - \theta_i(s, a) \right) \right]$$
+where $\rho_\tau^\kappa$ is the Huber quantile loss at target quantile $\tau_i = \frac{2i-1}{2N}$.
+
+#### 3. Visual Representation: IMPALA CNN (15 Layers) vs NatureCNN (3 Layers)
+NatureCNN utilizes 3 sequential non-residual convolutions (`conv(8x8, s4) -> conv(4x4, s2) -> conv(3x3, s1)`), which severely downsamples spatial resolution and loses fine geometric features. In TTC, the agent must resolve:
+- The phase and rotation speed of thin clock hands and pendulums.
+- Depth boundaries between foreground rotating gears and patterned background tower walls.
+The IMPALA CNN architecture incorporates 3 residual convolutional stacks (each containing 2 residual blocks with skip connections, 15 convolutional layers total), preserving multi-scale spatial features essential for 3D visual navigation.
+
+#### 4. Calibrated Hyperparameter Summary for `ds8`
+
+| Parameter | Calibrated Value | Rationale |
+|---|---|---|
+| Algorithm | **QR-DQN** | Sample-efficient off-policy replay with quantile risk representation |
+| Feature Extractor | **IMPALA CNN** | 15-layer residual blocks preserve thin gear edges and pendulum phases |
+| States | `ds8` | Full-course ascent from base platform |
+| Parallel Envs (`n_envs`) | $4$ | Efficient multi-process DeSmuME data collection |
+| Replay Buffer Size | $20{,}000$ | Sized to prevent process OOM while retaining historical transitions |
+| Quantiles ($N$) | $200$ | Standard Dabney et al. (2018) quantile discretization |
+| Learning Rate ($\alpha$) | $5 \times 10^{-5}$ | Conservative Adam learning rate for stable Q-network convergence |
+| Batch Size | $32$ | Standard mini-batch update size |
+| Frame Skip | $4$ | 15 Hz decision rate (60 Hz emulator physics) |
+| Max Steps ($T_{\max}$) | $1350$ | 90 seconds wall-clock episode horizon |
+| Optical Flow Weight ($w_{\text{flow}}$) | $0.2$ | Dampened to prevent rewarding void falls |
+| Distance Weight ($w_{\text{dist}}$) | $0.05$ | Scales total potential to $+604.65 \approx R_{\text{star}}$ |
+| Star Reward ($R_{\text{star}}$) | $+500.0$ | Terminal milestone bonus on star acquisition |
+| Step Penalty ($c_{\text{step}}$) | $0.02$ | Anti-camping cost ($-27.0$ for full-horizon idling) |
+| Abyss Death Penalty ($R_{\text{death}}$) | $-100.0$ | Punishes void falls |
+| RAM Death Detection | `True` | Instantaneous void clamp detection (`0x0217F760 <= -300000`) |
+

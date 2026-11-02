@@ -11,7 +11,10 @@ Examples:
 import os
 import argparse
 
-import mlflow
+try:
+    import mlflow
+except ImportError:
+    mlflow = None
 import numpy as np
 from sb3_contrib import QRDQN
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
@@ -27,7 +30,7 @@ class MLflowCallback(BaseCallback):
         super().__init__(verbose)
 
     def _on_step(self):
-        if self.n_calls % 1000 == 0 and len(self.model.ep_info_buffer) > 0:
+        if mlflow is not None and mlflow.active_run() and self.n_calls % 1000 == 0 and len(self.model.ep_info_buffer) > 0:
             mlflow.log_metric("mean_reward",
                               float(np.mean([ep["r"] for ep in self.model.ep_info_buffer])),
                               step=self.num_timesteps)
@@ -75,12 +78,25 @@ def main():
                         help="Torch device: auto, cpu or cuda")
     parser.add_argument("--eval-stochastic", action="store_true",
                         help="Use stochastic actions for checkpoint selection (default: deterministic)")
+    parser.add_argument("--dist-reward", action="store_true", default=True,
+                        help="Enable 3D distance potential reward shaping")
+    parser.add_argument("--no-dist-reward", dest="dist_reward", action="store_false",
+                        help="Disable 3D distance potential reward shaping")
+    parser.add_argument("--dist-weight", type=float, default=0.05,
+                        help="Weight for 3D potential distance shaping (default: 0.05)")
+    parser.add_argument("--goal-reward", type=float, default=200.0,
+                        help="Terminal bonus for reaching goal coordinates")
+    parser.add_argument("--star-reward", type=float, default=500.0,
+                        help="Terminal bonus for star collection")
+    parser.add_argument("--use-ram-death", action="store_true", default=True,
+                        help="Enable instantaneous RAM-based kill-plane detection")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     rom_full = os.path.join(base_dir, args.rom)
-    mlflow.set_tracking_uri(f"sqlite:///{os.path.join(base_dir, 'mlflow.db')}")
-    mlflow.set_experiment("Mario64_NDS_RL")
+    if mlflow is not None:
+        mlflow.set_tracking_uri(f"sqlite:///{os.path.join(base_dir, 'mlflow.db')}")
+        mlflow.set_experiment("Mario64_NDS_RL")
 
     savestates = savestate_paths(args.states, base_dir)
     for sp in savestates:
@@ -90,7 +106,10 @@ def main():
     train_envs = SubprocVecEnv([
         make_env(rom_full, savestates[i % len(savestates)], rank=i, seed=args.seed,
                  max_steps=args.max_steps, frameskip=args.frameskip,
-                 step_penalty=args.step_penalty, flow_weight=args.flow_weight)
+                 step_penalty=args.step_penalty, flow_weight=args.flow_weight,
+                 dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
+                 goal_reward=args.goal_reward, star_reward=args.star_reward,
+                 use_ram_death=args.use_ram_death)
         for i in range(args.n_envs)
     ])
     train_envs = VecFrameStack(train_envs, n_stack=4)
@@ -101,6 +120,9 @@ def main():
         rom_full, eval_states, rank0=1000, seed=args.seed,
         max_steps=args.max_steps, frameskip=args.frameskip,
         step_penalty=args.step_penalty, flow_weight=args.eval_flow_weight,
+        dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
+        goal_reward=args.goal_reward, star_reward=args.star_reward,
+        use_ram_death=args.use_ram_death,
     )
 
     log_path = os.path.join(base_dir, "tensorboard_logs", args.run_id)
@@ -124,27 +146,43 @@ def main():
     )
     print(f"Starting QR-DQN ({args.features}) | device={model.device} | envs={args.n_envs}")
 
-    with mlflow.start_run(run_name=args.run_id):
-        mlflow.log_param("model_type", f"QRDQN_{args.features.upper()}")
-        mlflow.log_param("features", args.features)
-        mlflow.log_param("total_timesteps", args.timesteps)
-        mlflow.log_param("n_envs", args.n_envs)
-        mlflow.log_param("seed", args.seed)
-        mlflow.log_param("lr", args.lr)
-        mlflow.log_param("batch_size", args.batch_size)
-        mlflow.log_param("max_steps", args.max_steps)
-        mlflow.log_param("frameskip", args.frameskip)
-        mlflow.log_param("states", args.states)
-        mlflow.log_param("flow_weight", args.flow_weight)
-        mlflow.log_param("eval_flow_weight", args.eval_flow_weight)
-        mlflow.log_param("step_penalty", args.step_penalty)
-        mlflow.log_param("eval_deterministic", not args.eval_stochastic)
-        mlflow.log_param("requested_device", args.device)
-        mlflow.log_param("resolved_device", str(model.device))
+    params = {
+        "model_type": f"QRDQN_{args.features.upper()}",
+        "features": args.features,
+        "total_timesteps": args.timesteps,
+        "n_envs": args.n_envs,
+        "seed": args.seed,
+        "lr": args.lr,
+        "batch_size": args.batch_size,
+        "max_steps": args.max_steps,
+        "frameskip": args.frameskip,
+        "states": args.states,
+        "flow_weight": args.flow_weight,
+        "eval_flow_weight": args.eval_flow_weight,
+        "step_penalty": args.step_penalty,
+        "dist_reward": args.dist_reward,
+        "dist_weight": args.dist_weight,
+        "goal_reward": args.goal_reward,
+        "star_reward": args.star_reward,
+        "use_ram_death": args.use_ram_death,
+        "eval_deterministic": not args.eval_stochastic,
+        "requested_device": args.device,
+        "resolved_device": str(model.device),
+    }
+
+    from contextlib import nullcontext
+    run_ctx = mlflow.start_run(run_name=args.run_id) if mlflow is not None else nullcontext()
+    with run_ctx:
+        if mlflow is not None and mlflow.active_run():
+            for k, v in params.items():
+                mlflow.log_param(k, v)
         try:
+            callbacks = [eval_callback]
+            if mlflow is not None:
+                callbacks.append(MLflowCallback())
             model.learn(total_timesteps=args.timesteps,
-                        callback=[eval_callback, MLflowCallback()],
-                        progress_bar=True)
+                        callback=callbacks,
+                        progress_bar=False)
         finally:
             train_envs.close()
             eval_env.close()
