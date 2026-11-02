@@ -35,7 +35,7 @@ out/
 # Locally built supervisor binaries (rust/build.sh; app control blocks by hash)
 rust/*.exe
 # Per-decision snapshots the dashboard recorder writes next to its videos
-videos/dashboard/frames/
+videos/**/frames/
 
 scratch/
 assets/*.tar.gz

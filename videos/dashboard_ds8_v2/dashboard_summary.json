@@ -1,0 +1,72 @@
+{
+  "supervisor": "rust",
+  "supervisor_binary": "D:\\mario64ds-rl\\rust\\sm64_sup.exe",
+  "parallel": 1,
+  "model": "qrdqn_impala_ds8_v2_best.zip",
+  "flow_weight": 1.0,
+  "max_steps": 1350,
+  "frameskip": 4,
+  "tracks": {
+    "ds8": {
+      "track": "ds8",
+      "track_name": "Tick Tock Clock (Course 14) - Slow Mode",
+      "model": "qrdqn_impala_ds8_v2_best.zip",
+      "video": "dashboard_ds8.mp4",
+      "steps": 1350,
+      "max_steps": 1350,
+      "completed": true,
+      "star_collected": false,
+      "reached_goal": false,
+      "died": false,
+      "deaths": 0,
+      "in_track_falls": 0,
+      "reward_recorded": -8.7263,
+      "flow_weight": 0.2,
+      "step_penalty": 0.02,
+      "death_penalty": 100.0,
+      "timeout_penalty": 0.0,
+      "dist_reward_enabled": true,
+      "dist_weight": 0.05,
+      "dist_term_sum": 11.832064,
+      "goal_bonus": 0.0,
+      "star_bonus": 0.0,
+      "frameskip": 4,
+      "flow_sum_raw": 32.208326,
+      "flow_term_sum": 6.441665,
+      "reward_at_flow_weight": {
+        "1": 17.0404,
+        "2.5": 65.3529
+      },
+      "decomposition_residual": 5.8e-07,
+      "final_ram_units": [
+        9.778,
+        0.0,
+        -4.0,
+        0.0,
+        -8.0,
+        0.0
+      ],
+      "min_height_units": -37.0,
+      "max_speed_units": 0.0,
+      "frames_written": 5401,
+      "emulator_cycles": 5400,
+      "seconds": 90.02,
+      "wall_seconds": 139.0,
+      "width": 1280,
+      "height": 720,
+      "fps": 60,
+      "supervisor": "rust",
+      "state_model": false,
+      "policy_device": "cpu",
+      "pi_argmax_mismatches": 0,
+      "stationary_decisions": 1350,
+      "last_fall_step": null,
+      "decisions_after_last_fall": null,
+      "zero_flow_decisions": 677
+    }
+  },
+  "completed": [
+    "ds8"
+  ],
+  "died": []
+}

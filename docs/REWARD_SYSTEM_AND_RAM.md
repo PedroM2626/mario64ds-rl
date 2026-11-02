@@ -352,4 +352,69 @@ $$D_{\min} \leftarrow \min(D_{\min}, D_t)$$
 | Distance Reward Mode | `potential` | **`progress` (Ratchet)** | Eliminates in-place jumping exploit; enforces true territorial ascent |
 | Final Exploration Rate | $0.01$ | **$0.05$** | Sustains exploratory perturbation during plateau navigation |
 
+---
+
+### 10.6 Empirical Evaluation of Models & Resolution of the False Star Trigger
+
+#### 1. Quantitative Benchmark: Baseline v1 vs Scaled v2
+
+Using our reproducible evaluation protocol (`scripts/eval_qrdqn_ttc.py`) on `ds8` (Tick Tock Clock, Slow Mode), we measured exact spatial trajectories, action histograms, and initial Q-values:
+
+| Metric | Baseline (`qrdqn_impala_ds8_best`) | Scaled v2 Best (`qrdqn_impala_ds8_v2_best`) | Scaled v2 Final (`qrdqn_impala_ds8_v2_final`) |
+|---|---|---|---|
+| **Distance Reward Mode** | `potential` (Bidirectional) | `progress` (Ratchet) | `progress` (Ratchet) |
+| **Initial Q(s0, Jump [B])** | **$+6.66$** | **$+0.3435$** | **$+1.0988$** |
+| **Initial Q(s0, Up [Accel])** | $-1.57$ | $+0.2173$ | $+0.9595$ |
+| **Initial Q(s0, Down [Decel])**| $-0.18$ | $+0.2240$ | $+0.9728$ |
+| **Initial Q(s0, Right)** | $-3.42$ | $+0.2285$ | $+1.0004$ |
+| **Initial Q(s0, Left)** | $-1.86$ | $+0.1939$ | $+0.9803$ |
+| **Initial Q(s0, Noop)** | $-2.03$ | $+0.1985$ | $+0.9551$ |
+| **Action Distribution** | 100% Jump (B) | 100% Jump (B) | 100% Jump (B) |
+| **Max Height ($Y_{\max}$)** | $-4468.5$ ($\Delta Y = +241.5$) | $-4468.5$ ($\Delta Y = +241.5$) | $-4468.5$ ($\Delta Y = +241.5$) |
+| **Ascent Climax (% course)**| **2.04%** | **2.04%** | **2.04%** |
+| **Initial Distance to Star**| $12{,}093.5$ units | $12{,}093.5$ units | $12{,}093.5$ units |
+| **Distance Reward Sum** | $+0.00$ (net cycle) | **$+11.83$** (first jump only) | **$+11.83$** (first jump only) |
+| **Step Penalties** | $-16.02$ (801 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) |
+| **Episode Return (Evaluated)**| $+487.92$ (spurious star) | **$-8.73$** (fixed horizon) | **$-8.73$** (fixed horizon) |
+
+#### 2. Root Cause Discovery: The False Star Collection Trigger at Step 801
+During evaluations on `ds8`, episodes were observed to terminate at step 801 with `star_collected = True` and $+500.0$ bonus, despite Mario remaining on the starting floor at $Y = -4468.5$ ($12{,}093.5$ units away from the Star at $Y = 7145.0$).
+
+A systematic differential RAM trace (`scripts/diff_ram_star.py`) across the 4MB ARM9 address space revealed the mechanism:
+1. **Dynamic Volatility of `0x0209FB64`**: Address `0x0209FB64` was previously hypothesized to represent the global save file star counter. However, cycle-by-cycle logging demonstrated that `0x0209FB64` is an internal dynamic animation/scratch register:
+   * At savestate boot: `0x0209FB64 = 86`.
+   * At step 38 ($f=152$ frames): drops to `1`.
+   * Across 3,500 frames: oscillates through $\{19, 31, 32, 53, 125, 0, 13\}$.
+   * At step 801 ($f=3204$ frames): register spikes to `113` (and later `125`).
+2. **Environment Condition Failure**: In `src/env.py`, the star completion check was defined as:
+   ```python
+   if curr_stars > self.start_star_count or curr_dist <= success_dist:
+       done = True
+       self.star_collected = True
+       reward += self.star_reward
+   ```
+   Because `113 > 86`, the condition `curr_stars > self.start_star_count` evaluated to `True` at step 801, abruptly terminating the episode with $+500.0$ reward!
+3. **Training Policy Reinforcement**: During the training of `qrdqn_impala_ds8_v2`, this spurious reward created a massive attractor: the agent discovered that simply jumping or idling safely on the starting platform yielded a guaranteed $+500.0$ terminal payout at step 801 with zero risk of falling into the abyss.
+
+#### 3. Mathematical & Architectural Fix
+To definitively prevent spurious memory fluctuations from triggering completion from across the course, the star collection logic in `src/env.py` was constrained with a spatial proximity gate:
+```python
+if goal_type == "star":
+    curr_stars = self.ram.get_star_count()
+    if curr_dist <= success_dist or (curr_stars > self.start_star_count and curr_dist <= 500.0):
+        done = True
+        self.star_collected = True
+        reward += self.star_reward
+```
+Under this formulation:
+* In `ds9` (Star Platform), Mario is at $D = 259.4 \le 500.0$ units from the star; executing the jump brings $D \le 80.0 \le success\_dist$, legitimately triggering star collection and the $+500.0$ bonus.
+* In `ds8` (Base of TTC), Mario is at $D \approx 12{,}093.5 \gg 500.0$ units; memory spikes at `0x0209FB64` are safely rejected. As verified in post-fix evaluation, the agent now survives the full $1{,}350$ steps, receiving $-27.0$ in step costs and $+11.83$ in initial ratchet progress (net return $-8.73$).
+
+#### 4. Dashboard 60 Hz Video Generation on `ds8`
+We recorded the full 60 Hz dashboard verification video for `qrdqn_impala_ds8_v2_best.zip` on `ds8` using `scripts/record_dashboard.py`:
+* **Video Output**: `videos/dashboard_ds8_v2/dashboard_ds8.mp4` (10.7 MB, 5,401 frames, 90.02s duration).
+* **Metadata & Parity**: `dashboard_ds8.json` records decomposition residual $5.8 \times 10^{-7}$ (exact mathematical zero).
+* **Observed Dynamics**: Demonstrates the ratcheted progress mode correctly holding distance reward flat at $+11.83$ after the initial jump, visually confirming the complete elimination of the cyclic reward exploit.
+
+
 

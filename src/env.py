@@ -332,7 +332,7 @@ class Mario64DSEnv(gym.Env):
                 
                 if goal_type == "star":
                     curr_stars = self.ram.get_star_count()
-                    if curr_stars > self.start_star_count or curr_dist <= success_dist:
+                    if curr_dist <= success_dist or (curr_stars > self.start_star_count and curr_dist <= 500.0):
                         done = True
                         self.star_collected = True
                         reward += self.star_reward
