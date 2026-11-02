@@ -1,0 +1,146 @@
+[
+  {
+    "track": "ds1",
+    "mode": "old",
+    "steps": 1350,
+    "total_reward": 131.77461681421846,
+    "flow_sum": 0.0,
+    "dist_reward_sum": 0.0,
+    "step_penalty_sum": 26.999999999999513,
+    "goal_reached": false,
+    "death": true,
+    "initial_dist": 12274.703176208774,
+    "final_dist": 12274.703176208774,
+    "progress_delta": 0.0,
+    "start_pos": [
+      -4444.53173828125,
+      6409.7978515625,
+      -5976.618896484375
+    ],
+    "final_pos": [
+      -4444.53173828125,
+      6409.7978515625,
+      -5976.618896484375
+    ]
+  },
+  {
+    "track": "ds1",
+    "mode": "new",
+    "steps": 66,
+    "total_reward": -137.55496680736542,
+    "flow_sum": 0.0,
+    "dist_reward_sum": -64.53871426422101,
+    "step_penalty_sum": 1.3200000000000007,
+    "goal_reached": false,
+    "death": true,
+    "initial_dist": 12274.703176208774,
+    "final_dist": 12274.703176208774,
+    "progress_delta": 0.0,
+    "start_pos": [
+      -4444.53173828125,
+      6409.7978515625,
+      -5976.618896484375
+    ],
+    "final_pos": [
+      -4444.53173828125,
+      6409.7978515625,
+      -5976.618896484375
+    ]
+  },
+  {
+    "track": "ds2",
+    "mode": "old",
+    "steps": 911,
+    "total_reward": 466.43417196907103,
+    "flow_sum": 0.0,
+    "dist_reward_sum": 0.0,
+    "step_penalty_sum": 18.2199999999997,
+    "goal_reached": false,
+    "death": true,
+    "initial_dist": 16618.41103337271,
+    "final_dist": 16618.41103337271,
+    "progress_delta": 0.0,
+    "start_pos": [
+      2144.90771484375,
+      5802.771728515625,
+      -5500.0
+    ],
+    "final_pos": [
+      2144.90771484375,
+      5802.771728515625,
+      -5500.0
+    ]
+  },
+  {
+    "track": "ds2",
+    "mode": "new",
+    "steps": 836,
+    "total_reward": 916.1370732225478,
+    "flow_sum": 0.0,
+    "dist_reward_sum": 770.1595726242194,
+    "step_penalty_sum": 16.719999999999732,
+    "goal_reached": false,
+    "death": true,
+    "initial_dist": 16618.41103337271,
+    "final_dist": 16618.41103337271,
+    "progress_delta": 0.0,
+    "start_pos": [
+      2144.90771484375,
+      5802.771728515625,
+      -5500.0
+    ],
+    "final_pos": [
+      2144.90771484375,
+      5802.771728515625,
+      -5500.0
+    ]
+  },
+  {
+    "track": "ds3",
+    "mode": "old",
+    "steps": 1350,
+    "total_reward": 185.40425280388445,
+    "flow_sum": 0.0,
+    "dist_reward_sum": 0.0,
+    "step_penalty_sum": 26.999999999999513,
+    "goal_reached": false,
+    "death": true,
+    "initial_dist": 36403.569662050104,
+    "final_dist": 36403.569662050104,
+    "progress_delta": 0.0,
+    "start_pos": [
+      10012.89453125,
+      12697.511474609375,
+      11114.6240234375
+    ],
+    "final_pos": [
+      10012.89453125,
+      12697.511474609375,
+      11114.6240234375
+    ]
+  },
+  {
+    "track": "ds3",
+    "mode": "new",
+    "steps": 38,
+    "total_reward": 65.40685188770294,
+    "flow_sum": 0.0,
+    "dist_reward_sum": 143.62913102890488,
+    "step_penalty_sum": 0.7600000000000003,
+    "goal_reached": false,
+    "death": true,
+    "initial_dist": 36403.569662050104,
+    "final_dist": 36403.569662050104,
+    "progress_delta": 0.0,
+    "start_pos": [
+      10012.89453125,
+      12697.511474609375,
+      11114.6240234375
+    ],
+    "final_pos": [
+      10012.89453125,
+      12697.511474609375,
+      11114.6240234375
+    ]
+  }
+]
