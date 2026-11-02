@@ -35,6 +35,7 @@ class Mario64DSEnv(gym.Env):
                  coin_reward_enabled=False, flow_weight=1.0, verbose=False,
                  strict_errors=False, dist_reward_enabled=True, dist_weight=0.05,
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
+                 dist_reward_mode="progress",
                  track_id=None):
         super(Mario64DSEnv, self).__init__()
         
@@ -67,6 +68,7 @@ class Mario64DSEnv(gym.Env):
         self.goal_reward = float(goal_reward)
         self.star_reward = float(star_reward)
         self.use_ram_death = bool(use_ram_death)
+        self.dist_reward_mode = str(dist_reward_mode).lower()
         self.track_id = track_id or self._infer_track_id()
         self.goal_spec = TRACK_GOALS.get(self.track_id)
         
@@ -307,12 +309,21 @@ class Mario64DSEnv(gym.Env):
                 curr_dist = float(np.linalg.norm(curr_pos - self.target_pos))
                 self.last_dist = curr_dist
                 
-                # Potential-based reward shaping: progress towards goal
-                if self.dist_reward_enabled and self.prev_dist is not None:
-                    progress = self.prev_dist - curr_dist
-                    dist_reward = progress * self.dist_weight
-                    self.last_dist_reward = float(dist_reward)
-                    reward += dist_reward
+                # 3D Distance Reward: High-Water Mark ("progress") vs Bidirectional ("potential")
+                if self.dist_reward_enabled:
+                    if self.dist_reward_mode == "progress":
+                        if self.best_dist is not None and curr_dist < self.best_dist:
+                            progress = self.best_dist - curr_dist
+                            dist_reward = progress * self.dist_weight
+                            self.last_dist_reward = float(dist_reward)
+                            reward += dist_reward
+                            self.best_dist = curr_dist
+                    else:  # "potential"
+                        if self.prev_dist is not None:
+                            progress = self.prev_dist - curr_dist
+                            dist_reward = progress * self.dist_weight
+                            self.last_dist_reward = float(dist_reward)
+                            reward += dist_reward
                 self.prev_dist = curr_dist
                 
                 # Check Completion Condition
@@ -393,6 +404,7 @@ class Mario64DSEnv(gym.Env):
                     pass
 
         self.prev_dist = None
+        self.best_dist = None
         self.last_dist = None
         self.last_dist_reward = 0.0
         self.reached_goal = False
@@ -404,6 +416,7 @@ class Mario64DSEnv(gym.Env):
                 current_pos = self.ram.get_pos_3d()
                 self.target_pos = self.goal_spec["target_pos"]
                 self.prev_dist = float(np.linalg.norm(current_pos - self.target_pos))
+                self.best_dist = self.prev_dist
                 self.last_dist = self.prev_dist
                 self.start_star_count = self.ram.get_star_count()
             except Exception as exc:

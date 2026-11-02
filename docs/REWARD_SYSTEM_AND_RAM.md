@@ -301,3 +301,55 @@ The IMPALA CNN architecture incorporates 3 residual convolutional stacks (each c
 | Abyss Death Penalty ($R_{\text{death}}$) | $-100.0$ | Punishes void falls |
 | RAM Death Detection | `True` | Instantaneous void clamp detection (`0x0217F760 <= -300000`) |
 
+---
+
+### 10.5 Diagnosis of the Jumping Invariant & The High-Water Mark Progression Solution
+
+#### 1. Empirical Discovery: The In-Place Jump Collapse
+When evaluating the initial QR-DQN baseline on `ds8`, the agent achieved an apparent reward of $+487.92$, yet spatial tracking revealed it only reached height $Y = -4468.5$ ($+241.5$ units, or **2.04%** of the tower climb) before falling at step 801. Action frequency analysis revealed a degenerate policy:
+$$\pi(s) = \text{Action 5 (Jump [B])} \quad \text{for } 100\% \text{ of decisions}$$
+
+Inspection of the initial Q-network distribution confirmed extreme value bias:
+* $Q(s_0, \text{Jump [B]}) = \mathbf{+6.66}$
+* $Q(s_0, \text{Down [Brake]}) = -0.18$
+* $Q(s_0, \text{Up [Accelerate]}) = -1.57$
+* $Q(s_0, \text{Left}) = -1.86$
+* $Q(s_0, \text{Noop}) = -2.03$
+* $Q(s_0, \text{Right}) = -3.42$
+
+#### 2. Mathematical Proof of Potential Exploitation under Discounted Returns ($\gamma < 1$)
+In classical potential-based shaping (Ng et al., 1999), policy invariance requires the potential shaping term to incorporate the algorithm's discount factor $\gamma$:
+$$F(s_t, a_t, s_{t+1}) = \gamma \Phi(s_{t+1}) - \Phi(s_t)$$
+When the environment implements undiscounted potential differences $F_t = \Phi(s_{t+1}) - \Phi(s_t)$ while the Q-network optimizes discounted return with $\gamma = 0.99$:
+$$J(\pi) = \sum_{t=0}^\infty \gamma^t \left( \Phi(s_{t+1}) - \Phi(s_t) \right) = -\Phi(s_0) + (1 - \gamma) \sum_{t=1}^\infty \gamma^{t-1} \Phi(s_t)$$
+Because $\Phi(s_t) = -w_{\text{dist}} D_t$, maximizing $J(\pi)$ directly incentivizes maximizing the time-discounted average potential $\Phi(s_t)$. By executing a jump, Mario's height rises $+241.5$ units, reducing distance to the star and yielding an immediate reward $+8.25$ at $t$. When landing $k$ frames later, the distance increases, incurring $-8.25$ at $t+k$.
+Because future penalties are discounted by $\gamma^k = (0.99)^k < 1.0$:
+$$\Delta Q_{\text{cycle}} \approx 8.25 - (0.99)^k \cdot 8.25 > 0$$
+Thus, repeated jumping in place created a net positive discounted reward loop, which completely dominated horizontal exploration.
+
+#### 3. The High-Water Mark Progress Solution (`dist_reward_mode="progress"`)
+To definitively eliminate reward loops without requiring synchronized discount factors, we replace symmetric potential differences with a **monotonically ratcheted record progression**:
+
+Let $D_{\min}$ be the closest Euclidean distance to the Power Star attained thus far in the episode:
+$$D_{\min}^{(0)} = \|\mathbf{p}_0 - \mathbf{g}\|_2$$
+At decision step $t$:
+$$r_{\text{dist}} = \begin{cases} w_{\text{dist}} \cdot (D_{\min} - D_t) & \text{if } D_t < D_{\min} \\ 0.0 & \text{otherwise} \end{cases}$$
+$$D_{\min} \leftarrow \min(D_{\min}, D_t)$$
+
+**Formal Invariants:**
+1. **Zero Oscillatory Gain**: On the first jump, Mario sets a new record $D_{\min}^{(1)} = D_0 - 165$, earning $+8.25$. When falling back to the floor, $D > D_{\min}$, earning $0.0$. On every subsequent jump to the same height, $D \ge D_{\min}^{(1)}$; thus, $r_{\text{dist}} = 0.0$ and Mario incurs solely the step penalty $-c_{\text{step}} = -0.02$.
+2. **Strict Escalation Requirement**: To earn any positive distance reward beyond $+8.25$, the agent is mathematically required to leap past the initial jump apex and secure footing on higher platforms.
+3. **Bounded Return**: Total distance return across any episode remains strictly bounded:
+   $$\sum_{t=0}^T r_{\text{dist}} = w_{\text{dist}} \cdot \left( D_0 - D_{\min}^{(\text{terminal})} \right) \le +604.65$$
+
+#### 4. Scaled Training Regime Specification
+
+| Hyperparameter | Baseline Initial | Scaled Production (`v2`) | Impact |
+|---|---|---|---|
+| Replay Buffer Size | $20{,}000$ | **$100{,}000$ transitions** | Expands replay horizon from ~15 to ~75 full episodes (~5.6 GB RAM) |
+| Total Timesteps | $20{,}000$ | **$100{,}000$ steps** | Increases active training from 22 min to ~1.8 hours equivalent gameplay |
+| Exploration Fraction | $0.10$ (2k steps) | **$0.30$ (30k steps)** | Prevents premature policy collapse; maintains broad exploratory entropy |
+| Distance Reward Mode | `potential` | **`progress` (Ratchet)** | Eliminates in-place jumping exploit; enforces true territorial ascent |
+| Final Exploration Rate | $0.01$ | **$0.05$** | Sustains exploratory perturbation during plateau navigation |
+
+

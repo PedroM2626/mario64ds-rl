@@ -56,7 +56,7 @@ def make_env(rom_path_value: str, state_path: str, rank: int = 0, seed: int = 0,
              flow_weight: float = 1.0, monitor: bool = True, verbose: bool = False,
              dist_reward_enabled: bool = True, dist_weight: float = 0.05,
              goal_reward: float = 200.0, star_reward: float = 500.0,
-             use_ram_death: bool = True):
+             use_ram_death: bool = True, dist_reward_mode: str = "progress"):
     """Return an env factory for SubprocVecEnv/DummyVecEnv.
 
     rank offsets the per-worker seed. The reset happens inside the child
@@ -69,7 +69,7 @@ def make_env(rom_path_value: str, state_path: str, rank: int = 0, seed: int = 0,
             step_penalty=step_penalty, flow_weight=flow_weight, verbose=verbose,
             dist_reward_enabled=dist_reward_enabled, dist_weight=dist_weight,
             goal_reward=goal_reward, star_reward=star_reward,
-            use_ram_death=use_ram_death,
+            use_ram_death=use_ram_death, dist_reward_mode=dist_reward_mode,
         )
         if monitor:
             from stable_baselines3.common.monitor import Monitor
@@ -84,7 +84,7 @@ def build_vec(rom_path_value: str, states, rank0: int = 0, seed: int = 0,
               flow_weight: float = 1.0, n_stack: int = 4, monitor: bool = True,
               dist_reward_enabled: bool = True, dist_weight: float = 0.05,
               goal_reward: float = 200.0, star_reward: float = 500.0,
-              use_ram_death: bool = True):
+              use_ram_death: bool = True, dist_reward_mode: str = "progress"):
     """SubprocVecEnv + VecFrameStack + VecTransposeImage, one env per state."""
     from stable_baselines3.common.vec_env import (
         SubprocVecEnv, VecFrameStack, VecTransposeImage,
@@ -96,7 +96,8 @@ def build_vec(rom_path_value: str, states, rank0: int = 0, seed: int = 0,
                  step_penalty=step_penalty, flow_weight=flow_weight,
                  monitor=monitor, dist_reward_enabled=dist_reward_enabled,
                  dist_weight=dist_weight, goal_reward=goal_reward,
-                 star_reward=star_reward, use_ram_death=use_ram_death)
+                 star_reward=star_reward, use_ram_death=use_ram_death,
+                 dist_reward_mode=dist_reward_mode)
         for i, sp in enumerate(paths)
     ])
     vec = VecFrameStack(vec, n_stack=n_stack)

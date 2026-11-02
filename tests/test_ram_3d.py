@@ -178,3 +178,60 @@ def test_star_collection_reward():
         assert info["star_collected"]
         assert info["success"]
         assert reward >= 500.0
+
+
+def test_anti_jumping_exploit_progress_mode():
+    """Verify that high-water mark progress mode eliminates the repeated jump exploit."""
+    with patch("src.env.DeSmuME") as mock_emu_cls:
+        mock_emu = MagicMock()
+        mock_emu_cls.return_value = mock_emu
+
+        # Mario jumps up, lands down, jumps up again to same height
+        # Floor: Y=-4710, Peak: Y=-4468. Star is at Y=7145
+        y_sequence = [-4710.0, -4468.5, -4710.0, -4468.5, -4710.0]
+        step_idx = [0]
+
+        def fake_read(start, end, size, signed):
+            if start == POS_X_ADDR:
+                return int(1470.0 * 4096)
+            elif start == POS_Y_ADDR:
+                return int(y_sequence[step_idx[0]] * 4096)
+            elif start == POS_Z_ADDR:
+                return int(128.0 * 4096)
+            elif start == COURSE_ID_ADDR:
+                return 14
+            return 0
+
+        mock_emu.memory.read.side_effect = fake_read
+        mock_emu.display_buffer_as_rgbx.return_value = np.full((384, 256, 4), 128, dtype=np.uint8).flatten().tobytes()
+
+        env = Mario64DSEnv.__new__(Mario64DSEnv)
+        Mario64DSEnv.__init__(env, rom_path="fake.nds", state_path="data/Super Mario 64 DS (USA) (Rev 1).ds8",
+                              dist_reward_enabled=True, dist_weight=0.05, step_penalty=0.02,
+                              dist_reward_mode="progress")
+
+        obs, info = env.reset()
+
+        # Step 1: Jump 1 (first time reaching Y=-4468.5) -> High-water mark broken -> Positive reward
+        step_idx[0] = 1
+        obs, r1, done, truncated, info = env.step(5)
+        assert info["dist_reward"] > 0
+        assert r1 > 0
+
+        # Step 2: Fall back to floor (Y=-4710.0) -> No reward (not a record)
+        step_idx[0] = 2
+        obs, r2, done, truncated, info = env.step(0)
+        assert info["dist_reward"] == 0.0
+        assert r2 == -0.02  # Only step penalty
+
+        # Step 3: Jump 2 (reaches Y=-4468.5 again) -> NOT a new high-water mark! -> Zero dist reward
+        step_idx[0] = 3
+        obs, r3, done, truncated, info = env.step(5)
+        assert info["dist_reward"] == 0.0
+        assert r3 == -0.02  # Exploit eliminated: only step penalty incurred!
+
+        # Step 4: Fall back to floor again -> Zero dist reward
+        step_idx[0] = 4
+        obs, r4, done, truncated, info = env.step(0)
+        assert info["dist_reward"] == 0.0
+        assert r4 == -0.02

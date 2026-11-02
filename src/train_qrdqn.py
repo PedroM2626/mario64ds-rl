@@ -84,12 +84,20 @@ def main():
                         help="Disable 3D distance potential reward shaping")
     parser.add_argument("--dist-weight", type=float, default=0.05,
                         help="Weight for 3D potential distance shaping (default: 0.05)")
+    parser.add_argument("--dist-mode", type=str, default="progress", choices=["progress", "potential"],
+                        help="Distance reward mode: 'progress' (high-water mark ratchet, prevents jump exploits) or 'potential' (bidirectional)")
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching goal coordinates")
     parser.add_argument("--star-reward", type=float, default=500.0,
                         help="Terminal bonus for star collection")
     parser.add_argument("--use-ram-death", action="store_true", default=True,
                         help="Enable instantaneous RAM-based kill-plane detection")
+    parser.add_argument("--buffer-size", type=int, default=100000,
+                        help="Replay buffer capacity in transitions (default: 100000)")
+    parser.add_argument("--exploration-fraction", type=float, default=0.3,
+                        help="Fraction of entire training period over which exploration rate is annealed (default: 0.3)")
+    parser.add_argument("--exploration-final-eps", type=float, default=0.05,
+                        help="Final value of random action probability (default: 0.05)")
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -109,7 +117,7 @@ def main():
                  step_penalty=args.step_penalty, flow_weight=args.flow_weight,
                  dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
                  goal_reward=args.goal_reward, star_reward=args.star_reward,
-                 use_ram_death=args.use_ram_death)
+                 use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode)
         for i in range(args.n_envs)
     ])
     train_envs = VecFrameStack(train_envs, n_stack=4)
@@ -122,7 +130,7 @@ def main():
         step_penalty=args.step_penalty, flow_weight=args.eval_flow_weight,
         dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
         goal_reward=args.goal_reward, star_reward=args.star_reward,
-        use_ram_death=args.use_ram_death,
+        use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode,
     )
 
     log_path = os.path.join(base_dir, "tensorboard_logs", args.run_id)
@@ -140,11 +148,12 @@ def main():
     model = QRDQN(
         policy, train_envs, verbose=1, tensorboard_log=log_path,
         learning_rate=args.lr, batch_size=args.batch_size,
-        # Sized to 20,000 transitions to avoid OOM (~1.5 GB RAM instead of ~26 GiB for 1M buffer)
-        buffer_size=20000,
+        buffer_size=args.buffer_size,
+        exploration_fraction=args.exploration_fraction,
+        exploration_final_eps=args.exploration_final_eps,
         seed=args.seed, policy_kwargs=policy_kwargs, device=args.device,
     )
-    print(f"Starting QR-DQN ({args.features}) | device={model.device} | envs={args.n_envs}")
+    print(f"Starting QR-DQN ({args.features}) | device={model.device} | envs={args.n_envs} | buffer={args.buffer_size}")
 
     params = {
         "model_type": f"QRDQN_{args.features.upper()}",
@@ -154,6 +163,9 @@ def main():
         "seed": args.seed,
         "lr": args.lr,
         "batch_size": args.batch_size,
+        "buffer_size": args.buffer_size,
+        "exploration_fraction": args.exploration_fraction,
+        "exploration_final_eps": args.exploration_final_eps,
         "max_steps": args.max_steps,
         "frameskip": args.frameskip,
         "states": args.states,
@@ -162,6 +174,7 @@ def main():
         "step_penalty": args.step_penalty,
         "dist_reward": args.dist_reward,
         "dist_weight": args.dist_weight,
+        "dist_mode": args.dist_mode,
         "goal_reward": args.goal_reward,
         "star_reward": args.star_reward,
         "use_ram_death": args.use_ram_death,
