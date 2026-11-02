@@ -6,6 +6,8 @@ This project is a Deep Reinforcement Learning implementation that trains an auto
 - `ds1` — Course 3 slide (Cool, Cool Mountain / Pinguim Slide)
 - `ds2` — Princess Peach's Secret Slide (The Princess's Secret Slide)
 - `ds3` — Tall, Tall Mountain secret slide (Monkey slide)
+- `ds8` — Course 14 full ascent (Tick Tock Clock / Slow setting)
+- `ds9` — Course 14 star jump test platform (Tick Tock Clock)
 
 ---
 
@@ -216,6 +218,10 @@ Each training round initially consolidated one track at the expense of another; 
 ### 8. Instantaneous RAM-Based Death Detection
 - **Issue**: Visual death detection via black-screen thresholding suffered from a 60–80 frame latency during camera descent and screen fade-out.
 - **Solution**: Intercepted the ARM9 hardware descent clamp at `0x0217F760 <= -300000`, detecting fatal falls on the exact frame of boundary crossing.
+
+### 9. Savestate Management & External Asset Distribution
+- **Issue**: Cold-booting the ROM for each episode reset consumes $\approx 1700\text{--}2400\text{ frames}$ ($28\text{--}40\text{ seconds}$), making RL training intractable across $10^5$ episodes ($>40$ days of idle boot time). Savestates reduce reset latency to $<2\text{ ms}$, but cannot be committed to Git due to proprietary RAM dumps and repository bloat.
+- **Solution**: Developed [`scripts/manage_states.py`](scripts/manage_states.py) for automated RAM verification, cryptographic SHA-256 validation, and external bundling. Published savestates for courses `ds1`, `ds2`, `ds3`, `ds8`, and `ds9` under GitHub Release [`v1.1.0`](https://github.com/PedroM2626/mario64ds-rl/releases/tag/v1.1.0). Terminus states `ds4`, `ds5`, and `ds6` were eliminated entirely from runtime by hardcoding finish coordinates in [`src/ram_state.py`](src/ram_state.py).
 
 ---
 
@@ -530,6 +536,22 @@ python tools/probe_device_divergence.py               # results/device_divergenc
 python tools/profile_step.py --steps 200              # results/step_profile.json
 python tools/check_readme_numbers.py                  # gate: prose must equal artifacts
 python tools/verify_assets.py                         # model/data asset manifest
+```
+
+**Compare Baseline (flow-only) vs. Proposed (3D proximity) Reward Formulations:**
+```bash
+python scripts/compare_rewards.py                     # writes docs/REWARD_COMPARISON_RESULTS.json
+```
+
+### Savestate & Asset Management
+To set up active starting states (`ds1`, `ds2`, `ds3`, `ds8`, `ds9`) from the [v1.1.0 release](https://github.com/PedroM2626/mario64ds-rl/releases/tag/v1.1.0):
+```bash
+# Unpack savestates bundle into data/ with SHA-256 validation
+python scripts/manage_states.py unpack --bundle assets/sm64ds_states.tar.gz
+
+# Verify presence and ROM/RAM coordinates
+python scripts/manage_states.py check
+python scripts/manage_states.py verify
 ```
 
 ### Automated Testing
