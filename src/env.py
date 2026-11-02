@@ -5,7 +5,7 @@ import cv2
 import logging
 import os
 
-from src.ram_state import Sm64DsState
+from src.ram_state import Sm64DsState, TRACK_GOALS, COURSE_TO_DEFAULT_TRACK
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,9 @@ class Mario64DSEnv(gym.Env):
     def __init__(self, rom_path, state_path, render_mode=None, max_steps=1350, frameskip=4,
                  death_penalty=100.0, timeout_penalty=0.0, step_penalty=0.02,
                  coin_reward_enabled=False, flow_weight=1.0, verbose=False,
-                 strict_errors=False):
+                 strict_errors=False, dist_reward_enabled=True, dist_weight=0.05,
+                 goal_reward=200.0, star_reward=500.0, use_ram_death=True,
+                 track_id=None):
         super(Mario64DSEnv, self).__init__()
         
         self.rom_path = rom_path
@@ -53,17 +55,20 @@ class Mario64DSEnv(gym.Env):
         # Keep death_penalty > timeout_penalty, otherwise the agent learns to commit suicide.
         self.death_penalty = death_penalty
         self.timeout_penalty = timeout_penalty
-        # Anti-camping: the agent discovered it could survive motionless at a safe spot
-        # on ds3 that does not slide downhill (zero-cost timeout made camping viable).
-        # Fixed step cost: idling accumulates -0.02 * max_steps (~-27 over 1350 steps);
-        # advancing finishes quickly and pays less cumulative time penalty.
+        # Anti-camping: fixed temporal cost per step.
         self.step_penalty = step_penalty
         self.flow_weight = flow_weight
-        # Coin reward HSV: DISABLED by default. Diagnostic: the yellow mask detects
-        # the checkered floor (bottom band, y~163) and flower wall (x~11-25),
-        # causing reward hacking (noise + pull toward the left border).
-        # Historical convergence was driven by optical flow alone.
+        # Coin reward HSV: DISABLED by default.
         self.coin_reward_enabled = coin_reward_enabled
+        
+        # 3D Proximity & Goal Completion configuration
+        self.dist_reward_enabled = bool(dist_reward_enabled)
+        self.dist_weight = float(dist_weight)
+        self.goal_reward = float(goal_reward)
+        self.star_reward = float(star_reward)
+        self.use_ram_death = bool(use_ram_death)
+        self.track_id = track_id or self._infer_track_id()
+        self.goal_spec = TRACK_GOALS.get(self.track_id)
         
         # Determine paths relative to this file
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -82,12 +87,22 @@ class Mario64DSEnv(gym.Env):
             self.has_emulator = False
             raise
 
-        # Exact-state observation via RAM (see src/ram_state.py): the
-        # reference smw-pinn's decisive advantage over pixel-only models.
+        # Exact-state observation via RAM (see src/ram_state.py)
         self.ram = Sm64DsState(self.emu)
         if not self.ram.verify():
             logger.warning("Mario physics RAM struct not at expected address; "
                            "state-based controllers will be unreliable.")
+
+        # Fallback to RAM course_id if track_id was not matched from path
+        if self.goal_spec is None and self.has_emulator:
+            try:
+                cid = self.ram.get_course_id()
+                tid = COURSE_TO_DEFAULT_TRACK.get(cid)
+                if tid:
+                    self.track_id = tid
+                    self.goal_spec = TRACK_GOALS.get(tid)
+            except Exception:
+                pass
 
         # Action space: 0: Noop, 1: Left, 2: Right, 3: Up (Accelerate), 4: Down (Decelerate), 5: Jump(B)
         self.action_space = spaces.Discrete(6)
@@ -97,12 +112,29 @@ class Mario64DSEnv(gym.Env):
 
         self.prev_gray = None
         self.episode_steps = 0
-        # Reward-source instrumentation, exposed for the dashboard recorder so the
-        # frame can show the numbers the reward was actually built from.
+        self.prev_dist = None
+        self.last_dist = None
+        self.last_dist_reward = 0.0
+        self.reached_goal = False
+        self.star_collected = False
+        self.died = False
+        self.start_star_count = 0
+        self.target_pos = None
+
+        # Reward-source instrumentation, exposed for the dashboard recorder
         self.last_flow = None
         self.last_flow_mean = 0.0
         self.last_flow_reward = 0.0
         self.last_coin_reward = 0.0
+
+    def _infer_track_id(self) -> str | None:
+        if not self.state_path:
+            return None
+        base = os.path.basename(self.state_path).lower()
+        for k in ("ds9", "ds8", "ds6", "ds5", "ds4", "ds3", "ds2", "ds1"):
+            if k in base:
+                return k
+        return None
 
     def _get_obs(self):
         if not self.has_emulator:
@@ -110,7 +142,10 @@ class Mario64DSEnv(gym.Env):
             
         try:
             frame = self.emu.display_buffer_as_rgbx()
-            frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
+            if isinstance(frame, (bytes, bytearray)):
+                frame = np.frombuffer(frame, dtype=np.uint8).reshape((384, 256, 4))
+            else:
+                frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
             # FIX (color bug): py-desmume display buffer is BGR(X), not RGBX
             # as previously assumed — cv2.imwrite showed Mario as red and video
             # (imageio, RGB) showed blue. With RGB2HSV on BGR data, hue rotates
@@ -163,14 +198,28 @@ class Mario64DSEnv(gym.Env):
             return np.zeros((84, 84, 1), dtype=np.uint8)
 
     def _get_info(self):
-        info = {"steps": self.episode_steps}
+        info = {
+            "steps": self.episode_steps,
+            "success": bool(self.reached_goal or self.star_collected),
+            "reached_goal": bool(self.reached_goal),
+            "star_collected": bool(self.star_collected),
+            "died": bool(self.died),
+            "dist_to_goal": self.last_dist,
+            "dist_reward": self.last_dist_reward,
+        }
         try:
             info["ram"] = self.ram.poll()
+            info["pos_3d"] = self.ram.get_pos_3d()
+            info["star_count"] = self.ram.get_star_count()
+            info["course_id"] = self.ram.get_course_id()
         except Exception as exc:
             if self.strict_errors:
                 raise
             logger.debug("RAM poll failed: %s", exc)
             info["ram"] = None
+            info["pos_3d"] = None
+            info["star_count"] = None
+            info["course_id"] = None
         return info
 
     def _emit_cycle(self):
@@ -220,15 +269,78 @@ class Mario64DSEnv(gym.Env):
             if self.verbose:
                 logger.info("timeout at step %d", self.episode_steps)
 
-        # Death Check: Black screen
-        obs_2d = np.squeeze(obs)
-        if np.mean(obs_2d < 10) > 0.95:
+        # Death Check: RAM kill plane / kill_y first, fallback to black screen
+        is_dead = False
+        death_source = None
+        if self.use_ram_death and self.has_emulator:
+            try:
+                curr_ram = self.ram.poll()
+                pos_3d = self.ram.get_pos_3d()
+                kill_y = self.goal_spec.get("kill_y") if self.goal_spec else None
+                if Sm64DsState.is_dead(state=curr_ram, pos_3d=pos_3d, kill_y=kill_y):
+                    is_dead = True
+                    death_source = "RAM"
+            except Exception as exc:
+                if self.strict_errors:
+                    raise
+                logger.debug("RAM death check failed: %s", exc)
+
+        if not is_dead:
+            obs_2d = np.squeeze(obs)
+            if np.mean(obs_2d < 10) > 0.95:
+                is_dead = True
+                death_source = "black_screen"
+
+        if is_dead:
             done = True
+            self.died = True
             reward -= self.death_penalty
             if self.verbose:
-                logger.info("death detected (black screen, penalty=-%g) at step %d",
-                            self.death_penalty, self.episode_steps)
+                logger.info("death detected (%s, penalty=-%g) at step %d",
+                            death_source, self.death_penalty, self.episode_steps)
+
+        # 3D Distance Potential Reward and Completion Detection
+        self.last_dist_reward = 0.0
+        if not done and not truncated and self.has_emulator and self.goal_spec is not None and self.target_pos is not None:
+            try:
+                curr_pos = self.ram.get_pos_3d()
+                curr_dist = float(np.linalg.norm(curr_pos - self.target_pos))
+                self.last_dist = curr_dist
                 
+                # Potential-based reward shaping: progress towards goal
+                if self.dist_reward_enabled and self.prev_dist is not None:
+                    progress = self.prev_dist - curr_dist
+                    dist_reward = progress * self.dist_weight
+                    self.last_dist_reward = float(dist_reward)
+                    reward += dist_reward
+                self.prev_dist = curr_dist
+                
+                # Check Completion Condition
+                goal_type = self.goal_spec.get("goal_type", "position")
+                success_dist = self.goal_spec.get("success_dist", 250.0)
+                
+                if goal_type == "star":
+                    curr_stars = self.ram.get_star_count()
+                    if curr_stars > self.start_star_count or curr_dist <= success_dist:
+                        done = True
+                        self.star_collected = True
+                        reward += self.star_reward
+                        if self.verbose:
+                            logger.info("Star collected! (reward=+%g) at step %d",
+                                        self.star_reward, self.episode_steps)
+                else:  # "position"
+                    if curr_dist <= success_dist:
+                        done = True
+                        self.reached_goal = True
+                        reward += self.goal_reward
+                        if self.verbose:
+                            logger.info("Goal reached! (dist=%.1f <= %.1f, reward=+%g) at step %d",
+                                        curr_dist, success_dist, self.goal_reward, self.episode_steps)
+            except Exception as exc:
+                if self.strict_errors:
+                    raise
+                logger.debug("3D distance reward computation failed: %s", exc)
+
         # Coin Tracking / Guidance via HSV
         if not done and hasattr(self, 'last_coin_reward'):
             reward += self.last_coin_reward
@@ -243,9 +355,6 @@ class Mario64DSEnv(gym.Env):
                 flow = cv2.calcOpticalFlowFarneback(self.prev_gray, curr_gray_small, None, 0.5, 3, 15, 3, 5, 1.2, 0)
                 flow_y = flow[..., 1]
                 # Positive flow_y means pixels are moving down -> Mario is moving forward.
-                # flow_weight=1.0 (previously 0.5): with coin reward disabled, optical flow
-                # alone (~0.1-0.25/step) required stronger weighting against the -100 death penalty
-                # in stochastic rollouts to guide forward progress.
                 flow_reward = np.clip(np.mean(flow_y), 0, None) * self.flow_weight
                 self.last_flow = flow
                 self.last_flow_mean = float(np.mean(flow_y))
@@ -268,6 +377,45 @@ class Mario64DSEnv(gym.Env):
             
         self.episode_steps = 0
         self.prev_gray = None
+
+        # Re-resolve track & goal if not already configured
+        if self.goal_spec is None:
+            self.track_id = self._infer_track_id()
+            self.goal_spec = TRACK_GOALS.get(self.track_id)
+            if self.goal_spec is None and self.has_emulator:
+                try:
+                    cid = self.ram.get_course_id()
+                    tid = COURSE_TO_DEFAULT_TRACK.get(cid)
+                    if tid:
+                        self.track_id = tid
+                        self.goal_spec = TRACK_GOALS.get(tid)
+                except Exception:
+                    pass
+
+        self.prev_dist = None
+        self.last_dist = None
+        self.last_dist_reward = 0.0
+        self.reached_goal = False
+        self.star_collected = False
+        self.died = False
+
+        if self.has_emulator and self.goal_spec is not None:
+            try:
+                current_pos = self.ram.get_pos_3d()
+                self.target_pos = self.goal_spec["target_pos"]
+                self.prev_dist = float(np.linalg.norm(current_pos - self.target_pos))
+                self.last_dist = self.prev_dist
+                self.start_star_count = self.ram.get_star_count()
+            except Exception as exc:
+                if self.strict_errors:
+                    raise
+                logger.debug("Goal initialization in reset failed: %s", exc)
+                self.start_star_count = 0
+                self.target_pos = None
+        else:
+            self.start_star_count = 0
+            self.target_pos = None
+
         obs = self._get_obs()
         return obs, self._get_info()
 
@@ -284,14 +432,17 @@ class Mario64DSEnv(gym.Env):
                     logger.warning("cv2.imshow unavailable in this environment: %s", exc)
                     self.render_mode = None
         elif self.render_mode == 'rgb_array':
-            return self._get_obs()
+            return self.get_screen_rgb()
 
     def get_screen_rgb(self):
         """Real top screen of the game in RGB (256x192), for video recording."""
         if not self.has_emulator:
             return np.zeros((192, 256, 3), dtype=np.uint8)
         frame = self.emu.display_buffer_as_rgbx()
-        frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
+        if isinstance(frame, (bytes, bytearray)):
+            frame = np.frombuffer(frame, dtype=np.uint8).reshape((384, 256, 4))
+        else:
+            frame = np.array(frame, dtype=np.uint8).reshape((384, 256, 4))
         # Buffer is BGR(X) (see fix in _get_obs): convert to RGB
         return frame[:192, :, [2, 1, 0]]
 

@@ -176,6 +176,7 @@ Each training round initially consolidated one track at the expense of another; 
 - **Video Rendering**: `scripts/record_phases.py` (real-time RGB MP4 per track) and `scripts/record_dashboard.py` (annotated 60 Hz dashboard: gameplay, CNN input, flow window, $\pi(a|s)$, critic value, RAM struct, reward instrument; plus a per-decision trace JSON).
 - **Process Supervision**: `rust/sm64_sup.exe` (std-only Rust; one process per track because two DeSmuME cores in one process crash, with live streaming, per-run budget, kill on overrun and result collection — see [`rust/README.md`](rust/README.md)).
 - **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (where a step's milliseconds go), `tools/check_readme_numbers.py` (re-derives every figure quoted here).
+- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), hardware kill-plane death detection (`0x0217F760`), course ID extraction (`0x02285238`), and star collection tracking (`0x0209FB64`). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
 - **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
 - **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
 - **Consolidated Empirical Data**: `results/` (stores consolidated experimental CSV tables for 100k grid, 500k scale, 2M steps, and curriculum rounds).
@@ -207,6 +208,14 @@ Each training round initially consolidated one track at the expense of another; 
 ### 6. Visualizer Tensor Mismatch
 - **Issue**: `play.py` originally provided observations with incompatible 5D tensor shapes, causing policies to receive out-of-distribution inputs and execute degenerate single-action trajectories.
 - **Solution**: Refactored the visualization pipeline to use official vectorized wrapper pipelines (`DummyVecEnv` + `VecFrameStack` + `VecTransposeImage`), ensuring identical input tensor shapes between training and evaluation.
+
+### 7. Goal Completion vs. Survival Fallacy (3D Potential Reward Shaping)
+- **Issue**: Survival-only optimization ($R_{\text{timeout}} = 0$, $R_{\text{death}} = -100$) incentivized safe idling/camping and could not verify whether an agent surviving 1350 steps reached the course terminus or merely idled.
+- **Solution**: Implemented potential-based 3D distance reward shaping $F_t = w_{\text{dist}} (D_t - D_{t+1})$ based on Mario's exact 3D coordinates in RAM (`0x0217F714`-`0x0217F71C`), terminating upon crossing goal thresholds with a completion bonus ($+200.0$ for slide finishes `ds4`/`ds5`/`ds6`, $+500.0$ for Tick Tock Clock star collection `ds9`). Full mathematical derivation and RAM map in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
+
+### 8. Instantaneous RAM-Based Death Detection
+- **Issue**: Visual death detection via black-screen thresholding suffered from a 60–80 frame latency during camera descent and screen fade-out.
+- **Solution**: Intercepted the ARM9 hardware descent clamp at `0x0217F760 <= -300000`, detecting fatal falls on the exact frame of boundary crossing.
 
 ---
 

@@ -6,8 +6,19 @@ directory is committed except this README.
 ## Required inputs
 
 - `Super Mario 64 DS (USA) (Rev 1).nds` -- legally dumped ROM.
-- `Super Mario 64 DS (USA) (Rev 1).ds{1,2,3}` -- savestates for the three slide
-  tracks (`ds1` Course 3, `ds2` Peach Slide, `ds3` Monkey Slide).
+- `Super Mario 64 DS (USA) (Rev 1).ds{1,2,3,8,9}` -- active starting savestates:
+  - `ds1`: Peach's Secret Slide (Course 11)
+  - `ds2`: Tall, Tall Mountain Slide (Course 5)
+  - `ds3`: Cool, Cool Mountain Slide (Course 3)
+  - `ds8`: Tick Tock Clock entry - Slow setting (Course 14)
+  - `ds9`: Tick Tock Clock star jump test platform (Course 14)
+
+> [!NOTE]
+> Terminus savestates (`ds4`, `ds5`, `ds6`) were historically used to identify level finish
+> coordinates. Those 3D coordinates are now permanently compiled into `src/ram_state.py`
+> (`TRACK_GOALS`), so `ds4`, `ds5`, and `ds6` are not required at runtime.
+> Savestates are excluded from Git via `.gitignore`. Use `python scripts/manage_states.py check`
+> to inspect or `python scripts/manage_states.py unpack --bundle <path>` to restore them.
 
 The RAM reader (`src/ram_state.py`) is verified for **USA Rev 1** only. A
 different ROM revision may have a different struct address; the boot-time check

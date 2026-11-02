@@ -14,7 +14,7 @@ import os
 from src.env import Mario64DSEnv
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRACKS = ("ds1", "ds2", "ds3")
+TRACKS = ("ds1", "ds2", "ds3", "ds8", "ds9")
 ROM_STEM = "Super Mario 64 DS (USA) (Rev 1)"
 ROM_FILENAME = f"{ROM_STEM}.nds"
 
@@ -37,7 +37,7 @@ def savestate_path(track: str, base_dir: str | None = None) -> str:
         # A relative path is relative to the repository root, not the cwd.
         return os.path.join(base, raw)
     name = os.path.basename(raw)
-    if name.endswith((".ds1", ".ds2", ".ds3")):
+    if any(name.endswith(f".ds{i}") for i in (1, 2, 3, 4, 5, 6, 8, 9)):
         return os.path.join(base, "data", name)
     if not name.startswith("ds"):
         name = f"ds{name}"
@@ -53,7 +53,10 @@ def savestate_paths(states, base_dir: str | None = None) -> list[str]:
 
 def make_env(rom_path_value: str, state_path: str, rank: int = 0, seed: int = 0,
              max_steps: int = 1350, frameskip: int = 4, step_penalty: float = 0.02,
-             flow_weight: float = 1.0, monitor: bool = True, verbose: bool = False):
+             flow_weight: float = 1.0, monitor: bool = True, verbose: bool = False,
+             dist_reward_enabled: bool = True, dist_weight: float = 0.05,
+             goal_reward: float = 200.0, star_reward: float = 500.0,
+             use_ram_death: bool = True):
     """Return an env factory for SubprocVecEnv/DummyVecEnv.
 
     rank offsets the per-worker seed. The reset happens inside the child
@@ -64,6 +67,9 @@ def make_env(rom_path_value: str, state_path: str, rank: int = 0, seed: int = 0,
             rom_path=rom_path_value, state_path=state_path,
             max_steps=max_steps, frameskip=frameskip,
             step_penalty=step_penalty, flow_weight=flow_weight, verbose=verbose,
+            dist_reward_enabled=dist_reward_enabled, dist_weight=dist_weight,
+            goal_reward=goal_reward, star_reward=star_reward,
+            use_ram_death=use_ram_death,
         )
         if monitor:
             from stable_baselines3.common.monitor import Monitor
@@ -75,7 +81,10 @@ def make_env(rom_path_value: str, state_path: str, rank: int = 0, seed: int = 0,
 
 def build_vec(rom_path_value: str, states, rank0: int = 0, seed: int = 0,
               max_steps: int = 1350, frameskip: int = 4, step_penalty: float = 0.02,
-              flow_weight: float = 1.0, n_stack: int = 4, monitor: bool = True):
+              flow_weight: float = 1.0, n_stack: int = 4, monitor: bool = True,
+              dist_reward_enabled: bool = True, dist_weight: float = 0.05,
+              goal_reward: float = 200.0, star_reward: float = 500.0,
+              use_ram_death: bool = True):
     """SubprocVecEnv + VecFrameStack + VecTransposeImage, one env per state."""
     from stable_baselines3.common.vec_env import (
         SubprocVecEnv, VecFrameStack, VecTransposeImage,
@@ -85,7 +94,9 @@ def build_vec(rom_path_value: str, states, rank0: int = 0, seed: int = 0,
         make_env(rom_path_value, sp, rank=rank0 + i, seed=seed,
                  max_steps=max_steps, frameskip=frameskip,
                  step_penalty=step_penalty, flow_weight=flow_weight,
-                 monitor=monitor)
+                 monitor=monitor, dist_reward_enabled=dist_reward_enabled,
+                 dist_weight=dist_weight, goal_reward=goal_reward,
+                 star_reward=star_reward, use_ram_death=use_ram_death)
         for i, sp in enumerate(paths)
     ])
     vec = VecFrameStack(vec, n_stack=n_stack)
