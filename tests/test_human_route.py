@@ -188,3 +188,13 @@ def test_prefill_skips_inexact_decisions():
          "action": np.array([[0]]), "reward": np.array([0.0]), "done": np.array([False]), "info": {}}
     trs = [dict(t, exact=e) for e in (True, False, True, False, False)]
     assert prefill_replay_buffer(MagicMock(replay_buffer=buf), trs) == 2
+
+
+def test_erase_loops_removes_a_lap_and_a_reclimb():
+    from src.route import erase_loops
+    lap = [[0, 0, 0], [100, 0, 0], [200, 0, 0], [200, 0, 100], [100, 0, 100], [10, 0, 10]]
+    out = erase_loops(lap + [[0, 100, 0], [0, 200, 0]], radius=50)
+    assert out.tolist() == [[0, 0, 0], [0, 100, 0], [0, 200, 0]]
+    climb = [[0, y, 0] for y in range(0, 500, 100)] + [[0, 100, 0], [0, 200, 0], [0, 300, 0]]
+    # fell from 400 to 100 and re-climbed only to 300: the abandoned 400 apex goes
+    assert erase_loops(climb, radius=50)[:, 1].tolist() == [0, 100, 200, 300]

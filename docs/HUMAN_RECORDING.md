@@ -91,8 +91,8 @@ A partial demo needs `--allow-partial`.
 .venv\Scripts\python.exe -m src.train_qrdqn --run-id qrdqn_impala_ds8_v4 --states ds8 --features impala `
     --n-envs 4 --timesteps 100000 --buffer-size 100000 --exploration-fraction 0.3 --exploration-final-eps 0.05 `
     --action-set compound12 --flow-weight 0 --dist-mode route --route config/routes/ttc_human_v1.json `
-    --start-states route --full-start-prob 0.25 `
-    --demo runs/human-demonstrations/<time>/completed/attempt-000001 --use-ram-death --device cuda
+    --start-states route --full-start-prob 0.25 --max-steps 3000 `
+    --demo runs/human-demonstrations/20261103-181832/completed/attempt-000005 --use-ram-death --device cuda
 ```
 
 * `--flow-weight 0`: the flow term paid v3 for idling (+9.06 of its +1.04).
@@ -101,9 +101,9 @@ A partial demo needs `--allow-partial`.
 * `--demo` replays the recording under these reward settings and adds its
   exact decisions to the replay buffer before learning. They age out of the
   circular buffer like any other transition.
-* `--max-steps` stays 1350 (90 s). A human run longer than that still works for
-  the curriculum, but a full-start episode cannot reach the star within the
-  horizon; check `decisions` in the manifest and raise `--max-steps` if needed.
+* `--max-steps 3000` (200 s): the recorded run needed 2,674 decisions, so the
+  old 1350 horizon could not reach the star from `ds8`. Each evaluation (3
+  full-start episodes) can now take up to 9,000 decisions.
 * The run config is written to `models/<run-id>/run_config.json`.
 
 Evaluate and record the result with the same instrument:
@@ -115,7 +115,31 @@ Evaluate and record the result with the same instrument:
 
 Both detect the action set from the checkpoint.
 
-## What has been verified (2026-11-03, no training)
+## The first recording (2026-11-03)
+
+`runs/human-demonstrations/20261103-181832/completed/attempt-000005` (local
+only): star reached after 4 discarded deaths, 2,674 decisions (178 s),
+free input. 64.8% of decisions (1,732) are exact `compound12` decisions. R
+(crouch, 304 frames) has no agent action, and Y (1,328 frames) exists only as
+up+Y, so decisions using them otherwise are not exact.
+
+* The env detected the star through the star counter with Mario 274 units
+  from the star's centre (he grabs it from below); the 80-unit radius alone
+  never fires there. The last video frames show the star being collected.
+* `prepare_human_route.py` replayed all 2,674 decisions with max position
+  error 0.000000 and the star again.
+* The raw path (72.6k units after resampling) contains falls that were
+  re-climbed and about 400 decisions riding the clock hand while waiting.
+  Loop erasure (`--loop-radius 150`) left 371 waypoints over 53.2k units, no
+  step descending more than 150 units, height gain +11,596.
+  `config/routes/ttc_human_v1.json` is that route; 70 of its 89 checkpoints
+  lie inside the 250-unit corridor (the rest start off-route and earn route
+  reward only once back on it).
+* Priced as `--demo` does (flow 0, route 500, star 500, step 0.02), the run
+  returns +946.5: the route pays exactly 500 over 1,269 decisions (at most
+  3.78 per decision) and nothing during the wait (decisions 2000-2400).
+
+## What has been verified before the recording (2026-11-03, no training)
 
 * A scripted 70-decision `compound12` run stored through the recorder's
   `Attempt` class replayed to identical RAM positions (max error 0.000000).
@@ -130,5 +154,5 @@ Both detect the action set from the checkpoint.
   (500 route - 70 x 0.02 step cost).
 * The interactive window opened, waited for Enter and exited at its time limit.
 
-No human run of TTC has been recorded yet, and no model has been trained with
-the route reward, the curriculum, the demo prefill or `compound12`.
+No model has been trained with the route reward, the curriculum, the demo
+prefill or `compound12` yet.

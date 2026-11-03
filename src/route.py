@@ -39,6 +39,25 @@ def resample_polyline(points, spacing: float) -> np.ndarray:
     return out
 
 
+def erase_loops(waypoints, radius: float) -> np.ndarray:
+    """Cut every loop where the path returns within `radius` of an earlier point.
+
+    A human run up Tick Tock Clock contains falls followed by a re-climb of the
+    same section, and laps ridden on the moving clock hands while waiting. Kept
+    in the route, both would pay arc-length progress for repeating ground. The
+    earliest earlier point within reach wins, so the largest loop is removed.
+    """
+    kept = []
+    for q in np.asarray(waypoints, dtype=np.float64):
+        if len(kept) > 2:
+            near = np.flatnonzero(np.linalg.norm(np.asarray(kept[:-2]) - q, axis=1) < radius)
+            if len(near):
+                kept = kept[:near[0] + 1]
+                continue
+        kept.append(q)
+    return np.asarray(kept)
+
+
 class Route:
     def __init__(self, waypoints, corridor_radius: float = 250.0,
                  lookahead: float = 600.0, lookbehind: float = 300.0, meta=None):

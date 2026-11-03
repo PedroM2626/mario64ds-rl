@@ -10,7 +10,7 @@ Examples:
 Tick Tock Clock with a recorded human route (docs/HUMAN_RECORDING.md):
     python -m src.train_qrdqn --run-id qrdqn_impala_ds8_v4 --states ds8 --features impala \
         --action-set compound12 --flow-weight 0 --dist-mode route \
-        --route config/routes/ttc_human_v1.json --start-states route \
+        --route config/routes/ttc_human_v1.json --start-states route --max-steps 3000 \
         --demo runs/human-demonstrations/<run>/completed/attempt-000001
 """
 
