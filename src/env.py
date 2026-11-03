@@ -14,6 +14,20 @@ logger = logging.getLogger(__name__)
 ACTION_NAMES = ("noop", "left", "right", "up (accelerate)", "down (brake)", "B (jump)")
 ACTION_BUTTONS = ((), ("left",), ("right",), ("up",), ("down",), ("B",))
 
+# "compound12" keeps the legacy six in the same indices and appends held
+# combinations. Measured on ds8 (40 frames): Up held then Up+B travels 148.8
+# units vs 62.2 for the legacy Up -> B sequence, and Up+Y (run) walks 190 vs
+# 135. Every checkpoint trained before it is legacy6 and stays loadable.
+ACTION_SETS = {
+    "legacy6": (ACTION_NAMES, ACTION_BUTTONS),
+    "compound12": (
+        ACTION_NAMES + ("up+left", "up+right", "up+B (running jump)", "up+left+B",
+                        "up+right+B", "up+Y (run)"),
+        ACTION_BUTTONS + (("up", "left"), ("up", "right"), ("up", "B"), ("up", "left", "B"),
+                          ("up", "right", "B"), ("up", "Y")),
+    ),
+}
+
 try:
     from desmume.emulator import DeSmuME
     from desmume.controls import Keys, keymask
@@ -27,6 +41,9 @@ except ImportError:
     def keymask(k):
         return k
 
+BUTTON_KEYS = {"left": Keys.KEY_LEFT, "right": Keys.KEY_RIGHT, "up": Keys.KEY_UP,
+               "down": Keys.KEY_DOWN, "B": Keys.KEY_B, "Y": Keys.KEY_Y}
+
 class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
 
@@ -36,9 +53,14 @@ class Mario64DSEnv(gym.Env):
                  strict_errors=False, dist_reward_enabled=True, dist_weight=0.05,
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
                  dist_reward_mode="progress",
-                 track_id=None):
+                 track_id=None, action_set="legacy6", route_path=None,
+                 route_total_reward=500.0, start_states=None, full_start_prob=0.25):
         super(Mario64DSEnv, self).__init__()
-        
+        if action_set not in ACTION_SETS:
+            raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
+        self.action_set = action_set
+        self.action_names, self.action_buttons = ACTION_SETS[action_set]
+
         self.rom_path = rom_path
         self.state_path = state_path
         self.render_mode = render_mode
@@ -71,6 +93,24 @@ class Mario64DSEnv(gym.Env):
         self.dist_reward_mode = str(dist_reward_mode).lower()
         self.track_id = track_id or self._infer_track_id()
         self.goal_spec = TRACK_GOALS.get(self.track_id)
+
+        # "route": ratcheted arc length along a recorded human path (src/route.py)
+        # replaces the straight-line distance term; star/goal detection is unchanged.
+        self.route = None
+        if self.dist_reward_mode == "route":
+            if not route_path:
+                raise ValueError("dist_reward_mode='route' requires route_path")
+            from src.route import Route
+            self.route = Route.load(route_path)
+        self.route_total_reward = float(route_total_reward)
+        self.route_best_s = None
+
+        # Start-state curriculum: reset() loads the canonical state_path with
+        # probability full_start_prob, otherwise a uniform pick of start_states
+        # (e.g. checkpoints saved along a human run, as in Salimans & Chen 2018).
+        self.start_states = list(start_states or [])
+        self.full_start_prob = float(full_start_prob)
+        self.current_start = state_path
         
         # Determine paths relative to this file
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -106,8 +146,8 @@ class Mario64DSEnv(gym.Env):
             except Exception:
                 pass
 
-        # Action space: 0: Noop, 1: Left, 2: Right, 3: Up (Accelerate), 4: Down (Decelerate), 5: Jump(B)
-        self.action_space = spaces.Discrete(6)
+        # legacy6: 0 Noop, 1 Left, 2 Right, 3 Up, 4 Down, 5 Jump(B); compound12 appends combos
+        self.action_space = spaces.Discrete(len(self.action_names))
         
         # Observation space: 84x84 grayscale
         self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
@@ -208,6 +248,10 @@ class Mario64DSEnv(gym.Env):
             "died": bool(self.died),
             "dist_to_goal": self.last_dist,
             "dist_reward": self.last_dist_reward,
+            "flow_reward": self.last_flow_reward,
+            "coin_reward": self.last_coin_reward,
+            "route_progress": self.route_best_s,
+            "start_state": os.path.basename(self.current_start) if self.current_start else None,
         }
         try:
             info["ram"] = self.ram.poll()
@@ -237,12 +281,7 @@ class Mario64DSEnv(gym.Env):
             return self._get_obs(), 1.0, self.episode_steps > 100, False, self._get_info()
 
         # Map actions
-        keys = []
-        if action == 1: keys.append(Keys.KEY_LEFT)
-        elif action == 2: keys.append(Keys.KEY_RIGHT)
-        elif action == 3: keys.append(Keys.KEY_UP)
-        elif action == 4: keys.append(Keys.KEY_DOWN)
-        elif action == 5: keys.append(Keys.KEY_B)
+        keys = [BUTTON_KEYS[b] for b in self.action_buttons[int(action)]]
 
         # Apply inputs
         for key in keys:
@@ -310,8 +349,20 @@ class Mario64DSEnv(gym.Env):
                 self.last_dist = curr_dist
                 
                 # 3D Distance Reward: High-Water Mark ("progress") vs Bidirectional ("potential")
+                # vs ratcheted arc length along a recorded route ("route")
                 if self.dist_reward_enabled:
-                    if self.dist_reward_mode == "progress":
+                    if self.dist_reward_mode == "route":
+                        s = (self.route.locate(curr_pos) if self.route_best_s is None
+                             else self.route.progress(curr_pos, self.route_best_s))
+                        if s is not None:
+                            if self.route_best_s is not None and s > self.route_best_s:
+                                dist_reward = ((s - self.route_best_s) / self.route.length
+                                               * self.route_total_reward)
+                                self.last_dist_reward = float(dist_reward)
+                                reward += dist_reward
+                            if self.route_best_s is None or s > self.route_best_s:
+                                self.route_best_s = s
+                    elif self.dist_reward_mode == "progress":
                         if self.best_dist is not None and curr_dist < self.best_dist:
                             progress = self.best_dist - curr_dist
                             dist_reward = progress * self.dist_weight
@@ -382,10 +433,13 @@ class Mario64DSEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        
+
+        self.current_start = self.state_path
+        if self.start_states and self.np_random.random() >= self.full_start_prob:
+            self.current_start = self.start_states[int(self.np_random.integers(len(self.start_states)))]
         if self.has_emulator:
-            self.emu.savestate.load_file(self.state_path)
-            
+            self.emu.savestate.load_file(self.current_start)
+
         self.episode_steps = 0
         self.prev_gray = None
 
@@ -407,6 +461,8 @@ class Mario64DSEnv(gym.Env):
         self.best_dist = None
         self.last_dist = None
         self.last_dist_reward = 0.0
+        self.last_flow_reward = 0.0
+        self.route_best_s = None
         self.reached_goal = False
         self.star_collected = False
         self.died = False
@@ -419,6 +475,10 @@ class Mario64DSEnv(gym.Env):
                 self.best_dist = self.prev_dist
                 self.last_dist = self.prev_dist
                 self.start_star_count = self.ram.get_star_count()
+                # A checkpoint start begins at its own place on the route, so
+                # the route already covered before it is never paid.
+                if self.route is not None:
+                    self.route_best_s = self.route.locate(current_pos)
             except Exception as exc:
                 if self.strict_errors:
                     raise

@@ -6,6 +6,12 @@ or IMPALA visual feature extractors.
 Examples:
     python -m src.train_qrdqn --run-id qrdqn_mario64ds --n-envs 4 --timesteps 500000
     python -m src.train_qrdqn --run-id qrdqn_impala --features impala --n-envs 4
+
+Tick Tock Clock with a recorded human route (docs/HUMAN_RECORDING.md):
+    python -m src.train_qrdqn --run-id qrdqn_impala_ds8_v4 --states ds8 --features impala \
+        --action-set compound12 --flow-weight 0 --dist-mode route \
+        --route config/routes/ttc_human_v1.json --start-states route \
+        --demo runs/human-demonstrations/<run>/completed/attempt-000001
 """
 
 import os
@@ -70,8 +76,10 @@ def main():
     parser.add_argument("--flow-weight", type=float, default=1.0,
                         help="Optical-flow reward weight in the training env "
                              "(1.0 is the historical grid setting)")
-    parser.add_argument("--eval-flow-weight", type=float, default=1.0,
-                        help="Optical-flow weight in the evaluation env (default 1.0)")
+    parser.add_argument("--eval-flow-weight", type=float, default=None,
+                        help="Optical-flow weight in the evaluation env (default: same as "
+                             "--flow-weight; before this default the ds8 v1-v3 runs selected "
+                             "best_model under 1.0 while training under 0.2)")
     parser.add_argument("--step-penalty", type=float, default=0.02,
                         help="Per-step cost in the environment")
     parser.add_argument("--device", type=str, default="auto",
@@ -84,8 +92,26 @@ def main():
                         help="Disable 3D distance potential reward shaping")
     parser.add_argument("--dist-weight", type=float, default=0.05,
                         help="Weight for 3D potential distance shaping (default: 0.05)")
-    parser.add_argument("--dist-mode", type=str, default="progress", choices=["progress", "potential"],
-                        help="Distance reward mode: 'progress' (high-water mark ratchet, prevents jump exploits) or 'potential' (bidirectional)")
+    parser.add_argument("--dist-mode", type=str, default="progress", choices=["progress", "potential", "route"],
+                        help="Distance reward mode: 'progress' (high-water mark ratchet, prevents jump exploits), "
+                             "'potential' (bidirectional) or 'route' (ratcheted arc length along --route)")
+    parser.add_argument("--route", type=str, default=None,
+                        help="Route JSON from scripts/prepare_human_route.py (required by --dist-mode route)")
+    parser.add_argument("--route-total-reward", type=float, default=500.0,
+                        help="Reward paid for covering the whole route (default 500)")
+    parser.add_argument("--action-set", type=str, default="legacy6", choices=["legacy6", "compound12"],
+                        help="Discrete action set (compound12 adds held combos such as up+B)")
+    parser.add_argument("--start-states", type=str, default=None,
+                        help="Training-only start-state curriculum: comma-separated savestates, or "
+                             "'route' for the checkpoints listed in --route. Evaluation always "
+                             "starts from --states")
+    parser.add_argument("--full-start-prob", type=float, default=0.25,
+                        help="Probability a curriculum reset still uses the full start (default 0.25)")
+    parser.add_argument("--demo", action="append", default=[],
+                        help="Recorded attempt folder to replay into the replay buffer before "
+                             "learning (repeatable)")
+    parser.add_argument("--learning-starts", type=int, default=100,
+                        help="Environment steps collected before gradient updates (SB3 default 100)")
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching goal coordinates")
     parser.add_argument("--star-reward", type=float, default=500.0,
@@ -110,6 +136,26 @@ def main():
     for sp in savestates:
         if not os.path.exists(sp):
             raise FileNotFoundError(f"Savestate not found: {sp}")
+    if args.eval_flow_weight is None:
+        args.eval_flow_weight = args.flow_weight
+    if args.dist_mode == "route" and not args.route:
+        parser.error("--dist-mode route requires --route")
+    route_full = None
+    if args.route:
+        route_full = args.route if os.path.isabs(args.route) else os.path.join(base_dir, args.route)
+    start_states = []
+    if args.start_states == "route":
+        if not route_full:
+            parser.error("--start-states route requires --route")
+        from src.route import route_checkpoints
+        start_states = route_checkpoints(route_full, base_dir)
+    elif args.start_states:
+        start_states = savestate_paths(args.start_states, base_dir)
+    for sp in start_states:
+        if not os.path.exists(sp):
+            raise FileNotFoundError(f"Curriculum savestate not found: {sp}")
+    env_extra = dict(action_set=args.action_set, route_path=route_full,
+                     route_total_reward=args.route_total_reward)
 
     train_envs = SubprocVecEnv([
         make_env(rom_full, savestates[i % len(savestates)], rank=i, seed=args.seed,
@@ -117,7 +163,8 @@ def main():
                  step_penalty=args.step_penalty, flow_weight=args.flow_weight,
                  dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
                  goal_reward=args.goal_reward, star_reward=args.star_reward,
-                 use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode)
+                 use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode,
+                 start_states=start_states, full_start_prob=args.full_start_prob, **env_extra)
         for i in range(args.n_envs)
     ])
     train_envs = VecFrameStack(train_envs, n_stack=4)
@@ -130,7 +177,7 @@ def main():
         step_penalty=args.step_penalty, flow_weight=args.eval_flow_weight,
         dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
         goal_reward=args.goal_reward, star_reward=args.star_reward,
-        use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode,
+        use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode, **env_extra,
     )
 
     log_path = os.path.join(base_dir, "tensorboard_logs", args.run_id)
@@ -151,9 +198,29 @@ def main():
         buffer_size=args.buffer_size,
         exploration_fraction=args.exploration_fraction,
         exploration_final_eps=args.exploration_final_eps,
+        learning_starts=args.learning_starts,
         seed=args.seed, policy_kwargs=policy_kwargs, device=args.device,
     )
     print(f"Starting QR-DQN ({args.features}) | device={model.device} | envs={args.n_envs} | buffer={args.buffer_size}")
+
+    demo_added = 0
+    if args.demo:
+        from src.demos import load_demo, prefill_replay_buffer, replay_transitions
+        for d in args.demo:
+            d_full = d if os.path.isabs(d) else os.path.join(base_dir, d)
+            demo = load_demo(d_full)
+            if demo["manifest"]["action_set"] != args.action_set:
+                raise ValueError(f"{d} was recorded with action set {demo['manifest']['action_set']}, "
+                                 f"training uses {args.action_set}")
+            transitions = replay_transitions(
+                rom_full, demo, step_penalty=args.step_penalty, flow_weight=args.flow_weight,
+                dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
+                goal_reward=args.goal_reward, star_reward=args.star_reward,
+                use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode, **env_extra)
+            added = prefill_replay_buffer(model, transitions)
+            demo_added += added
+            print(f"Demo {d}: replayed {len(transitions)} transitions, "
+                  f"return {sum(float(t['reward'][0]) for t in transitions):+.2f}, added {added}")
 
     params = {
         "model_type": f"QRDQN_{args.features.upper()}",
@@ -178,10 +245,22 @@ def main():
         "goal_reward": args.goal_reward,
         "star_reward": args.star_reward,
         "use_ram_death": args.use_ram_death,
+        "action_set": args.action_set,
+        "route": args.route,
+        "route_total_reward": args.route_total_reward,
+        "start_states": len(start_states),
+        "full_start_prob": args.full_start_prob,
+        "demos": ",".join(args.demo),
+        "demo_transitions": demo_added,
+        "learning_starts": args.learning_starts,
         "eval_deterministic": not args.eval_stochastic,
         "requested_device": args.device,
         "resolved_device": str(model.device),
     }
+
+    import json
+    with open(os.path.join(best_model_dir, "run_config.json"), "w", encoding="utf-8") as fh:
+        json.dump(params, fh, indent=2)
 
     from contextlib import nullcontext
     run_ctx = mlflow.start_run(run_name=args.run_id) if mlflow is not None else nullcontext()

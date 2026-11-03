@@ -451,7 +451,14 @@ def _record_single(args, out_dir_full):
                        timeout_penalty=args.timeout_penalty,
                        dist_reward_enabled=dist_reward, dist_weight=args.dist_weight,
                        goal_reward=args.goal_reward, star_reward=args.star_reward,
-                       use_ram_death=use_ram_death)
+                       use_ram_death=use_ram_death,
+                       action_set={6: "legacy6", 12: "compound12"}[int(model.action_space.n)],
+                       dist_reward_mode=args.dist_mode,
+                       route_path=os.path.join(ROOT_DIR, args.route) if args.route else None)
+    # One track per process (see _job_cmd), so the panel labels can follow the
+    # checkpoint's action set without threading it through every draw call.
+    global ACTION_NAMES, ACTION_BUTTONS
+    ACTION_NAMES, ACTION_BUTTONS = env.action_names, env.action_buttons
     obs, info = env.reset()
 
     # SB3 VecFrameStack convention: the stack opens as [0, 0, 0, reset_frame],
@@ -755,7 +762,10 @@ def _job_cmd(args, track):
            "--goal-reward", str(args.goal_reward),
            "--star-reward", str(args.star_reward),
            "--snapshot-every", str(args.snapshot_every),
+           "--dist-mode", args.dist_mode,
            "--supervisor", args.supervisor_label]
+    if args.route:
+        cmd += ["--route", args.route]
     if args.dist_reward is True:
         cmd.append("--dist-reward")
     elif args.dist_reward is False:
@@ -862,6 +872,9 @@ def main():
                          "process, so this is safe; two emulators in ONE process is not)")
     ap.add_argument("--supervisor", choices=["auto", "rust", "python"], default="auto")
     ap.add_argument("--no-state-model", action="store_true")
+    ap.add_argument("--dist-mode", default="progress", choices=["progress", "potential", "route"],
+                    help="distance-reward instrument (route needs --route)")
+    ap.add_argument("--route", default=None, help="route JSON for --dist-mode route")
     ap.add_argument("--single", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--gif", default=None, help="inline README preview for one track")
     ap.add_argument("--gif-track", default=None,

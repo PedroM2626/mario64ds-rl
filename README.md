@@ -536,6 +536,15 @@ python tools/verify_assets.py                         # model/data asset manifes
 python scripts/compare_rewards.py                     # writes docs/REWARD_COMPARISON_RESULTS.json
 ```
 
+### Tick Tock Clock: human route, curriculum and demonstrations
+The QR-DQN `ds8` models stay on the start platform; the measured causes and the
+changes made for them are in [section 10.8](docs/REWARD_SYSTEM_AND_RAM.md#108-why-v3-stays-on-the-base-platform-and-what-is-now-in-place).
+The next step needs one human run to the star, recorded with `record-ttc.bat`
+(`scripts/record_human.py`) and converted with `scripts/prepare_human_route.py`
+into a route reward, a start-state curriculum and replay-buffer demonstrations.
+Step-by-step instructions and the training command: [docs/HUMAN_RECORDING.md](docs/HUMAN_RECORDING.md).
+No model has been trained with these yet.
+
 ### Savestate & Asset Management
 To set up active starting states (`ds1`, `ds2`, `ds3`, `ds8`, `ds9`) from the [v1.1.0 release](https://github.com/PedroM2626/mario64ds-rl/releases/tag/v1.1.0):
 ```bash

@@ -375,6 +375,7 @@ Using our reproducible evaluation protocol (`scripts/eval_qrdqn_ttc.py`) on `ds8
 | **Ascent Climax (% course)**| **2.04%** | **2.04%** | **2.04%** | **3.19%** | **2.04%** |
 | **Mario Final Displacement**| $\Delta = 0$ (Frozen) | $\Delta = 0$ (Frozen) | $\Delta = 0$ (Frozen) | $\Delta Z = +55.5$ | **$\Delta Z = +419.1$ units** |
 | **Distance Reward Sum** | $+0.00$ (net cycle) | $+11.83$ (first jump) | $+11.83$ (first jump) | **$+18.98$** (escalated ratchet) | **$+15.49$** |
+| **Flow Reward Sum** ($w_{\text{flow}} = 0.2$) | not recorded | $+6.44$ | not recorded | **$+9.06$** | not recorded |
 | **Step Penalties** | $-16.02$ (801 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) |
 | **Episode Return (Evaluated)**| $+487.92$ (spurious star) | $-8.73$ (fixed horizon) | $-8.73$ (fixed horizon) | **$+1.04$ (Net Positive)** | $-4.83$ |
 
@@ -409,7 +410,9 @@ if goal_type == "star":
 ```
 Under this formulation:
 * In `ds9` (Star Platform), Mario is at $D = 259.4 \le 500.0$ units from the star; executing the jump brings $D \le 80.0 \le success\_dist$, legitimately triggering star collection and the $+500.0$ bonus.
-* In `ds8` (Base of TTC), Mario is at $D \approx 12{,}093.5 \gg 500.0$ units; memory spikes at `0x0209FB64` are safely rejected. As verified in post-fix evaluation, the agent now survives the full $1{,}350$ steps, receiving $-27.0$ in step costs and $+11.83$ in initial ratchet progress (net return $-8.73$).
+* In `ds8` (Base of TTC), Mario is at $D \approx 12{,}093.5 \gg 500.0$ units; memory spikes at `0x0209FB64` are safely rejected. As verified in post-fix evaluation, the agent now survives the full $1{,}350$ steps, receiving $-27.0$ in step costs, $+11.83$ in initial ratchet progress and $+6.44$ in optical-flow reward (net return $-8.73$).
+
+> **Correction (2026-11-03).** Earlier versions of this section omitted the flow term. `scripts/eval_qrdqn_ttc.py` read `info["flow_reward"]`, a key `Mario64DSEnv._get_info()` did not return, so it printed a flow sum of $+0.0000$; the per-term sums above come from the dashboard recorder (`videos/dashboard_ds8_v{2,3}/dashboard_ds8.json`, `flow_term_sum`). The env now reports `flow_reward` and the evaluator also read `info["is_dead"]` instead of `info["died"]`; both are fixed.
 
 #### 4. Dashboard 60 Hz Video Generation on `ds8`
 We recorded the full 60 Hz dashboard verification video for `qrdqn_impala_ds8_v2_best.zip` on `ds8` using `scripts/record_dashboard.py`:
@@ -427,11 +430,34 @@ Following the elimination of the false $+500.0$ star trigger, model `qrdqn_impal
 1. **Elimination of the Freeze / Holding Invariant**:
    In `v2`, the agent held Action 5 (Jump) 100% of the time, which due to lack of a key-release edge caused Mario to land and freeze motionless. In `v3 Best`, the policy learned to interleave Action 0 (NOOP, 41.9%) and Action 5 (Jump, 57.6%). This release edge allows Mario to actively re-jump and maintain mobility throughout the entire episode.
 2. **Height Escalation**:
-   The peak climb height increased from $-4468.5$ to **$-4332.0$** ($\Delta Y = +378.0$ units, climbing $3.19\%$ of the tower). Ratchet distance reward rose from $+11.83$ to **$+18.98$**, producing an overall positive episode return ($+1.04$).
+   The peak climb height increased from $-4468.5$ to **$-4332.0$** ($\Delta Y = +378.0$ units, climbing $3.19\%$ of the tower). Ratchet distance reward rose from $+11.83$ to **$+18.98$**. The episode return $+1.04$ decomposes as $+18.98$ (distance) $+9.06$ (optical flow) $-27.00$ (step cost): without the flow term it would be $-8.02$.
 3. **Horizontal Territorial Displacement**:
    In `v3 Final`, Mario achieved substantial horizontal travel on the starting platform, moving from initial $Z = 128.0$ to final $Z = 547.1$ ($\Delta Z = +419.1$ units), confirming active exploratory motion rather than in-place freezing.
 4. **Dashboard Video**:
    Recorded in `videos/dashboard_ds8_v3/dashboard_ds8.mp4` (11.1 MB, 5,401 frames, 90.02s), with exact zero decomposition residual ($4.46 \times 10^{-7}$).
+5. **Checkpoint selection used a different reward**: v1-v3 were trained with `--flow-weight 0.2`, but `src/train_qrdqn.py` defaulted `--eval-flow-weight` to $1.0$, so `EvalCallback` chose `*_best.zip` under a 5x larger flow term than the one optimised. The default is now "same as `--flow-weight`".
+
+---
+
+### 10.8 Why v3 stays on the base platform, and what is now in place
+
+#### 1. Diagnosis (measured facts only)
+* **Standing still is paid.** The clock's gears move without Mario moving, so optical flow is non-zero while he idles: $+9.06$ of v3's $+1.04$ return is flow. On `ds8` the flow term rewards the safe plateau rather than the climb.
+* **The straight-line distance is almost all height.** Of the initial $12{,}093.5$ units to the star, $11{,}855$ are $\Delta Y$. The ascent winds around the tower, so horizontal moves along the real path rarely set a new $D_{\min}$ and the ratchet pays $0$.
+* **Random exploration falls quickly.** Holding Up from `ds8` drops Mario below the start platform after $147$ frames ($\approx 37$ decisions). In v3 training (`tensorboard_logs/qrdqn_impala_ds8_v3`) the first logged episodes averaged $54.5$-$92.2$ decisions with mean return $-83.6$ to $-91.8$, and at 99k steps still $280.1$ decisions and $-81.5$: most $\varepsilon$-greedy episodes end in a fall. Evaluation means were $17.04, 17.04, 37.26, 34.92, 31.31$ at 20k-100k steps, priced at flow weight $1.0$ (point 5 of 10.7; the $37.26$ equals the v3 dashboard re-priced at weight $1.0$, $37.2634$).
+* **The action set cannot express a running jump.** Measured from `ds8` over 40 frames: the legacy sequence Up (16 frames) $\to$ B (4) $\to$ release (20) travels $62.2$ units; holding Up throughout with Up+B for the jump travels $148.8$ ($2.4\times$). Holding B longer jumps higher ($262.5$ vs $142.2$ units of peak height for 24 vs 4 frames). Up+Y (run) walks $190$ units in 40 frames vs $135$ for Up. Pressing Up and B on the same frame from standstill does not jump.
+
+#### 2. Changes (no model has been trained with them yet)
+| Change | Where | Default |
+|---|---|---|
+| `compound12` action set: legacy six in the same indices + up+left, up+right, up+B, up+left+B, up+right+B, up+Y | `src/env.py` `ACTION_SETS`, `--action-set` | `legacy6` (old checkpoints load unchanged) |
+| `dist_reward_mode="route"`: ratcheted arc length along an ordered human route, searched only $[-300, +600]$ units around the best progress and within a $250$-unit corridor; whole route pays `route_total_reward` ($500$) | `src/route.py`, `--dist-mode route --route` | off |
+| Start-state curriculum: reset loads the full start with probability `full_start_prob` ($0.25$), otherwise a uniform pick of checkpoints saved along the human run (cf. Salimans & Chen, 2018). Route progress at reset is the checkpoint's own route position, so earlier route is never paid. Evaluation always starts from `ds8` | `src/env.py`, `--start-states route` | off |
+| Demo replay-buffer prefill: the human actions are re-executed under the training reward and frame stack and added to the QR-DQN buffer before learning (no large-margin loss, no permanent demo partition) | `src/demos.py`, `--demo` | off |
+| `--eval-flow-weight` follows `--flow-weight` | `src/train_qrdqn.py` | changed |
+| `info["flow_reward"]`, evaluator death key | `src/env.py`, `scripts/eval_qrdqn_ttc.py` | fixed |
+
+The route and checkpoints come from one human run recorded with `scripts/record_human.py` (`record-ttc.bat`) and converted by `scripts/prepare_human_route.py`, which refuses a recording that does not replay to identical RAM positions. See [HUMAN_RECORDING.md](HUMAN_RECORDING.md). None of this is evidence that the agent can climb TTC; it removes the causes measured above.
 
 
 

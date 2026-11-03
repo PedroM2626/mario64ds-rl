@@ -22,13 +22,11 @@ from src.ram_state import TRACK_GOALS
 ROM_PATH = rom_path()
 STATE_PATH = savestate_path("ds8")
 
-ACTION_NAMES = ["NOOP", "LEFT", "RIGHT", "UP (ACCEL)", "DOWN (DECEL)", "JUMP (B)"]
-
-
-def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int = 1350):
+def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int = 1350,
+                   flow_weight: float = 0.2, route_path: str | None = None):
     print(f"\n=======================================================")
     print(f"Evaluating Model: {os.path.basename(model_path)}")
-    print(f"Distance Mode: {dist_mode}")
+    print(f"Distance Mode: {dist_mode} | flow_weight={flow_weight}")
     print(f"=======================================================")
     
     if not os.path.exists(model_path):
@@ -36,7 +34,8 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
         return None
 
     model = QRDQN.load(model_path, device="cuda" if torch.cuda.is_available() else "cpu")
-    device = next(model.policy.parameters()).device
+    # The action set is recoverable from the checkpoint's action space size.
+    action_set = {6: "legacy6", 12: "compound12"}[int(model.action_space.n)]
 
     env = Mario64DSEnv(
         rom_path=ROM_PATH,
@@ -44,15 +43,18 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
         max_steps=max_steps,
         frameskip=4,
         step_penalty=0.02,
-        flow_weight=0.2,
+        flow_weight=flow_weight,
         dist_reward_enabled=True,
         dist_weight=0.05,
         dist_reward_mode=dist_mode,
         goal_reward=200.0,
         star_reward=500.0,
         use_ram_death=True,
-        track_id="ds8"
+        track_id="ds8",
+        action_set=action_set,
+        route_path=route_path,
     )
+    ACTION_NAMES = env.action_names
 
     obs, _ = env.reset()
     
@@ -83,7 +85,7 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
     print(f"Total Course Height:    Delta Y = {delta_y_total:.1f} units")
     print("\nInitial State Q-values Q(s0, a):")
     for a_idx, a_name in enumerate(ACTION_NAMES):
-        print(f"  Action {a_idx} ({a_name:12s}): Q = {q_vals_s0[a_idx]:+.4f}")
+        print(f"  Action {a_idx} ({a_name:20s}): Q = {q_vals_s0[a_idx]:+.4f}")
     best_a0 = int(np.argmax(q_vals_s0))
     print(f"  Greedy Choice at s0: Action {best_a0} ({ACTION_NAMES[best_a0]})")
 
@@ -118,7 +120,7 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
         if terminated:
             if info.get("star_collected", False):
                 termination_reason = "star_collected"
-            elif info.get("is_dead", False):
+            elif info.get("died", False):
                 termination_reason = "died (abyss/RAM death)"
             else:
                 termination_reason = "terminated (goal)"
@@ -151,12 +153,13 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
     print(f"  Flow Reward Sum:      {flow_reward_total:+.4f}")
     print(f"  Dist Reward Sum:      {dist_reward_total:+.4f}")
     print(f"  Step Penalties:       {-steps * 0.02:+.4f}")
+    print(f"  Terminal/Other:       {total_reward - flow_reward_total - dist_reward_total + steps * 0.02:+.4f}")
     
     print("\nAction Distribution:")
     for a_idx, a_name in enumerate(ACTION_NAMES):
         cnt = action_counts.get(a_idx, 0)
         pct = (cnt / steps) * 100.0 if steps > 0 else 0.0
-        print(f"  Action {a_idx} ({a_name:12s}): {cnt:5d} ({pct:5.1f}%)")
+        print(f"  Action {a_idx} ({a_name:20s}): {cnt:5d} ({pct:5.1f}%)")
 
     return {
         "model": os.path.basename(model_path),
@@ -173,6 +176,8 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
         "total_reward": total_reward,
         "flow_reward": flow_reward_total,
         "dist_reward": dist_reward_total,
+        "flow_weight": flow_weight,
+        "action_set": action_set,
         "action_counts": dict(action_counts),
         "q_vals_s0": q_vals_s0.tolist()
     }
@@ -184,7 +189,13 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="models/qrdqn_impala_ds8_v2_best.zip")
     parser.add_argument("--dist-mode", type=str, default="progress")
     parser.add_argument("--max-steps", type=int, default=1350)
+    parser.add_argument("--flow-weight", type=float, default=0.2,
+                        help="Flow weight of the instrument (0.2 = the v1-v3 training weight)")
+    parser.add_argument("--route", type=str, default=None, help="Route JSON for --dist-mode route")
     args = parser.parse_args()
 
     m_path = args.model if os.path.isabs(args.model) else os.path.join(ROOT_DIR, args.model)
-    evaluate_model(m_path, dist_mode=args.dist_mode, max_steps=args.max_steps)
+    r_path = None if args.route is None else (
+        args.route if os.path.isabs(args.route) else os.path.join(ROOT_DIR, args.route))
+    evaluate_model(m_path, dist_mode=args.dist_mode, max_steps=args.max_steps,
+                   flow_weight=args.flow_weight, route_path=r_path)

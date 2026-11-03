@@ -43,3 +43,6 @@ assets/*.tar.gz
 assets/
 assets/
 *.tar.gz
+# Human demonstrations and curriculum checkpoints (game RAM dumps; local only)
+runs/
+data/curriculum/
