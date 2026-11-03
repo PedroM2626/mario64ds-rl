@@ -1,6 +1,6 @@
-# Mario 64 DS - Reinforcement Learning (Super Mario 64 DS Slide Tracks)
+# Mario 64 DS - Reinforcement Learning (Slide Tracks & Vertical Clock Ascent)
 
-This project is a Deep Reinforcement Learning implementation that trains an autonomous artificial agent to navigate Mario through the downhill slide courses of Super Mario 64 DS, operating natively through a Nintendo DS emulator.
+This project is a Deep Reinforcement Learning implementation that trains autonomous artificial agents to navigate Super Mario 64 DS — mastering both downhill slide courses and 3D vertical platforming stages (Tick Tock Clock) — operating natively through a Nintendo DS emulator.
 
 **Tracks (savestates located in `data/`):**
 - `ds1` — Course 3 slide (Cool, Cool Mountain / Pinguim Slide)
@@ -36,16 +36,7 @@ of `ds1` as an inline GIF, because GitHub strips `<video>` from README markdown
 and serves repository `.mp4` as a download rather than a stream — the links above
 open the real 90-second, 60 fps files.
 
-**What "1350 / 1350" does and does not mean.** The environment has no
-finish-line detector: an episode ends either on the black-screen death or on the
-horizon, so surviving all 1350 decisions is the repo's completion criterion, not
-a verified traversal. The per-decision traces
-(`videos/dashboard/dashboard_*_trace.json`) make the difference visible — on
-`ds1` the agent is nearly stationary (speed below 0.5 track units in magnitude) for **695** of
-the 1350 decisions and gets zero forward flow for 585 of them, yet still scores
-+131.77, because the flow reward pays for sliding and the step cost is only
-0.02. It also falls to the kill plane twice mid-course and respawns
-(`in-track falls 2`), which a pixel-only reward cannot see.
+**What "1350 / 1350" does and does not mean in the historical baseline.** In the original visual-only baseline environment, there was no finish-line detector: an episode ended either on the black-screen death or on the horizon, so surviving all 1350 decisions was the repo's original completion criterion, not a verified traversal. (The modern environment architecture now implements full 3D finish-line and star completion detection via RAM coordinates; see §"3D Proximity & RAM State Architecture"). The per-decision traces (`videos/dashboard/dashboard_*_trace.json`) make the difference visible — on `ds1` the agent is nearly stationary (speed below 0.5 track units in magnitude) for **695** of the 1350 decisions and gets zero forward flow for 585 of them, yet still scores +131.77, because the flow reward pays for sliding and the step cost is only 0.02. It also falls to the kill plane twice mid-course and respawns (`in-track falls 2`), which a pixel-only reward cannot see.
 
 ### ⚠️ One checkpoint, two outcomes: `ds3` depends on the arithmetic
 
@@ -84,7 +75,7 @@ python tools/check_readme_numbers.py        # gate: prose must equal the artifac
 ---
 
 ## 🎯 Objective
-The agent's primary objective is to **complete the descent** (not merely survive by idling), navigating forward along the downhill gradient and collecting coins along the trajectory using solely the raw visual screen feed (pixels) as observation. Episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track.
+The agent's primary objective is to **complete each stage** — traversing the full descent in the slide courses and ascending the vertical clock tower in Tick Tock Clock to collect the Power Star (not merely survive by idling) — navigating forward and upward using raw visual observations alongside 3D spatial progression rewards. Episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track.
 
 ---
 
@@ -178,7 +169,7 @@ Each training round initially consolidated one track at the expense of another; 
 - **Video Rendering**: `scripts/record_phases.py` (real-time RGB MP4 per track) and `scripts/record_dashboard.py` (annotated 60 Hz dashboard: gameplay, CNN input, flow window, $\pi(a|s)$, critic value, RAM struct, reward instrument; plus a per-decision trace JSON).
 - **Process Supervision**: `rust/sm64_sup.exe` (std-only Rust; one process per track because two DeSmuME cores in one process crash, with live streaming, per-run budget, kill on overrun and result collection — see [`rust/README.md`](rust/README.md)).
 - **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (where a step's milliseconds go), `tools/check_readme_numbers.py` (re-derives every figure quoted here).
-- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), hardware kill-plane death detection (`0x0217F760`), course ID extraction (`0x02285238`), and star collection tracking (`0x0209FB64`). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
+- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), hardware kill-plane death detection (`0x0217F760`), course ID extraction (`0x02285238`), and star collection tracking gated by Euclidean proximity ($D \le 500$ units and $D \le 80$ touch radius). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
 - **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
 - **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
 - **Consolidated Empirical Data**: `results/` (stores consolidated experimental CSV tables for 100k grid, 500k scale, 2M steps, and curriculum rounds).
@@ -211,9 +202,9 @@ Each training round initially consolidated one track at the expense of another; 
 - **Issue**: `play.py` originally provided observations with incompatible 5D tensor shapes, causing policies to receive out-of-distribution inputs and execute degenerate single-action trajectories.
 - **Solution**: Refactored the visualization pipeline to use official vectorized wrapper pipelines (`DummyVecEnv` + `VecFrameStack` + `VecTransposeImage`), ensuring identical input tensor shapes between training and evaluation.
 
-### 7. Goal Completion vs. Survival Fallacy (3D Potential Reward Shaping)
-- **Issue**: Survival-only optimization ($R_{\text{timeout}} = 0$, $R_{\text{death}} = -100$) incentivized safe idling/camping and could not verify whether an agent surviving 1350 steps reached the course terminus or merely idled.
-- **Solution**: Implemented potential-based 3D distance reward shaping $F_t = w_{\text{dist}} (D_t - D_{t+1})$ based on Mario's exact 3D coordinates in RAM (`0x0217F714`-`0x0217F71C`), terminating upon crossing goal thresholds with a completion bonus ($+200.0$ for slide finishes `ds4`/`ds5`/`ds6`, $+500.0$ for Tick Tock Clock star collection `ds9`). Full mathematical derivation and RAM map in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
+### 7. Goal Completion vs. Survival Fallacy (3D Progress Reward Shaping)
+- **Issue**: Survival-only optimization ($R_{\text{timeout}} = 0$, $R_{\text{death}} = -100$) incentivized safe idling/camping and could not verify whether an agent surviving 1350 steps reached the course terminus or merely idled. In addition, symmetric potential differences ($D_t - D_{t+1}$) created in-place jumping exploit loops under discounted Q-learning ($\gamma < 1$).
+- **Solution**: Implemented monotonic high-water mark progression reward shaping ($r_{\text{dist}} = w_{\text{dist}} \max(0, D_{\min} - D_t)$) based on Mario's exact 3D coordinates in RAM (`0x0217F714`-`0x0217F71C`), terminating upon crossing goal thresholds with a completion bonus ($+200.0$ for slide finishes, $+500.0$ for Tick Tock Clock star collection gated by $D \le 500.0$). Full mathematical derivations and RAM maps in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
 
 ### 8. Instantaneous RAM-Based Death Detection
 - **Issue**: Visual death detection via black-screen thresholding suffered from a 60–80 frame latency during camera descent and screen fade-out.
@@ -462,6 +453,8 @@ Store your legally dumped Nintendo DS ROM and savestates under the `data/` direc
 - `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Track 1)
 - `data/Super Mario 64 DS (USA) (Rev 1).ds2` (Savestate - Track 2)
 - `data/Super Mario 64 DS (USA) (Rev 1).ds3` (Savestate - Track 3)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds8` (Savestate - Tick Tock Clock Start)
+- `data/Super Mario 64 DS (USA) (Rev 1).ds9` (Savestate - TTC Star Jump Platform)
 
 ### Reproducing the Winning Curriculum Pipeline
 ```bash
