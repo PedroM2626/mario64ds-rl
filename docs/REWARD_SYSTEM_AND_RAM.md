@@ -360,22 +360,23 @@ $$D_{\min} \leftarrow \min(D_{\min}, D_t)$$
 
 Using our reproducible evaluation protocol (`scripts/eval_qrdqn_ttc.py`) on `ds8` (Tick Tock Clock, Slow Mode), we measured exact spatial trajectories, action histograms, and initial Q-values:
 
-| Metric | Baseline (`qrdqn_impala_ds8_best`) | Scaled v2 Best (`qrdqn_impala_ds8_v2_best`) | Scaled v2 Final (`qrdqn_impala_ds8_v2_final`) |
-|---|---|---|---|
-| **Distance Reward Mode** | `potential` (Bidirectional) | `progress` (Ratchet) | `progress` (Ratchet) |
-| **Initial Q(s0, Jump [B])** | **$+6.66$** | **$+0.3435$** | **$+1.0988$** |
-| **Initial Q(s0, Up [Accel])** | $-1.57$ | $+0.2173$ | $+0.9595$ |
-| **Initial Q(s0, Down [Decel])**| $-0.18$ | $+0.2240$ | $+0.9728$ |
-| **Initial Q(s0, Right)** | $-3.42$ | $+0.2285$ | $+1.0004$ |
-| **Initial Q(s0, Left)** | $-1.86$ | $+0.1939$ | $+0.9803$ |
-| **Initial Q(s0, Noop)** | $-2.03$ | $+0.1985$ | $+0.9551$ |
-| **Action Distribution** | 100% Jump (B) | 100% Jump (B) | 100% Jump (B) |
-| **Max Height ($Y_{\max}$)** | $-4468.5$ ($\Delta Y = +241.5$) | $-4468.5$ ($\Delta Y = +241.5$) | $-4468.5$ ($\Delta Y = +241.5$) |
-| **Ascent Climax (% course)**| **2.04%** | **2.04%** | **2.04%** |
-| **Initial Distance to Star**| $12{,}093.5$ units | $12{,}093.5$ units | $12{,}093.5$ units |
-| **Distance Reward Sum** | $+0.00$ (net cycle) | **$+11.83$** (first jump only) | **$+11.83$** (first jump only) |
-| **Step Penalties** | $-16.02$ (801 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) |
-| **Episode Return (Evaluated)**| $+487.92$ (spurious star) | **$-8.73$** (fixed horizon) | **$-8.73$** (fixed horizon) |
+| Metric | Baseline (`v1 Best`) | Scaled v2 Best | Scaled v2 Final | Scaled v3 Best (`ds8_v3_best`) | Scaled v3 Final (`ds8_v3_final`) |
+|---|---|---|---|---|---|
+| **Distance Reward Mode** | `potential` (Bidirectional) | `progress` (Ratchet) | `progress` (Ratchet) | `progress` (Ratchet) | `progress` (Ratchet) |
+| **False Star Bug Active?** | Yes | Yes (during training) | Yes (during training) | **No (Fixed $D \le 500$)** | **No (Fixed $D \le 500$)** |
+| **Initial Q(s0, Jump [B])** | **$+6.66$** | **$+0.3435$** | **$+1.0988$** | **$+0.4627$** | **$+0.5307$** |
+| **Initial Q(s0, Up [Accel])** | $-1.57$ | $+0.2173$ | $+0.9595$ | $+0.4187$ | $+0.4905$ |
+| **Initial Q(s0, Down [Decel])**| $-0.18$ | $+0.2240$ | $+0.9728$ | $+0.4430$ | $+0.5075$ |
+| **Initial Q(s0, Right)** | $-3.42$ | $+0.2285$ | $+1.0004$ | $+0.4227$ | $+0.5013$ |
+| **Initial Q(s0, Left)** | $-1.86$ | $+0.1939$ | $+0.9803$ | $+0.4121$ | $+0.4900$ |
+| **Initial Q(s0, Noop)** | $-2.03$ | $+0.1985$ | $+0.9551$ | $+0.4390$ | $+0.5048$ |
+| **Action Distribution** | 100% Jump (B) | 100% Jump (B) | 100% Jump (B) | **41.9% Noop, 57.6% Jump** | **56.0% Noop, 43.1% Jump** |
+| **Max Height ($Y_{\max}$)** | $-4468.5$ ($\Delta Y = +241.5$) | $-4468.5$ ($\Delta Y = +241.5$) | $-4468.5$ ($\Delta Y = +241.5$) | **$-4332.0$ ($\Delta Y = +378.0$)** | $-4468.5$ ($\Delta Y = +241.5$) |
+| **Ascent Climax (% course)**| **2.04%** | **2.04%** | **2.04%** | **3.19%** | **2.04%** |
+| **Mario Final Displacement**| $\Delta = 0$ (Frozen) | $\Delta = 0$ (Frozen) | $\Delta = 0$ (Frozen) | $\Delta Z = +55.5$ | **$\Delta Z = +419.1$ units** |
+| **Distance Reward Sum** | $+0.00$ (net cycle) | $+11.83$ (first jump) | $+11.83$ (first jump) | **$+18.98$** (escalated ratchet) | **$+15.49$** |
+| **Step Penalties** | $-16.02$ (801 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) | $-27.00$ (1350 steps) |
+| **Episode Return (Evaluated)**| $+487.92$ (spurious star) | $-8.73$ (fixed horizon) | $-8.73$ (fixed horizon) | **$+1.04$ (Net Positive)** | $-4.83$ |
 
 #### 2. Root Cause Discovery: The False Star Collection Trigger at Step 801
 During evaluations on `ds8`, episodes were observed to terminate at step 801 with `star_collected = True` and $+500.0$ bonus, despite Mario remaining on the starting floor at $Y = -4468.5$ ($12{,}093.5$ units away from the Star at $Y = 7145.0$).
@@ -415,6 +416,23 @@ We recorded the full 60 Hz dashboard verification video for `qrdqn_impala_ds8_v2
 * **Video Output**: `videos/dashboard_ds8_v2/dashboard_ds8.mp4` (10.7 MB, 5,401 frames, 90.02s duration).
 * **Metadata & Parity**: `dashboard_ds8.json` records decomposition residual $5.8 \times 10^{-7}$ (exact mathematical zero).
 * **Observed Dynamics**: Demonstrates the ratcheted progress mode correctly holding distance reward flat at $+11.83$ after the initial jump, visually confirming the complete elimination of the cyclic reward exploit.
+
+---
+
+### 10.7 Model v3: Training with Fixed Proximity Constraints & Dynamic Decoupling
+
+Following the elimination of the false $+500.0$ star trigger, model `qrdqn_impala_ds8_v3` was trained under identical hyperparameters ($100{,}000$ timesteps, $100{,}000$ buffer size, 4 parallel environments, CUDA).
+
+#### Key Empirical Results:
+1. **Elimination of the Freeze / Holding Invariant**:
+   In `v2`, the agent held Action 5 (Jump) 100% of the time, which due to lack of a key-release edge caused Mario to land and freeze motionless. In `v3 Best`, the policy learned to interleave Action 0 (NOOP, 41.9%) and Action 5 (Jump, 57.6%). This release edge allows Mario to actively re-jump and maintain mobility throughout the entire episode.
+2. **Height Escalation**:
+   The peak climb height increased from $-4468.5$ to **$-4332.0$** ($\Delta Y = +378.0$ units, climbing $3.19\%$ of the tower). Ratchet distance reward rose from $+11.83$ to **$+18.98$**, producing an overall positive episode return ($+1.04$).
+3. **Horizontal Territorial Displacement**:
+   In `v3 Final`, Mario achieved substantial horizontal travel on the starting platform, moving from initial $Z = 128.0$ to final $Z = 547.1$ ($\Delta Z = +419.1$ units), confirming active exploratory motion rather than in-place freezing.
+4. **Dashboard Video**:
+   Recorded in `videos/dashboard_ds8_v3/dashboard_ds8.mp4` (11.1 MB, 5,401 frames, 90.02s), with exact zero decomposition residual ($4.46 \times 10^{-7}$).
+
 
 
 
