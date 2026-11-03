@@ -1,0 +1,142 @@
+{
+  "model": "models/qrdqn_impala_ds8_v4_best.zip",
+  "route": "config/routes/ttc_human_v1.json",
+  "route_length": 53245.76339151399,
+  "max_steps": 600,
+  "starts": 13,
+  "died": 11,
+  "star": 1,
+  "median_route_gain": 336.7,
+  "rows": [
+    {
+      "start": "ds8",
+      "route_s_start": 0.0,
+      "route_s_end": 1253.3004572767536,
+      "route_gain": 1253.3,
+      "decisions": 128,
+      "end": "died",
+      "return": -90.79,
+      "height_gain": 268.5
+    },
+    {
+      "start": "step-000030.dst",
+      "route_s_start": 333.4454855208481,
+      "route_s_end": 865.1014650735247,
+      "route_gain": 531.7,
+      "decisions": 249,
+      "end": "died",
+      "return": -99.99,
+      "height_gain": 676.3
+    },
+    {
+      "start": "step-000270.dst",
+      "route_s_start": 8654.198533840077,
+      "route_s_end": 9092.454425397258,
+      "route_gain": 438.3,
+      "decisions": 30,
+      "end": "died",
+      "return": -96.48,
+      "height_gain": 241.6
+    },
+    {
+      "start": "step-000510.dst",
+      "route_s_start": 16030.615859293317,
+      "route_s_end": 16700.52093207634,
+      "route_gain": 669.9,
+      "decisions": 31,
+      "end": "died",
+      "return": -94.33,
+      "height_gain": 268.5
+    },
+    {
+      "start": "step-000750.dst",
+      "route_s_start": 24325.502359886355,
+      "route_s_end": 24610.1578818848,
+      "route_gain": 284.7,
+      "decisions": 155,
+      "end": "died",
+      "return": -100.43,
+      "height_gain": 285.0
+    },
+    {
+      "start": "step-000990.dst",
+      "route_s_start": 28301.41156109452,
+      "route_s_end": 28609.93413518049,
+      "route_gain": 308.5,
+      "decisions": 159,
+      "end": "died",
+      "return": -100.28,
+      "height_gain": 343.3
+    },
+    {
+      "start": "step-001230.dst",
+      "route_s_start": 28711.05807412907,
+      "route_s_end": 28716.015145390167,
+      "route_gain": 5.0,
+      "decisions": 583,
+      "end": "died",
+      "return": -111.61,
+      "height_gain": 23.2
+    },
+    {
+      "start": "step-001470.dst",
+      "route_s_start": 30232.233961220772,
+      "route_s_end": 30568.922035161515,
+      "route_gain": 336.7,
+      "decisions": 167,
+      "end": "died",
+      "return": -100.18,
+      "height_gain": 406.6
+    },
+    {
+      "start": "step-001710.dst",
+      "route_s_start": 37703.28454653602,
+      "route_s_end": 39093.285767465895,
+      "route_gain": 1390.0,
+      "decisions": 600,
+      "end": "horizon",
+      "return": 1.05,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-001950.dst",
+      "route_s_start": 47631.89722239062,
+      "route_s_end": 47680.08238514166,
+      "route_gain": 48.2,
+      "decisions": 31,
+      "end": "died",
+      "return": -100.17,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-002190.dst",
+      "route_s_start": null,
+      "route_s_end": null,
+      "route_gain": null,
+      "decisions": 154,
+      "end": "died",
+      "return": -103.08,
+      "height_gain": 317.4
+    },
+    {
+      "start": "step-002430.dst",
+      "route_s_start": null,
+      "route_s_end": null,
+      "route_gain": null,
+      "decisions": 96,
+      "end": "died",
+      "return": -101.92,
+      "height_gain": 253.8
+    },
+    {
+      "start": "step-002670.dst",
+      "route_s_start": 53245.76098028393,
+      "route_s_end": 53245.76098028393,
+      "route_gain": 0.0,
+      "decisions": 1,
+      "end": "star",
+      "return": 499.98,
+      "height_gain": 0.0
+    }
+  ]
+}

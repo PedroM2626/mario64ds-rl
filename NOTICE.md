@@ -5,7 +5,9 @@ The **source code** in this repository is released under the MIT Licence (see
 
 *Super Mario 64 DS*, its ROM, savestates, sprites, music, screenshots and
 gameplay footage are property of Nintendo and their respective rights holders.
-This repository does **not** distribute a ROM or savestates. The GIF/MP4 files
+The git tree contains no ROM or savestates. Release `v1.1.0` attaches a
+savestate bundle (`sm64ds_states.tar.gz`); those files are game RAM dumps and
+remain Nintendo property. The GIF/MP4 files
 under `videos/` and the screenshots under `images/` are research/demonstration
 recordings of a locally supplied game and are not relicensed by the MIT licence.
 

@@ -1,0 +1,142 @@
+{
+  "model": "noop",
+  "route": "config/routes/ttc_human_v1.json",
+  "route_length": 53245.76339151399,
+  "max_steps": 600,
+  "starts": 13,
+  "died": 2,
+  "star": 1,
+  "median_route_gain": 8.2,
+  "rows": [
+    {
+      "start": "ds8",
+      "route_s_start": 0.0,
+      "route_s_end": 0.0,
+      "route_gain": 0.0,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -12.0,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-000030.dst",
+      "route_s_start": 333.4454855208481,
+      "route_s_end": 426.26746457165336,
+      "route_gain": 92.8,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -11.13,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-000270.dst",
+      "route_s_start": 8654.198533840077,
+      "route_s_end": 8655.33612504672,
+      "route_gain": 1.1,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -11.99,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-000510.dst",
+      "route_s_start": 16030.615859293317,
+      "route_s_end": 16076.898670332901,
+      "route_gain": 46.3,
+      "decisions": 52,
+      "end": "died",
+      "return": -100.61,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-000750.dst",
+      "route_s_start": 24325.502359886355,
+      "route_s_end": 24325.502359886355,
+      "route_gain": 0.0,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -12.0,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-000990.dst",
+      "route_s_start": 28301.41156109452,
+      "route_s_end": 28353.146836598276,
+      "route_gain": 51.7,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -11.51,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-001230.dst",
+      "route_s_start": 28711.05807412907,
+      "route_s_end": 28719.242082114055,
+      "route_gain": 8.2,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -11.92,
+      "height_gain": 20.5
+    },
+    {
+      "start": "step-001470.dst",
+      "route_s_start": 30232.233961220772,
+      "route_s_end": 30255.869398150837,
+      "route_gain": 23.6,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -11.78,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-001710.dst",
+      "route_s_start": 37703.28454653602,
+      "route_s_end": 37827.00941746285,
+      "route_gain": 123.7,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -10.84,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-001950.dst",
+      "route_s_start": 47631.89722239062,
+      "route_s_end": 47631.89722239062,
+      "route_gain": 0.0,
+      "decisions": 600,
+      "end": "horizon",
+      "return": -12.0,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-002190.dst",
+      "route_s_start": null,
+      "route_s_end": null,
+      "route_gain": null,
+      "decisions": 333,
+      "end": "died",
+      "return": -106.66,
+      "height_gain": 0.1
+    },
+    {
+      "start": "step-002430.dst",
+      "route_s_start": null,
+      "route_s_end": 50198.83170622612,
+      "route_gain": null,
+      "decisions": 600,
+      "end": "horizon",
+      "return": 3.25,
+      "height_gain": 0.0
+    },
+    {
+      "start": "step-002670.dst",
+      "route_s_start": 53245.76098028393,
+      "route_s_end": 53245.76098028393,
+      "route_gain": 0.0,
+      "decisions": 1,
+      "end": "star",
+      "return": 499.98,
+      "height_gain": 0.0
+    }
+  ]
+}

@@ -50,7 +50,7 @@ ALL_TRACKS = ["ds1", "ds2", "ds3", "ds8", "ds9"]
 DEFAULT_TRACKS = ["ds1", "ds2", "ds3"]
 TRACKS = ALL_TRACKS
 TRACK_NAMES = {
-    "ds1": "Course 3 slide (Cool, Cool Mountain)",
+    "ds1": "Cool, Cool Mountain slide",
     "ds2": "Princess Peach's Secret Slide",
     "ds3": "Tall, Tall Mountain slide (Monkey)",
     "ds8": "Tick Tock Clock (Course 14) - Slow Mode",

@@ -7,9 +7,9 @@ directory is committed except this README.
 
 - `Super Mario 64 DS (USA) (Rev 1).nds` -- legally dumped ROM.
 - `Super Mario 64 DS (USA) (Rev 1).ds{1,2,3,8,9}` -- active starting savestates:
-  - `ds1`: Peach's Secret Slide (Course 11)
-  - `ds2`: Tall, Tall Mountain Slide (Course 5)
-  - `ds3`: Cool, Cool Mountain Slide (Course 3)
+  - `ds1`: Cool, Cool Mountain slide
+  - `ds2`: The Princess's Secret Slide
+  - `ds3`: Tall, Tall Mountain slide
   - `ds8`: Tick Tock Clock entry - Slow setting (Course 14)
   - `ds9`: Tick Tock Clock star jump test platform (Course 14)
 

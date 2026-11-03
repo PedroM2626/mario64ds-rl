@@ -3,7 +3,7 @@
 This project is a Deep Reinforcement Learning implementation that trains autonomous artificial agents to navigate Super Mario 64 DS — mastering both downhill slide courses and 3D vertical platforming stages (Tick Tock Clock) — operating natively through a Nintendo DS emulator.
 
 **Tracks (savestates located in `data/`):**
-- `ds1` — Course 3 slide (Cool, Cool Mountain / Pinguim Slide)
+- `ds1` — Cool, Cool Mountain slide (penguin slide)
 - `ds2` — Princess Peach's Secret Slide (The Princess's Secret Slide)
 - `ds3` — Tall, Tall Mountain secret slide (Monkey slide)
 - `ds8` — Course 14 full ascent (Tick Tock Clock / Slow setting)
@@ -13,7 +13,7 @@ This project is a Deep Reinforcement Learning implementation that trains autonom
 
 ## 🎥 Watch a decision being made
 
-![The PPO agent descending the ds1 Course 3 slide in Super Mario 64 DS: gameplay at the emulator's true 60 Hz, the 84x84 grayscale CNN input, the 32x32 window the optical-flow reward is measured on, the policy's real action probabilities, the critic's value, the RAM physics struct and the reward instrument.](videos/dashboard/m64_dashboard_preview.gif)
+![The PPO agent descending the ds1 Cool, Cool Mountain slide in Super Mario 64 DS: gameplay at the emulator's true 60 Hz, the 84x84 grayscale CNN input, the 32x32 window the optical-flow reward is measured on, the policy's real action probabilities, the critic's value, the RAM physics struct and the reward instrument.](videos/dashboard/m64_dashboard_preview.gif)
 
 One deterministic 1350-decision episode per track, recorded by
 `scripts/record_dashboard.py` under the [`rust/`](rust/README.md) supervisor
@@ -24,7 +24,7 @@ recomputed from the logged weight-free flow sum rather than copied.
 
 | Track | Steps survived | R at flow $\times 1.0$ (single recorded episode) | R re-priced at $\times 2.5$ | In-track falls | Near-stationary decisions | Clip |
 |---|---|---|---|---|---|---|
-| `ds1` (Course 3) | 1350 / 1350 | +131.77 | +369.94 | 2 | 695 | [dashboard_ds1.mp4](videos/dashboard/dashboard_ds1.mp4) — 90.0 s, 60 fps, policy on cpu |
+| `ds1` (Cool, Cool Mountain) | 1350 / 1350 | +131.77 | +369.94 | 2 | 695 | [dashboard_ds1.mp4](videos/dashboard/dashboard_ds1.mp4) — 90.0 s, 60 fps, policy on cpu |
 | `ds2` (Peach Slide) | 1350 / 1350 | +329.92 | +865.29 | 1 | 226 | [dashboard_ds2.mp4](videos/dashboard/dashboard_ds2.mp4) — 90.0 s, 60 fps, policy on cpu |
 | `ds3` (Monkey Slide) | 1350 / 1350 | +185.40 | +504.01 | 3 | 298 | [dashboard_ds3.mp4](videos/dashboard/dashboard_ds3.mp4) — 90.0 s, 60 fps, policy on cpu |
 
@@ -75,17 +75,17 @@ python tools/check_readme_numbers.py        # gate: prose must equal the artifac
 ---
 
 ## 🎯 Objective
-The agent's primary objective is to **complete each stage** — traversing the full descent in the slide courses and ascending the vertical clock tower in Tick Tock Clock to collect the Power Star (not merely survive by idling) — navigating forward and upward using raw visual observations alongside 3D spatial progression rewards. Episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track.
+The agent's primary objective is to **complete each stage** — traversing the full descent in the slide courses and ascending the vertical clock tower in Tick Tock Clock to collect the Power Star (not merely survive by idling) — navigating forward and upward using raw visual observations alongside 3D spatial progression rewards. Slide episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track. Tick Tock Clock `v4` uses `3000` steps (200 s), because the recorded human ascent took 2,674 decisions.
 
 ---
 
-## 🏆 Current Benchmark State: ALL THREE TRACKS COMPLETED
+## 🏆 Current Benchmark State: full-horizon survival on all three slides (finish line reached on `ds2`)
 
-**`curriculum_flow25_r3_best.zip`** (PPO + NatureCNN, optical flow weight $\times 2.5$) — the first agent checkpoint in the project's history to successfully complete all 3 slide tracks, corroborated by independent deterministic evaluation (9/9 full 90-second completed episodes):
+**`curriculum_flow25_r3_best.zip`** (PPO + NatureCNN, optical flow weight $\times 2.5$) — the first agent checkpoint in the project's history to survive the full 1350-decision horizon on all 3 slide tracks, corroborated by independent deterministic evaluation (9/9 full 90-second episodes). "Completed Steps" below means surviving the horizon under the historical environment (black-screen death, so falls into the void respawn Mario); the finish-line check that follows shows what it does not mean:
 
 | Track | Reward (video, flow $\times 2.5$) | Completed Steps | Demonstration Video |
 |---|---|---|---|
-| `ds1` (Course 3) | +369.94 | **1350 / 1350** | `videos/phase_ds1.mp4` |
+| `ds1` (Cool, Cool Mountain) | +369.94 | **1350 / 1350** | `videos/phase_ds1.mp4` |
 | `ds2` (Peach Slide) | +865.29 | **1350 / 1350** | `videos/phase_ds2.mp4` |
 | `ds3` (Monkey Slide) | +504.01 | **1350 / 1350** | `videos/phase_ds3.mp4` |
 
@@ -96,6 +96,25 @@ decision 218 (see *One checkpoint, two outcomes* at the top). The three
 deterministic evaluation episodes per track come out identical, so the published
 mean is one trajectory replayed three times, and the dashboard recordings at the
 top of this file reproduce each of these cells to the cent.
+
+> **Measured against the RAM finish line (2026-11-03).** `scripts/compare_rewards.py`
+> replays this checkpoint deterministically on CPU with the finish coordinates of
+> `src/ram_state.py` (`TRACK_GOALS`, goal radius 250 units). Under the historical
+> settings (flow $	imes 1.0$, black-screen death):
+>
+> | Track | Outcome | Closest straight-line distance to the finish |
+> |---|---|---|
+> | `ds1` (Cool, Cool Mountain) | horizon reached, **finish not reached** | 417.5 |
+> | `ds2` (Peach Slide) | **finish reached** at decision 911 | 248.9 |
+> | `ds3` (Monkey Slide) | horizon reached, **finish not reached** | 23,980 (start: 36,404) |
+>
+> With RAM kill-plane death enabled the same policy dies at decisions 66, 836
+> and 38: the "in-track falls" in the dashboard table are falls the historical
+> environment respawned from. Numbers: [docs/REWARD_COMPARISON_RESULTS.json](docs/REWARD_COMPARISON_RESULTS.json).
+> The earlier version of that file recorded the start position as the final one
+> (it read RAM after the vector env's auto-reset) and counted timeouts as deaths;
+> both are fixed. The world-model controllers below were measured by survival
+> only, not against the finish line.
 
 To re-record the demonstration videos:
 ```bash
@@ -169,7 +188,8 @@ Each training round initially consolidated one track at the expense of another; 
 - **Video Rendering**: `scripts/record_phases.py` (real-time RGB MP4 per track) and `scripts/record_dashboard.py` (annotated 60 Hz dashboard: gameplay, CNN input, flow window, $\pi(a|s)$, critic value, RAM struct, reward instrument; plus a per-decision trace JSON).
 - **Process Supervision**: `rust/sm64_sup.exe` (std-only Rust; one process per track because two DeSmuME cores in one process crash, with live streaming, per-run budget, kill on overrun and result collection — see [`rust/README.md`](rust/README.md)).
 - **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (where a step's milliseconds go), `tools/check_readme_numbers.py` (re-derives every figure quoted here).
-- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), hardware kill-plane death detection (`0x0217F760`), course ID extraction (`0x02285238`), and star collection tracking gated by Euclidean proximity ($D \le 500$ units and $D \le 80$ touch radius). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
+- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), hardware kill-plane death detection (`0x0217F760`), course ID extraction (`0x02285238`), and star collection detected when Mario is within $80$ units of the star, or when the star counter (`0x0209FB64`) rises while he is within $500$ units (the counter alone fluctuates; see §10.6 of the reward doc). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
+- **Human Demonstrations**: `scripts/record_human.py` / `record-ttc.bat` (interactive 60 Hz recorder, any button combination, per-frame masks, checkpoint savestates) and `scripts/prepare_human_route.py` (frame-exact replay check, loop-erased route, curriculum checkpoints); consumed by `src/route.py` (route progress reward) and `src/demos.py` (replay-buffer prefill). See [`docs/HUMAN_RECORDING.md`](docs/HUMAN_RECORDING.md).
 - **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
 - **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
 - **Consolidated Empirical Data**: `results/` (stores consolidated experimental CSV tables for 100k grid, 500k scale, 2M steps, and curriculum rounds).
@@ -288,14 +308,14 @@ Transitioning from 450 steps to the full track descent (**1350 steps / 90 second
 graph TD
     A["Base Training (1M steps)<br>Tracks: ds1 + ds3<br>Flow weight: 2.5"] --> B["Curriculum Round 1 (300k steps, lr=5e-5)<br>Uniform mix: ds1, ds2, ds3<br>Achieved: ds1✓, ds2✓"]
     B --> C["Curriculum Round 2 (500k steps, lr=5e-5)<br>Emphasis mix: ds1, ds2, ds3, ds3<br>Achieved: ds2✓, ds3✓"]
-    C --> D["Curriculum Round 3 (500k steps, lr=5e-5 -> 2.5e-5)<br>Emphasis mix: ds1, ds2, ds3, ds1<br>Achieved: ALL 3 TRACKS COMPLETED (1350/1350)"]
+    C --> D["Curriculum Round 3 (500k steps, lr=5e-5 -> 2.5e-5)<br>Emphasis mix: ds1, ds2, ds3, ds1<br>Achieved: 1350/1350 survival on all 3 tracks"]
 ```
 
 ### Full Descent Results Summary (`curriculum_flow25_r3_best.zip`)
 
 | Track | Independent Eval (flow $\times 1.0$) | Video Rollout (flow $\times 2.5$) | Descent Steps | Survival Rate |
 |---|---|---|---|---|
-| `ds1` (Course 3) | +131.77 | +369.94 | **1350 / 1350** | **3 / 3 (100%)** |
+| `ds1` (Cool, Cool Mountain) | +131.77 | +369.94 | **1350 / 1350** | **3 / 3 (100%)** |
 | `ds2` (Princess Peach) | +329.92 | +865.29 | **1350 / 1350** | **3 / 3 (100%)** |
 | `ds3` (Tall, Tall Mountain) | +185.40 | +504.01 | **1350 / 1350** | **3 / 3 (100%)** |
 
@@ -308,8 +328,8 @@ Adapting the model-based recipe of the research repo
 train the agent *inside* that model, deploy on the real console) to this
 **pixel-only** environment. Full write-up: [`docs/WORLD_MODEL.md`](docs/WORLD_MODEL.md).
 
-Because only pixels are available (no clean RAM state), the dynamics are learned
-in a **compact latent space** with a Dreamer/PlaNet-style **RSSM world model**
+The world model was built before Mario's RAM physics struct was found, so its
+dynamics are learned from pixels in a **compact latent space** with a Dreamer/PlaNet-style **RSSM world model**
 (`src/world_model.py`): convolutional encoder → Gaussian latent + GRU
 recurrent state, with prior/posterior, a reward head and a continue head. The
 agent is then learned **fast** (`src/train_world_model.py`) from only **~35k real
@@ -322,7 +342,7 @@ emulator transitions** collected once (`src/collect_data.py`):
   full-descent demonstrations inside the learned latent space (stable + fast),
   optionally refined with **interactive DAgger** (`src/dagger_world_model.py`).
 
-The controller that ultimately clears every track distills a **memoryless**
+The controller that ultimately survives every track distills a **memoryless**
 policy head onto the RSSM's learned encoder (`src/distill_memoryless.py`) and
 refines it with **memoryless DAgger** (`src/dagger_memoryless.py`).
 
@@ -331,7 +351,7 @@ The deployed policy runs on the live emulator through a belief-state controller
 (`src/mpc_world_model.py`), and is recorded/evaluated in real time
 (`scripts/record_world_model.py`, `scripts/eval_world_model.py`).
 
-### ✅ The world-model agent completes all three tracks
+### ✅ The world-model agent survives all three tracks
 
 > **⚠️ Transparency — read this first.** The policy that clears all three tracks
 > does **not** discover the skill from scratch through the world model. It is a
@@ -357,7 +377,7 @@ every track, with rewards meeting/exceeding the model-free PPO benchmark:
 
 | Track | Real-game result | Reward |
 |---|---|---|
-| `ds1` (Course 3) | **3/3 — 1350/1350** | 717 |
+| `ds1` (Cool, Cool Mountain) | **3/3 — 1350/1350** | 717 |
 | `ds2` (Peach Slide) | **3/3 — 1350/1350** | 550 |
 | `ds3` (Monkey Slide) | **3/3 — 1350/1350** | 535 |
 
@@ -409,9 +429,9 @@ first actions). Result, on the real game, in real time, **expert-free**:
 
 | Track | Expert-free CEM-MPC (world model only — no policy net, no action labels) |
 |---|---|
-| `ds2` (Peach Slide)  | **1350/1350 COMPLETED ×4** — `videos/mpc_ds2.mp4` (R=571.5) |
-| `ds3` (Monkey Slide) | **1350/1350 COMPLETED ×2** — `videos/mpc_ds3.mp4` (R=830.5) |
-| `ds1` (Course 3)     | never completed; best 525/1350 (`videos/mpc_ds1.mp4`, partial) |
+| `ds2` (Peach Slide)  | **1350/1350 survived ×4** — `videos/mpc_ds2.mp4` (R=571.5) |
+| `ds3` (Monkey Slide) | **1350/1350 survived ×2** — `videos/mpc_ds3.mp4` (R=830.5) |
+| `ds1` (Cool, Cool Mountain)     | never survived the horizon; best 525/1350 (`videos/mpc_ds1.mp4`, partial) |
 
 **Honest limits:** per-hazard threading is ~40-70%, so completions happen on
 ~5-15% of episodes on the clearable tracks — not the reliable 3/3 of the
@@ -537,13 +557,27 @@ python scripts/compare_rewards.py                     # writes docs/REWARD_COMPA
 ```
 
 ### Tick Tock Clock: human route, curriculum and demonstrations
-The QR-DQN `ds8` models stay on the start platform; the measured causes and the
-changes made for them are in [section 10.8](docs/REWARD_SYSTEM_AND_RAM.md#108-why-v3-stays-on-the-base-platform-and-what-is-now-in-place).
-The next step needs one human run to the star, recorded with `record-ttc.bat`
-(`scripts/record_human.py`) and converted with `scripts/prepare_human_route.py`
-into a route reward, a start-state curriculum and replay-buffer demonstrations.
-Step-by-step instructions and the training command: [docs/HUMAN_RECORDING.md](docs/HUMAN_RECORDING.md).
-No model has been trained with these yet.
+**No agent has climbed Tick Tock Clock yet.** v1-v3 (QR-DQN + IMPALA) stay on
+the start platform; the measured causes are in [section 10.8](docs/REWARD_SYSTEM_AND_RAM.md#108-why-v3-stays-on-the-base-platform-and-what-is-now-in-place).
+One human ascent to the star (2,674 decisions, recorded with `record-ttc.bat` /
+`scripts/record_human.py`, converted with `scripts/prepare_human_route.py`)
+now provides a route reward, 89 curriculum savestates and 1,732 replay-buffer
+demonstrations ([docs/HUMAN_RECORDING.md](docs/HUMAN_RECORDING.md)).
+
+| Model | Full start (`ds8`) | From 13 human checkpoints: median route gain / falls |
+|---|---|---|
+| v3 (100k, progress reward) | survives 1350 on the start platform, $+378$ height | not measured |
+| v4 (300k, route + curriculum + demos + `compound12`) | falls at decision 128, $+268.5$ height | 336.7 units / 11 of 13 |
+| do nothing (baseline) | stands still | 8.2 units / 2 of 13 |
+
+v4 follows the human path with running jumps but has not learned to survive
+the moving platforms. Details and caveats: [section 10.9](docs/REWARD_SYSTEM_AND_RAM.md#109-model-v4-human-route-curriculum-and-demonstrations-2026-11-03);
+dashboard: `videos/dashboard_ds8_v4/dashboard_ds8.mp4`.
+
+```bash
+python scripts/eval_route_starts.py --model models/qrdqn_impala_ds8_v4_best.zip   # results/route_starts_*.json
+python scripts/eval_route_starts.py --model noop                                  # baseline
+```
 
 ### Savestate & Asset Management
 To set up active starting states (`ds1`, `ds2`, `ds3`, `ds8`, `ds9`) from the [v1.1.0 release](https://github.com/PedroM2626/mario64ds-rl/releases/tag/v1.1.0):
@@ -588,4 +622,7 @@ The image is CPU-oriented (the published evaluation is defined on CPU); add
 
 The code is MIT ([LICENSE](LICENSE)). The game, ROM, savestates, screenshots and
 gameplay recordings are Nintendo property and are not relicensed by MIT; see
-[NOTICE.md](NOTICE.md). No ROM or savestate is distributed here.
+[NOTICE.md](NOTICE.md). The git tree contains no ROM or savestate; release
+[`v1.1.0`](https://github.com/PedroM2626/mario64ds-rl/releases/tag/v1.1.0) attaches
+the savestate bundle `sm64ds_states.tar.gz`. Human recordings and curriculum
+savestates (`runs/`, `data/curriculum/`) stay local.

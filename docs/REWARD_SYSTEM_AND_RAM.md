@@ -70,9 +70,9 @@ Using the reference savestates in `data/`, the exact boundary coordinates were e
 
 | Track Key | Course Name | Start State | Terminus State | Start Coordinates $(X, Y, Z)$ | Goal Coordinates $(X, Y, Z)$ | Goal Type | Success Threshold |
 |---|---|---|---|---|---|---|---|
-| `ds1` | Peach's Secret Slide | `.ds1` | `.ds4` | $(-4444.53, +6409.80, -5976.62)$ | $(-6342.00, -5700.00, -6625.27)$ | Position | $d \le 250.0$ units |
-| `ds2` | Tall, Tall Mountain | `.ds2` | `.ds5` | $(+2144.91, +5802.77, -5500.00)$ | $(-6240.47, -4479.99, +4506.09)$ | Position | $d \le 250.0$ units |
-| `ds3` | Cool, Cool Mountain | `.ds3` | `.ds6` | $(+10012.89, +12697.51, +11114.62)$ | $(-514.75, -13645.99, -11697.84)$ | Position | $d \le 250.0$ units |
+| `ds1` | Cool, Cool Mountain slide | `.ds1` | `.ds4` | $(-4444.53, +6409.80, -5976.62)$ | $(-6342.00, -5700.00, -6625.27)$ | Position | $d \le 250.0$ units |
+| `ds2` | The Princess's Secret Slide | `.ds2` | `.ds5` | $(+2144.91, +5802.77, -5500.00)$ | $(-6240.47, -4479.99, +4506.09)$ | Position | $d \le 250.0$ units |
+| `ds3` | Tall, Tall Mountain slide | `.ds3` | `.ds6` | $(+10012.89, +12697.51, +11114.62)$ | $(-514.75, -13645.99, -11697.84)$ | Position | $d \le 250.0$ units |
 | `ds8` | Tick Tock Clock | `.ds8` | `.ds9` | $(+1470.00, -4710.00, +128.00)$ | $(+2350.00, +7145.00, +2350.00)$ | Star | Star $+1$ or $d \le 80.0$ |
 | `ds9` | TTC Star Jump | `.ds9` | Target Star | $(+2342.50, +6885.69, +2351.12)$ | $(+2350.00, +7145.00, +2350.00)$ | Star | Star $+1$ or $d \le 80.0$ |
 
@@ -462,3 +462,26 @@ The route and checkpoints come from one human run recorded with `scripts/record_
 
 
 
+
+---
+
+### 10.9 Model v4: human route, curriculum and demonstrations (2026-11-03)
+
+`qrdqn_impala_ds8_v4` is the first run with everything from 10.8: `compound12`, flow weight $0$, the route reward from one human ascent (`config/routes/ttc_human_v1.json`, 53.2k units, see [HUMAN_RECORDING.md](HUMAN_RECORDING.md)), 75% of training resets at one of the 89 checkpoints along that ascent, 1,732 exact human decisions prefilled into the replay buffer, horizon $3000$. Everything else as v3 (QR-DQN + IMPALA, 4 envs, buffer $100{,}000$, $\varepsilon$ $1.0 \to 0.05$ over the first 30%), but $300{,}000$ steps ($1.03$ h on the RTX 4070 laptop GPU). Config: `models/qrdqn_impala_ds8_v4/run_config.json`.
+
+#### 1. Full start (`ds8`, deterministic, 15 evaluations every 20k steps)
+Every evaluation ended in a fall within $47$-$128$ decisions. Returns: $-99.25$ (20k, 40k), $-96.94$ (60k-200k, 240k, 280k, 300k), $-98.24$ (220k), best $-90.79$ (260k, kept as `*_best.zip`). The dashboard of the best checkpoint (`videos/dashboard_ds8_v4/`) reproduces it exactly: 128 decisions, route reward $+11.77$ (1,253 of 53,246 route units), then the kill plane; decomposition residual $1.6 \times 10^{-8}$. Peak height gain from `ds8` is $+268.5$ to $+299.2$ depending on the frame-stack convention of the instrument (v3 best: $+378.0$ without dying). On the full start, v4 is not better than v3.
+
+#### 2. From the human checkpoints (`scripts/eval_route_starts.py`, 13 starts, 600 decisions each)
+| Policy | Route units gained (median) | Starts ending in a fall | Star |
+|---|---|---|---|
+| do nothing (`--model noop`) | $8.2$ | 2 / 13 | 1 / 13 |
+| v4 best (260k) | $336.7$ | 11 / 13 | 1 / 13 |
+| v4 final (300k) | $398.2$ | 11 / 13 | 1 / 13 |
+
+The single "star" is the last checkpoint (decision 2,670 of the human run, 4 decisions before the star), which collects it even when idle; it is not a learned completion. v4 gets 41-49x further along the route than standing still, but falls from 11 of 13 starts within 25-583 decisions. Training episodes ended the same way: at 300k the mean training episode lasted $152.4$ decisions with return $-89.7$.
+
+#### 3. What this does and does not show
+* The route reward and compound actions changed the behaviour: v3 alternated noop/jump on the start platform; v4 moves along the human path with running jumps (up+B, up+left+B make up 49-87% of its full-start decisions).
+* None of the changes taught it to survive the moving platforms. With route reward $\approx 0.0094$ per unit, a typical segment pays a few points while a fall costs $100$, so the measured failure is fall avoidance, not reward sparsity.
+* One seed, one human route, 300k steps. These results do not separate the contributions of the curriculum, the demonstrations and the action set.

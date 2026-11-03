@@ -9,6 +9,11 @@
 
 ---
 
+> **Note (2026-11-03).** Results in this document count an episode as complete
+> when it survives 1350 decisions. They were not checked against the RAM finish
+> line; for the PPO expert this distills, that check reaches the finish only on
+> `ds2` (README, *Measured against the RAM finish line*).
+
 ## 1. Why a world model? The reference idea
 
 The `smw-pinn` benchmark shows that, for classic console platformers, learning a
@@ -25,7 +30,8 @@ trained on 5 000. Its pipeline is:
 
 `smw-pinn` reads Mario's `(x, y, vx, vy, ...)` state directly from SNES WRAM.
 Our *Mario 64 DS* environment (`src/env.py`) exposes **only pixels** (84×84
-grayscale, 4-frame stack) — there is no clean RAM state vector. So we cannot copy
+grayscale, 4-frame stack); when this world model was built no RAM state vector
+had been found (the physics struct came later, see §10 and `src/ram_state.py`). So we could not copy
 the low-dimensional PINN; instead we learn the dynamics in a **compact latent
 space** with a recurrent world model, which is the standard model-based-RL answer
 for pixel observations.
@@ -149,7 +155,7 @@ PPO expert descents). The RSSM world model converged fast (reward-head MSE
 
 | Track | Real-game result (fresh emulator, deterministic) | Reward |
 |---|---|---|
-| `ds1` (Course 3)      | **3/3 — 1350/1350 descents** | 717 |
+| `ds1` (Cool, Cool Mountain)      | **3/3 — 1350/1350 descents** | 717 |
 | `ds2` (Peach Slide)   | **3/3 — 1350/1350 descents** | 550 |
 | `ds3` (Monkey Slide)  | **3/3 — 1350/1350 descents**   | 535 |
 
@@ -363,9 +369,9 @@ broken for 2 of 3 tracks. **Expert-free completions, real time, on video:**
 
 | Track | Expert-free CEM-MPC (world model only, no policy net, no action labels) |
 |---|---|
-| `ds2` (Peach Slide)   | **1350/1350 COMPLETED ×4** — video `videos/mpc_ds2.mp4` (R=571.5); evals R=559.1 / 587.3 / 417.7 |
-| `ds3` (Monkey Slide)  | **1350/1350 COMPLETED ×2** — video `videos/mpc_ds3.mp4` (R=830.5); eval R=851.3 |
-| `ds1` (Course 3)      | never completed; best **525/1350** (video `videos/mpc_ds1.mp4` shows the partial descent) |
+| `ds2` (Peach Slide)   | **1350/1350 survived ×4** — video `videos/mpc_ds2.mp4` (R=571.5); evals R=559.1 / 587.3 / 417.7 |
+| `ds3` (Monkey Slide)  | **1350/1350 survived ×2** — video `videos/mpc_ds3.mp4` (R=830.5); eval R=851.3 |
+| `ds1` (Cool, Cool Mountain)      | never completed; best **525/1350** (video `videos/mpc_ds1.mp4` shows the partial descent) |
 
 Reliability, stated plainly: per-hazard threading is ~40-70%, so a full
 descent completes on ~5-15% of episodes on the clearable tracks (ds2 completed

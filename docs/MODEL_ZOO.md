@@ -28,6 +28,20 @@ publish the same bytes as GitHub Release/LFS assets so consumers can check them.
 The full hashes are in `models/ASSETS.json`. Optional assets are the exact-state
 bundle (`models/state_wm.pt`) and the base replay buffer (`data/wm_buffer.pkl`).
 
+## Tick Tock Clock checkpoints (local, not in the manifest)
+
+These are experiment checkpoints, not headline results, so `ASSETS.json` does
+not require them. None of them climbs the tower (see the README).
+
+| Asset | Role | Size | SHA256 |
+|---|---|---:|---|
+| `models/qrdqn_impala_ds8_v4_best.zip` | QR-DQN + IMPALA, `compound12`, human route + curriculum + demos, best eval at 260k | 20,788,588 | `e742b71d...af161f48` |
+| `models/qrdqn_impala_ds8_v4_final.zip` | same run at 300k | 20,788,561 | `fe919934...53296800` |
+
+Run config: `models/qrdqn_impala_ds8_v4/run_config.json`. Older `ds8` runs
+(`qrdqn_impala_ds8`, `_v2`, `_v3`) are described in
+[REWARD_SYSTEM_AND_RAM.md](REWARD_SYSTEM_AND_RAM.md) §10.5-10.7.
+
 ## If you do not have the assets
 
 1. Train them with the commands in the README (the PPO/curriculum path takes

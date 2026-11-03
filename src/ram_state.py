@@ -39,7 +39,11 @@ POS_ADDRS = (POS_X_ADDR, POS_Y_ADDR, POS_Z_ADDR)
 
 # Save-data & Level Context Registers
 STAR_COUNT_ADDR = 0x0209FB64         # Global Star Counter in save RAM
-COURSE_ID_ADDR = 0x02285238          # Active Course ID (11=PSS, 5=TTM, 3=CCM, 14=TTC)
+# Level/area register. Not the in-game course number: it reads 11 on the Cool,
+# Cool Mountain slide (ds1), 5 on the Princess's Secret Slide (ds2), 3 on the
+# Tall, Tall Mountain slide (ds3) and 14 in Tick Tock Clock (ds8/ds9). Use the
+# values only as fingerprints of these savestates.
+COURSE_ID_ADDR = 0x02285238
 
 KILL_PLANE = -300000               # height clamp observed during death falls
 RESPAWN_HEIGHT = -32768            # -8.0: post-respawn height
@@ -48,28 +52,28 @@ FIXED_POINT_TOL = 5000             # boot-time verification tolerance for 'const
 
 # Track finish specs and 3D goal coordinates
 TRACK_GOALS = {
-    # Level 1: Peach's Secret Slide (start: ds1 -> finish: ds4)
+    # Cool, Cool Mountain slide (start: ds1 -> finish: ds4)
     "ds1": {
         "course_id": 11,
-        "name": "Peach's Secret Slide",
+        "name": "Cool, Cool Mountain slide",
         "goal_type": "position",
         "target_pos": np.array([-6342.00, -5700.00, -6625.27], dtype=np.float64),
         "success_dist": 250.0,
         "kill_y": -6500.0,
     },
-    # Level 2: Tall, Tall Mountain Slide (start: ds2 -> finish: ds5)
+    # The Princess's Secret Slide (start: ds2 -> finish: ds5)
     "ds2": {
         "course_id": 5,
-        "name": "Tall, Tall Mountain Slide",
+        "name": "The Princess's Secret Slide",
         "goal_type": "position",
         "target_pos": np.array([-6240.47, -4479.99, 4506.09], dtype=np.float64),
         "success_dist": 250.0,
         "kill_y": -6000.0,
     },
-    # Level 3: Cool, Cool Mountain Slide (start: ds3 -> finish: ds6)
+    # Tall, Tall Mountain slide (start: ds3 -> finish: ds6)
     "ds3": {
         "course_id": 3,
-        "name": "Cool, Cool Mountain Slide",
+        "name": "Tall, Tall Mountain slide",
         "goal_type": "position",
         "target_pos": np.array([-514.75, -13645.99, -11697.84], dtype=np.float64),
         "success_dist": 250.0,

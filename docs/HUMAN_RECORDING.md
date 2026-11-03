@@ -154,5 +154,8 @@ up+Y, so decisions using them otherwise are not exact.
   (500 route - 70 x 0.02 step cost).
 * The interactive window opened, waited for Enter and exited at its time limit.
 
-No model has been trained with the route reward, the curriculum, the demo
-prefill or `compound12` yet.
+## Result of the first training run
+
+`qrdqn_impala_ds8_v4` (the command above, 300k steps, 1.03 h) moves along the
+route but still falls: from `ds8` at decision 128, and from 11 of 13 human
+checkpoints. See [REWARD_SYSTEM_AND_RAM.md, section 10.9](REWARD_SYSTEM_AND_RAM.md#109-model-v4-human-route-curriculum-and-demonstrations-2026-11-03).

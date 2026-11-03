@@ -77,6 +77,7 @@ def run_worker(track: str, reward_mode: str, model_path: str, max_steps: int = 1
     goal_reached = False
     death = False
     final_pos = start_pos.copy()
+    min_dist = initial_dist
 
     for step in range(max_steps):
         action, _ = model.predict(vec_obs, deterministic=True)
@@ -87,13 +88,15 @@ def run_worker(track: str, reward_mode: str, model_path: str, max_steps: int = 1
         flow_sum += info.get("flow_reward", 0.0)
         dist_reward_sum += info.get("dist_reward", 0.0)
         step_penalty_sum += env.step_penalty
-        final_pos = env.ram.get_pos_3d().copy()
+        # The info dict describes the step before DummyVecEnv's auto-reset;
+        # reading env.ram after a terminal step would return the start state.
+        if info.get("pos_3d") is not None:
+            final_pos = np.asarray(info["pos_3d"], dtype=np.float64).copy()
+            if spec is not None and "target_pos" in spec:
+                min_dist = min(min_dist, float(np.linalg.norm(final_pos - spec["target_pos"])))
 
-        if info.get("goal_reached", False):
-            goal_reached = True
-        if info.get("died", False) or info.get("dead", False) or dones[0]:
-            if not goal_reached:
-                death = True
+        goal_reached = goal_reached or bool(info.get("reached_goal", False))
+        death = death or bool(info.get("died", False))
 
         if dones[0]:
             break
@@ -117,6 +120,7 @@ def run_worker(track: str, reward_mode: str, model_path: str, max_steps: int = 1
         "death": bool(death),
         "initial_dist": float(initial_dist),
         "final_dist": float(final_dist),
+        "min_dist": float(min_dist),
         "progress_delta": float(initial_dist - final_dist),
         "start_pos": start_pos.tolist(),
         "final_pos": final_pos.tolist()
@@ -177,12 +181,12 @@ def main():
     print("\n" + "=" * 80)
     print("SUMMARY COMPARATIVE TABLE (Flagship Model Evaluation)")
     print("=" * 80)
-    print(f"{'Track':<6} {'Mode':<6} {'Steps':<7} {'Outcome':<14} {'Total R':<10} {'Dist 0':<9} {'Dist T':<9} {'Delta D':<9}")
+    print(f"{'Track':<6} {'Mode':<6} {'Steps':<7} {'Outcome':<14} {'Total R':<10} {'Dist 0':<9} {'Dist T':<9} {'Min D':<9}")
     print("-" * 80)
     for r in results:
         outcome = "GOAL REACHED" if r["goal_reached"] else ("DEATH" if r["death"] else "TIMEOUT")
         print(f"{r['track']:<6} {r['mode']:<6} {r['steps']:<7} {outcome:<14} {r['total_reward']:<10.2f} "
-              f"{r['initial_dist']:<9.1f} {r['final_dist']:<9.1f} {r['progress_delta']:<9.1f}")
+              f"{r['initial_dist']:<9.1f} {r['final_dist']:<9.1f} {r['min_dist']:<9.1f}")
     print("=" * 80)
 
     # Save to JSON
