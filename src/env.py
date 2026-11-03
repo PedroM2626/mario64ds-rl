@@ -42,7 +42,20 @@ except ImportError:
         return k
 
 BUTTON_KEYS = {"left": Keys.KEY_LEFT, "right": Keys.KEY_RIGHT, "up": Keys.KEY_UP,
-               "down": Keys.KEY_DOWN, "B": Keys.KEY_B, "Y": Keys.KEY_Y}
+               "down": Keys.KEY_DOWN, "A": Keys.KEY_A, "B": Keys.KEY_B, "X": Keys.KEY_X,
+               "Y": Keys.KEY_Y, "L": Keys.KEY_L, "R": Keys.KEY_R}
+# Bit order of a per-frame button mask. Measured on ds8: B jumps, R crouches
+# (R then B = backflip), A/Y punch (Y also runs while moving), L recentres the
+# camera. Start/Select are left out: the pause menu can exit the course.
+FREE_BUTTONS = ("left", "right", "up", "down", "A", "B", "X", "Y", "L", "R")
+
+
+def buttons_to_mask(buttons) -> int:
+    return sum(1 << FREE_BUTTONS.index(b) for b in buttons)
+
+
+def mask_to_buttons(mask: int) -> tuple:
+    return tuple(b for i, b in enumerate(FREE_BUTTONS) if mask >> i & 1)
 
 class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
@@ -280,19 +293,38 @@ class Mario64DSEnv(gym.Env):
             self.episode_steps += 1
             return self._get_obs(), 1.0, self.episode_steps > 100, False, self._get_info()
 
-        # Map actions
-        keys = [BUTTON_KEYS[b] for b in self.action_buttons[int(action)]]
+        # Map actions. An agent action holds its buttons for the whole window.
+        # A human recording instead supplies one FREE_BUTTONS mask per frame:
+        # a sequence of `frameskip` masks (replay) or a callable sampled before
+        # every frame (live input). Both run the same reward code below.
+        if callable(action):
+            frame_mask = lambda f: int(action())  # noqa: E731
+        elif np.ndim(action) == 1:
+            masks = [int(m) for m in action]
+            if len(masks) != self.frameskip:
+                raise ValueError(f"expected {self.frameskip} per-frame masks, got {len(masks)}")
+            frame_mask = masks.__getitem__
+        else:
+            held_mask = buttons_to_mask(self.action_buttons[int(action)])
+            frame_mask = lambda f: held_mask  # noqa: E731
 
-        # Apply inputs
-        for key in keys:
-            self.emu.input.keypad_add_key(keymask(key))
-            
-        for _ in range(self.frameskip):
+        held = 0
+        self.last_frame_masks = []
+        for f in range(self.frameskip):
+            m = frame_mask(f)
+            for i, b in enumerate(FREE_BUTTONS):
+                bit = 1 << i
+                if m & bit and not held & bit:
+                    self.emu.input.keypad_add_key(keymask(BUTTON_KEYS[b]))
+                elif held & bit and not m & bit:
+                    self.emu.input.keypad_rm_key(keymask(BUTTON_KEYS[b]))
+            held = m
+            self.last_frame_masks.append(m)
             self.emu.cycle()
             self._emit_cycle()
 
-        for key in keys:
-            self.emu.input.keypad_rm_key(keymask(key))
+        for b in mask_to_buttons(held):
+            self.emu.input.keypad_rm_key(keymask(BUTTON_KEYS[b]))
 
         obs = self._get_obs()
         self.episode_steps += 1

@@ -29,7 +29,7 @@ if ROOT_DIR not in sys.path:
 
 import numpy as np  # noqa: E402
 
-from src.demos import load_demo, sha256_file  # noqa: E402
+from src.demos import decision_inputs, load_demo, sha256_file  # noqa: E402
 from src.envs import rom_path  # noqa: E402
 from src.route import ROUTE_SCHEMA, Route, resample_polyline  # noqa: E402
 
@@ -55,8 +55,8 @@ def verify_replay(demo, tol=1e-3):
         env.reset()
         err = float(np.max(np.abs(env.ram.get_pos_3d() - demo["positions"][0])))
         info = {}
-        for t, a in enumerate(actions):
-            _, _, terminated, _, info = env.step(int(a))
+        for t, step_input in enumerate(decision_inputs(demo)):
+            _, _, terminated, _, info = env.step(step_input)
             err = max(err, float(np.max(np.abs(env.ram.get_pos_3d() - demo["positions"][t + 1]))))
             if err > tol:
                 return err, False, t
@@ -140,8 +140,10 @@ def main():
     exact = m.get("exact_fraction")
     print(f"route: {len(waypoints)} waypoints, length {route.length:.1f}, "
           f"height gain {spec['height_gain']:+.1f}, {len(checkpoints)} checkpoints -> {args.out}")
-    print(f"human input exactly representable in {m['action_set']}: "
-          f"{'n/a' if exact is None else f'{100 * exact:.1f}%'} of decisions")
+    print(f"{m.get('input_mode', 'agent')} input; decisions exactly reproducible by a {m['action_set']} "
+          f"agent (usable as replay-buffer demos): {'n/a' if exact is None else f'{100 * exact:.1f}%'}")
+    if "buttons_used" in m:
+        print("frames with each button held:", json.dumps(m["buttons_used"]))
     print("action histogram:", json.dumps(m["action_histogram"]))
 
 

@@ -219,7 +219,8 @@ def main():
                 use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode, **env_extra)
             added = prefill_replay_buffer(model, transitions)
             demo_added += added
-            print(f"Demo {d}: replayed {len(transitions)} transitions, "
+            print(f"Demo {d}: replayed {len(transitions)} decisions "
+                  f"({sum(t['exact'] for t in transitions)} exact), "
                   f"return {sum(float(t['reward'][0]) for t in transitions):+.2f}, added {added}")
 
     params = {

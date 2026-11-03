@@ -1,11 +1,12 @@
 """Human demonstrations recorded by scripts/record_human.py.
 
-A recording stores the env action index applied at every decision, so it is
-directly executable by Mario64DSEnv with the same action_set and frameskip.
+A recording stores the button mask of every emulated frame, so it replays
+exactly through Mario64DSEnv.step, plus a per-decision action label that is
+`exact` when the agent taking that action reproduces the decision's frames.
 Rewards and observations are NOT taken from the file: replay_transitions()
-re-runs the actions from the recording's source savestate under the caller's
-reward configuration and frame stack, so prefilled transitions are exactly the
-ones the trainer itself would have produced for those inputs.
+re-runs the frames from the recording's source savestate under the caller's
+reward configuration and frame stack, and only exact decisions are added to
+the buffer, so prefilled transitions are ones the agent itself could produce.
 
 This is replay-buffer prefill ("DQfD-lite"): no large-margin supervised loss and
 no permanent demo partition, so demo transitions age out of the circular buffer
@@ -48,6 +49,15 @@ def load_demo(attempt_dir: str, verify_hashes: bool = True) -> dict:
     return {"manifest": manifest, **arrays}
 
 
+def decision_inputs(demo: dict) -> list:
+    """Per-decision env.step input: the recorded frame masks (or the action)."""
+    k = demo["manifest"]["frameskip"]
+    if "frame_masks" in demo:
+        fm = demo["frame_masks"].astype(np.int64)
+        return [fm[t * k:(t + 1) * k] for t in range(len(demo["actions"]))]
+    return [int(a) for a in demo["actions"]]
+
+
 def replay_transitions(rom: str, demo: dict, n_stack: int = 4, **env_kwargs) -> list[dict]:
     """Re-execute a demo and return SB3-shaped single-env transitions.
 
@@ -59,6 +69,8 @@ def replay_transitions(rom: str, demo: dict, n_stack: int = 4, **env_kwargs) -> 
 
     m = demo["manifest"]
     actions = demo["actions"].astype(np.int64)
+    exact = demo["exact"] if "exact" in demo else np.ones(len(actions), bool)
+    inputs = decision_inputs(demo)
     env_kwargs.update(action_set=m["action_set"], frameskip=m["frameskip"],
                       max_steps=len(actions) + 1, track_id=m.get("track_id"))
     env_kwargs.pop("start_states", None)  # always the recording's own start
@@ -70,11 +82,12 @@ def replay_transitions(rom: str, demo: dict, n_stack: int = 4, **env_kwargs) -> 
     try:
         obs = vec.reset()
         for t, a in enumerate(actions):
-            next_obs, reward, done, infos = vec.step(np.array([a]))
+            next_obs, reward, done, infos = vec.step(np.array([inputs[t]]))
             info = infos[0]
             real_next = info["terminal_observation"][None] if done[0] else next_obs
             out.append({"obs": obs.copy(), "next_obs": real_next.copy(), "action": np.array([[a]]),
-                        "reward": reward.copy(), "done": done.copy(), "info": info})
+                        "reward": reward.copy(), "done": done.copy(), "info": info,
+                        "exact": bool(exact[t])})
             if done[0]:
                 if t != len(actions) - 1:
                     raise RuntimeError(f"demo ended early at decision {t} of {len(actions)} "
@@ -87,11 +100,12 @@ def replay_transitions(rom: str, demo: dict, n_stack: int = 4, **env_kwargs) -> 
 
 
 def prefill_replay_buffer(model, transitions: list[dict]) -> int:
-    """Add transitions to an SB3 off-policy replay buffer; returns count added.
+    """Add the exact transitions to an SB3 off-policy replay buffer; returns count added.
 
     The buffer is shaped (buffer_size, n_envs, ...), so transitions are grouped
     n_envs at a time; up to n_envs-1 trailing transitions are dropped.
     """
+    transitions = [t for t in transitions if t.get("exact", True)]
     buf = model.replay_buffer
     n = buf.n_envs
     added = 0

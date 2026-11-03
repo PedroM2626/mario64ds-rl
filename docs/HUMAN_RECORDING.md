@@ -21,20 +21,38 @@ Double-click `record-ttc.bat` in the repository root, or run:
 
 1. Wait for the **SM64DS RL - Human recorder** window, click it and press
    **Enter**. The game only advances while that window has focus.
-2. Controls: **arrows or WASD** = D-pad, **Space or K** = B (jump),
-   **Shift or J** = Y (run). **F5** restarts the attempt, **F8** saves the
-   current attempt as a partial demo and stops, **F9/Esc** stops without saving.
+2. Controls (any combination, read every frame):
+
+   | Keyboard | DS button | In game (measured on `ds8`) |
+   |---|---|---|
+   | Arrows or WASD | D-pad | move |
+   | Space or K | B | jump (hold longer = higher) |
+   | Shift or J | Y | run while moving / punch |
+   | Ctrl or C | R | crouch; crouch then jump = backflip (547 units high vs 234) |
+   | E or U | A | punch |
+   | Q | L | camera behind Mario |
+   | X | X | camera |
+
+   **F5** restarts the attempt, **F8** saves the current attempt as a partial
+   demo and stops, **F9/Esc** stops without saving. Start/Select are not
+   mapped (the pause menu can exit the course).
 3. A death discards the attempt and reloads `ds8`; release the keys to start
    the next one. Collecting the star (RAM event, as in training) saves the
    attempt and prints `validated_recording` with its folder.
 
-The game runs at 60 Hz, but input is read once every 4 frames and held for
-those 4 frames, exactly like an agent decision. Held keys are mapped to the
-closest action of the `compound12` set (noop, left, right, up, down, B,
-up+left, up+right, up+B, up+left+B, up+right+B, up+Y). A combination outside
-the set loses its extra buttons (for example Y while jumping) and is counted as
-"mapped" in the manifest. Use `--action-set legacy6` to record with the old
-six actions.
+The game runs at 60 Hz and the buttons are applied frame by frame, as in
+smg-rl. The recording keeps every frame's button mask, so the run replays
+exactly. Each 4-frame decision also gets a `compound12` label (noop, left,
+right, up, down, B, up+left, up+right, up+B, up+left+B, up+right+B, up+Y). It
+is `exact` only when the 4 frames held one constant combination that such an
+action expresses exactly. Only exact decisions become replay-buffer demos; all
+of them count for the route and the checkpoints.
+
+`--input agent` restores the earlier mode: one action per decision, every
+decision exact, but presses less than 4 frames apart merge. Measured: if Up
+and B start on the same frame from standstill, Mario does not jump; one frame
+apart, he does. That is why moving forward and jumping together often failed
+in this mode.
 
 Defaults: 120-minute session, 200 attempts, 9000 decisions (10 min) per
 attempt (reaching it saves a partial demo), a checkpoint savestate every 30
@@ -45,11 +63,11 @@ Each saved attempt (`runs/human-demonstrations/<time>/completed/attempt-NNNNNN/`
 
 | File | Content |
 |---|---|
-| `demo.npz` | `actions` (env action indices), `button_masks`, `exact`, `rewards`, `positions` (RAM XYZ, one more than actions), `obs` (84x84 uint8 frames the agent would see), `dist_reward`, `flow_reward`, `dist_to_goal` |
+| `demo.npz` | `frame_masks` (one button mask per emulated frame), `actions` (per-decision `compound12` labels), `exact`, `rewards`, `positions` (RAM XYZ, one more than actions), `obs` (84x84 uint8 frames the agent would see), `dist_reward`, `flow_reward`, `dist_to_goal` |
 | `trajectory.csv`, `trajectory.png` | per-decision position/action table; top-down path and height plot |
 | `checkpoints/step-NNNNNN.dst` | DeSmuME savestates along the run |
 | `gameplay.mp4` | silent 60 Hz top screen |
-| `manifest.json` | source savestate and ROM SHA-256, action set, frameskip, counts, action histogram, file hashes |
+| `manifest.json` | source savestate and ROM SHA-256, input mode, action set, frameskip, counts, frames per button, action histogram, file hashes |
 
 `runs/` and `data/curriculum/` are git-ignored: savestates are game RAM dumps
 and are not committed.
@@ -81,7 +99,7 @@ A partial demo needs `--allow-partial`.
 * `--start-states route`: 75% of training resets start at a uniformly chosen
   checkpoint; evaluation (`EvalCallback`, `best_model.zip`) always starts at `ds8`.
 * `--demo` replays the recording under these reward settings and adds its
-  transitions to the replay buffer before learning. They age out of the
+  exact decisions to the replay buffer before learning. They age out of the
   circular buffer like any other transition.
 * `--max-steps` stays 1350 (90 s). A human run longer than that still works for
   the curriculum, but a full-start episode cannot reach the star within the
@@ -101,6 +119,9 @@ Both detect the action set from the checkpoint.
 
 * A scripted 70-decision `compound12` run stored through the recorder's
   `Attempt` class replayed to identical RAM positions (max error 0.000000).
+* A scripted 45-decision free-input run (Up then B one frame later, crouch,
+  run) also replayed exactly; the running jump from standstill rose 234.5
+  units; 36 of 45 decisions were exact and exactly those 36 were prefilled.
 * A route-mode env reset from the step-30 checkpoint started at the
   checkpoint's route position (982.14 vs 982.13 recorded) and paid
   (1231.11 - 982.14) / 1231.11 x 500 = 101.1 for the rest of the route.

@@ -137,3 +137,54 @@ def test_prefill_groups_by_n_envs():
     assert buf.add.call_count == 2
     obs = buf.add.call_args.args[0]
     assert obs.shape == (4, 4, 84, 84)
+
+
+def test_per_frame_masks_press_and_release_on_the_right_frames():
+    from src.env import BUTTON_KEYS, buttons_to_mask, keymask
+    env = _make_env(use_ram_death=False)
+    env.ram = MagicMock()
+    env.ram.get_pos_3d.return_value = np.zeros(3)
+    env._get_obs = lambda: np.full((84, 84, 1), 128, np.uint8)
+    events = []
+    env.emu.input.keypad_add_key.side_effect = lambda k: events.append(("add", k))
+    env.emu.input.keypad_rm_key.side_effect = lambda k: events.append(("rm", k))
+    env.emu.cycle.side_effect = lambda: events.append(("cycle",))
+    up, ub = buttons_to_mask(["up"]), buttons_to_mask(["up", "B"])
+    env.step(np.array([up, ub, ub, up]))  # Up, then B pressed one frame later
+    U, B = keymask(BUTTON_KEYS["up"]), keymask(BUTTON_KEYS["B"])
+    assert events == [("add", U), ("cycle",), ("add", B), ("cycle",), ("cycle",), ("rm", B),
+                      ("cycle",), ("rm", U)]
+    assert env.last_frame_masks == [up, ub, ub, up]
+    with pytest.raises(ValueError):
+        env.step(np.array([up, up]))
+
+
+def test_live_callable_is_sampled_every_frame():
+    env = _make_env(use_ram_death=False)
+    env.ram = MagicMock()
+    env.ram.get_pos_3d.return_value = np.zeros(3)
+    env._get_obs = lambda: np.full((84, 84, 1), 128, np.uint8)
+    calls = []
+    env.step(lambda: calls.append(1) or 0)
+    assert len(calls) == env.frameskip
+
+
+def test_label_window_exact_only_when_constant():
+    from scripts.record_human import label_window
+    from src.env import ACTION_SETS, buttons_to_mask
+    names, buttons = ACTION_SETS["compound12"]
+    up, ub, r = buttons_to_mask(["up"]), buttons_to_mask(["up", "B"]), buttons_to_mask(["R"])
+    a, exact = label_window([ub] * 4, buttons)
+    assert names[a] == "up+B (running jump)" and exact
+    assert label_window([up, ub, ub, ub], buttons)[1] is False   # B pressed mid-window
+    assert label_window([r] * 4, buttons) == (0, False)           # crouch is not an action
+
+
+def test_prefill_skips_inexact_decisions():
+    from src.demos import prefill_replay_buffer
+    buf = MagicMock()
+    buf.n_envs = 2
+    t = {"obs": np.zeros((1, 4, 84, 84), np.uint8), "next_obs": np.zeros((1, 4, 84, 84), np.uint8),
+         "action": np.array([[0]]), "reward": np.array([0.0]), "done": np.array([False]), "info": {}}
+    trs = [dict(t, exact=e) for e in (True, False, True, False, False)]
+    assert prefill_replay_buffer(MagicMock(replay_buffer=buf), trs) == 2
