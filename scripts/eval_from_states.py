@@ -30,7 +30,8 @@ def main():
     ap.add_argument("--states", required=True, help="glob of savestates")
     ap.add_argument("--track", default="ds3")
     ap.add_argument("--max-steps", type=int, default=300)
-    ap.add_argument("--action-set", default="legacy6", choices=["legacy6", "compound12"])
+    ap.add_argument("--goal-pos", default=None, help="x,y,z of an intermediate goal (as in train_curriculum)")
+    ap.add_argument("--goal-radius", type=float, default=600.0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -39,9 +40,15 @@ def main():
     from src.envs import rom_path
     from src.ram_state import TRACK_GOALS
     goal = TRACK_GOALS[args.track]["target_pos"]
+    from stable_baselines3 import PPO
     paths = sorted(glob.glob(os.path.join(ROOT_DIR, args.states)))
+    n_actions = int(PPO.load(os.path.join(ROOT_DIR, args.model), device="cpu").action_space.n)
+    target = goal if not args.goal_pos else np.array([float(v) for v in args.goal_pos.split(",")])
     env = Mario64DSEnv(rom_path=rom_path(), state_path=paths[0], max_steps=args.max_steps, flow_weight=0.0,
-                       dist_reward_enabled=False, track_id=args.track, action_set=args.action_set)
+                       dist_reward_enabled=False, track_id=args.track,
+                       action_set={6: "legacy6", 12: "compound12"}[n_actions],
+                       goal_override=None if not args.goal_pos else
+                       {"pos": target.tolist(), "radius": args.goal_radius})
     reset, act = make_policy("ppo", os.path.join(ROOT_DIR, args.model), None, "cpu")
     rows = []
     for p in paths:
@@ -51,7 +58,7 @@ def main():
         c0, dmin = env.ram.get_coins(), np.inf
         for t in range(args.max_steps):
             obs, _, term, trunc, info = env.step(act(obs))
-            dmin = min(dmin, float(np.linalg.norm(info["pos_3d"] - goal)))
+            dmin = min(dmin, float(np.linalg.norm(info["pos_3d"] - target)))
             if term or trunc:
                 break
         end = "finish" if info.get("reached_goal") else "died" if info.get("died") else "horizon"

@@ -289,3 +289,18 @@ def test_ram_coin_reward_pays_only_new_coins_and_resets():
     off.reset()
     off.ram.get_coins.return_value = 5
     assert off.step(0)[4]["coin_reward"] == 0.0
+
+
+def test_goal_override_ends_episode_as_goal():
+    env = _slide_env(goal_override={"pos": [1000.0, 5000.0, 0.0], "radius": 300.0}, goal_reward=500.0,
+                     dist_reward_enabled=False,
+                     step_penalty=0.0)
+    env.ram.poll.return_value = np.zeros(6)
+    env.ram.get_coins.return_value = 0
+    env.ram.get_pos_3d.return_value = np.array([0.0, 9000.0, 0.0])
+    env.reset()
+    env.ram.get_pos_3d.return_value = np.array([0.0, 6000.0, 0.0])
+    assert not env.step(0)[2]
+    env.ram.get_pos_3d.return_value = np.array([1100.0, 5100.0, 50.0])
+    _, r, done, _, info = env.step(0)
+    assert done and info["reached_goal"] and r == pytest.approx(500.0)

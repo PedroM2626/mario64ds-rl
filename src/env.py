@@ -73,7 +73,7 @@ class Mario64DSEnv(gym.Env):
                  track_id=None, action_set="legacy6", route_path=None,
                  route_total_reward=500.0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
-                 ram_coin_reward=0.0, black_screen_death=True):
+                 ram_coin_reward=0.0, black_screen_death=True, goal_override=None):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -130,6 +130,13 @@ class Mario64DSEnv(gym.Env):
         # The black-screen fallback can fire in dark parts of a course (the
         # ds3 exit is a dark shaft); False leaves death to the position rule.
         self.black_screen_death = bool(black_screen_death)
+        # Optional intermediate goal {"pos": [x, y, z], "radius": r}: entering
+        # that sphere ends the episode as reached_goal with goal_reward (e.g. a
+        # spot partway down a course), in addition to the course's own finish.
+        self.goal_override = None
+        if goal_override is not None:
+            self.goal_override = {"pos": np.asarray(goal_override["pos"], dtype=np.float64),
+                                  "radius": float(goal_override["radius"])}
         self.coins = None
         self.last_ram_coin_reward = 0.0
         self.dist_reward_mode = str(dist_reward_mode).lower()
@@ -449,7 +456,12 @@ class Mario64DSEnv(gym.Env):
                 goal_type = self.goal_spec.get("goal_type", "position")
                 success_dist = self.goal_spec.get("success_dist", 250.0)
                 
-                if goal_type == "star":
+                if self.goal_override is not None and np.linalg.norm(
+                        curr_pos - self.goal_override["pos"]) <= self.goal_override["radius"]:
+                    done = True
+                    self.reached_goal = True
+                    reward += self.goal_reward
+                elif goal_type == "star":
                     curr_stars = self.ram.get_star_count()
                     if curr_dist <= success_dist or (curr_stars > self.start_star_count and curr_dist <= 500.0):
                         done = True

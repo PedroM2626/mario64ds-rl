@@ -122,6 +122,11 @@ def main():
                              "phase's final model is always saved as final_model.zip")
     parser.add_argument("--explore-cell", type=float, default=400.0,
                         help="Cell size of the exploration counts (world units)")
+    parser.add_argument("--action-set", default="legacy6", choices=["legacy6", "compound12"],
+                        help="Must match the start model (scripts/expand_actions.py grows a legacy6 one)")
+    parser.add_argument("--goal-pos", type=str, default=None,
+                        help="x,y,z of an intermediate goal that ends the episode with --goal-reward")
+    parser.add_argument("--goal-radius", type=float, default=600.0)
     parser.add_argument("--coin-reward", type=float, default=0.0,
                         help="Reward per coin collected (RAM coin counter); the coins trace the courses")
     parser.add_argument("--goal-reward", type=float, default=200.0,
@@ -131,7 +136,10 @@ def main():
     args = parser.parse_args()
     env_kwargs = dict(use_ram_death=args.use_ram_death, dist_reward_enabled=args.dist_reward,
                       dist_weight=args.dist_weight, goal_reward=args.goal_reward,
-                      death_rule=args.death_rule, ram_coin_reward=args.coin_reward)
+                      death_rule=args.death_rule, ram_coin_reward=args.coin_reward,
+                      action_set=args.action_set,
+                      goal_override=None if not args.goal_pos else
+                      {"pos": [float(v) for v in args.goal_pos.split(",")], "radius": args.goal_radius})
 
     phases = []
     for token in args.phases.split(","):
