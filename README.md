@@ -202,8 +202,9 @@ episodes, coin reward and $+500$ at the finish,
 learn it: training episodes kept averaging 32.9-40.6 decisions with return
 $-99.0$ to $-97.6$, and r3 and every checkpoint fall from all 8 savestates
 (0/8). Together with the sweeps, that is more than 11,000 attempts from right
-before the gap without one success, so at this scale it is not a lack of
-training: the passage needs a manoeuvre none of them has produced.
+before the gap without one success. This is *inconclusive* about longer
+training, not evidence against it: 200k steps is small for a problem where the
+sweep found the passing opening in 2 of 1,728 tries.
 
 **Can the agent reach the gap on its own, from coins alone?** Not yet
 (`ds3_coins_r7`, [`results/ds3_coins_r7.json`](results/ds3_coins_r7.json)).
@@ -216,8 +217,9 @@ checkpoint reached it: the greedy final model collects $+12$ coins and gets to
 chosen by evaluation stays on the flat section (23,041.6), and none of 11
 sampled episodes of the final model came closer than 13,968.1; the plank path
 after the red arrow was never entered. The searches reached it with scripted
-moves, so what is missing for the agent is exploration of that one manoeuvre,
-not the reward signal.
+moves, so what the agent lacks is exploration of that one manoeuvre. 1M steps is
+a small budget (comparable work uses tens to hundreds of millions), so this
+does not show that longer training would fail.
 
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
