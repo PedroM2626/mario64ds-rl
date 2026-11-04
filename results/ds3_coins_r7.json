@@ -1,0 +1,131 @@
+{
+  "run": "ds3_coins_r7",
+  "start_model": "models/curriculum_flow25_r3_c12.zip (r3 expanded to compound12)",
+  "config": {
+    "states": "ds3 start only",
+    "steps": 1000000,
+    "lr": 0.0001,
+    "max_steps": 1200,
+    "flow_weight": 0.0,
+    "dist_reward": false,
+    "coin_reward": 1.0,
+    "goal_reward": 500.0,
+    "goal": {
+      "pos": [
+        6432,
+        -11263,
+        -11499
+      ],
+      "radius": 600
+    },
+    "action_set": "compound12"
+  },
+  "instrument": "scripts/eval_from_states.py, CPU, greedy, from the ds3 start, horizon 1200",
+  "greedy": [
+    {
+      "checkpoint": "step_1670000",
+      "steps": 99000,
+      "end": "died",
+      "decisions": 239,
+      "coins_gained": 3,
+      "min_dist_to_goal": 23036.9
+    },
+    {
+      "checkpoint": "step_1770000",
+      "steps": 199000,
+      "end": "died",
+      "decisions": 283,
+      "coins_gained": 5,
+      "min_dist_to_goal": 23029.3
+    },
+    {
+      "checkpoint": "step_1870000",
+      "steps": 299000,
+      "end": "horizon",
+      "decisions": 1200,
+      "coins_gained": 8,
+      "min_dist_to_goal": 23041.6
+    },
+    {
+      "checkpoint": "step_1970000",
+      "steps": 399000,
+      "end": "died",
+      "decisions": 408,
+      "coins_gained": 7,
+      "min_dist_to_goal": 15225.1
+    },
+    {
+      "checkpoint": "step_2070000",
+      "steps": 499000,
+      "end": "died",
+      "decisions": 280,
+      "coins_gained": 9,
+      "min_dist_to_goal": 23025.9
+    },
+    {
+      "checkpoint": "step_2170000",
+      "steps": 599000,
+      "end": "died",
+      "decisions": 396,
+      "coins_gained": 10,
+      "min_dist_to_goal": 23034.6
+    },
+    {
+      "checkpoint": "step_2270000",
+      "steps": 699000,
+      "end": "died",
+      "decisions": 420,
+      "coins_gained": 5,
+      "min_dist_to_goal": 15157.3
+    },
+    {
+      "checkpoint": "step_2370000",
+      "steps": 799000,
+      "end": "died",
+      "decisions": 425,
+      "coins_gained": 9,
+      "min_dist_to_goal": 15995.0
+    },
+    {
+      "checkpoint": "step_2470000",
+      "steps": 899000,
+      "end": "died",
+      "decisions": 140,
+      "coins_gained": 9,
+      "min_dist_to_goal": 22578.9
+    },
+    {
+      "checkpoint": "step_2570000",
+      "steps": 999000,
+      "end": "died",
+      "decisions": 494,
+      "coins_gained": 5,
+      "min_dist_to_goal": 22787.5
+    },
+    {
+      "checkpoint": "final_model",
+      "steps": 1000000,
+      "end": "died",
+      "decisions": 343,
+      "coins_gained": 12,
+      "min_dist_to_goal": 14794.7
+    },
+    {
+      "checkpoint": "best_model (selected at 299k)",
+      "steps": 299000,
+      "end": "horizon",
+      "decisions": 1200,
+      "coins_gained": 8,
+      "min_dist_to_goal": 23041.6
+    }
+  ],
+  "stochastic_final_model": {
+    "episodes": 11,
+    "reached_goal": 0,
+    "plateau_horizon": 3,
+    "skull_area": 3,
+    "died_on_plateau": 5,
+    "closest_min_dist": 13968.1,
+    "max_total_coins": 17
+  }
+}

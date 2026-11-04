@@ -380,6 +380,24 @@ def ds3_gap_training_checks(readme):
     check("ds3 gap-training result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_coins_checks(readme):
+    """The coin-only training sentence must equal results/ds3_coins_r7.json."""
+    path = os.path.join(ROOT, "results", "ds3_coins_r7.json")
+    if not os.path.exists(path):
+        check("ds3_coins_r7.json", "present", "missing")
+        return
+    d = load(path)
+    fin = next(r for r in d["greedy"] if r["checkpoint"] == "final_model")
+    best = next(r for r in d["greedy"] if r["checkpoint"].startswith("best_model"))
+    st = d["stochastic_final_model"]
+    want = [f"$+{fin['coins_gained']}$ coins", _num(fin["min_dist_to_goal"]), _num(best["min_dist_to_goal"]),
+            f"none of {st['episodes']}", _num(st["closest_min_dist"])]
+    flat = " ".join(readme.split())
+    ok = (st["reached_goal"] == 0 and not any(r["end"] == "finish" for r in d["greedy"])
+          and all(w in flat for w in want))
+    check("ds3 coin-only training result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -431,6 +449,7 @@ def main():
     ds3_search_checks(readme)
     ds3_sweep_checks(readme)
     ds3_gap_training_checks(readme)
+    ds3_coins_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

@@ -205,6 +205,20 @@ $-99.0$ to $-97.6$, and r3 and every checkpoint fall from all 8 savestates
 before the gap without one success, so at this scale it is not a lack of
 training: the passage needs a manoeuvre none of them has produced.
 
+**Can the agent reach the gap on its own, from coins alone?** Not yet
+(`ds3_coins_r7`, [`results/ds3_coins_r7.json`](results/ds3_coins_r7.json)).
+r3 was expanded to the 12 compound actions (all weights kept; legacy logits
+identical to $1.9 	imes 10^{-6}$) and trained 1M steps from the `ds3` start
+only, with $+1$ per coin read from RAM, $+500$ for reaching the gap
+(radius 600 around 6,432 / -11,263 / -11,499), no distance reward. No
+checkpoint reached it: the greedy final model collects $+12$ coins and gets to
+14,794.7 from the gap goal before falling (the skull route), the checkpoint
+chosen by evaluation stays on the flat section (23,041.6), and none of 11
+sampled episodes of the final model came closer than 13,968.1; the plank path
+after the red arrow was never entered. The searches reached it with scripted
+moves, so what is missing for the agent is exploration of that one manoeuvre,
+not the reward signal.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
