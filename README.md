@@ -147,8 +147,16 @@ detects r4's `ds1` fall 12 decisions later (386); see
 [`results/finish_line_*.json`](results).
 
 **`ds3` is the open problem**, and it is not about falling: every controller
-reaches the same flat section and wanders there, 20,000 units above the
-finish, without finding the way on. A single human run would provide the route
+reaches the same broad, nearly flat sandy section ($Y = 7{,}179$, from decision
+~140) and wanders there, 20,000 units above the finish, without finding the way
+on; braking before it ends there too. An automatic search without a human
+([`scripts/explore_slide.py`](scripts/explore_slide.py): 48 policy rollouts with
+random perturbations per stage, branched from savestates, keeping the furthest
+point survived for 40 more decisions) left that section and brought the
+distance from 26,368.5 to 14,592.8 in 4 stages, but along a dead end: the
+surface ends at a skull sign at $Y pprox 193$ and all 48 branches of the next
+3 stages fell into the void. Greedy distance to a finish 20,000 units below is
+not a reliable guide on this course. A single human run would provide the route
 (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.

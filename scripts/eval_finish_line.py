@@ -62,9 +62,10 @@ def make_policy(controller, model_path, bundle, device):
             a = np.stack(list(dq), axis=0).astype(np.float32) / 255.0
             return int(head.act(wm.encoder(torch.from_numpy(a)[None].to(device))).item())
 
-    def reset(obs):
+    def reset(obs, history=None):
+        """history: the 3 frames before obs (to resume from a mid-run savestate)."""
         dq.clear()
-        dq.extend([np.zeros_like(obs[:, :, 0])] * 3)
+        dq.extend(list(history) if history is not None else [np.zeros_like(obs[:, :, 0])] * 3)
 
     return reset, act
 
