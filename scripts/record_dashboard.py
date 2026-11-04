@@ -451,7 +451,7 @@ def _record_single(args, out_dir_full):
                        timeout_penalty=args.timeout_penalty,
                        dist_reward_enabled=dist_reward, dist_weight=args.dist_weight,
                        goal_reward=args.goal_reward, star_reward=args.star_reward,
-                       use_ram_death=use_ram_death,
+                       use_ram_death=use_ram_death, death_rule=args.death_rule,
                        action_set={6: "legacy6", 12: "compound12"}[int(model.action_space.n)],
                        dist_reward_mode=args.dist_mode,
                        route_path=os.path.join(ROOT_DIR, args.route) if args.route else None)
@@ -764,7 +764,7 @@ def _job_cmd(args, track):
            "--goal-reward", str(args.goal_reward),
            "--star-reward", str(args.star_reward),
            "--snapshot-every", str(args.snapshot_every),
-           "--dist-mode", args.dist_mode,
+           "--dist-mode", args.dist_mode, "--death-rule", args.death_rule,
            "--supervisor", args.supervisor_label]
     if args.route:
         cmd += ["--route", args.route]
@@ -877,6 +877,8 @@ def main():
     ap.add_argument("--dist-mode", default="progress", choices=["progress", "potential", "route"],
                     help="distance-reward instrument (route needs --route)")
     ap.add_argument("--route", default=None, help="route JSON for --dist-mode route")
+    ap.add_argument("--death-rule", choices=["position", "struct"], default="position",
+                    help="RAM death rule when RAM death is on (struct = legacy fast-fall clamp)")
     ap.add_argument("--single", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--gif", default=None, help="inline README preview for one track")
     ap.add_argument("--gif-track", default=None,

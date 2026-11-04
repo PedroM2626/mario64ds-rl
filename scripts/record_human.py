@@ -23,7 +23,8 @@ Controls (only while the recorder window has focus; otherwise the game pauses):
     F9 / Esc         stop the session without saving the current attempt
 
 A death discards the attempt and reloads the start state. The RAM star event
-(src/env.py) promotes the attempt to completed/. Every --checkpoint-every
+(TTC) or the slide finish (src/env.py: end area of TRACK_GOALS) promotes the
+attempt to completed/. Every --checkpoint-every
 decisions a savestate is written, which prepare_human_route.py turns into a
 start-state curriculum.
 
@@ -245,7 +246,8 @@ class Attempt:
             "track_id": env.track_id, "input_mode": input_mode, "action_set": env.action_set,
             "action_names": list(env.action_names), "frameskip": env.frameskip,
             "decisions": len(self.actions), "emulated_frames": len(self.actions) * env.frameskip,
-            "star_collected": bool(info.get("star_collected")), "died": bool(info.get("died")),
+            "star_collected": bool(info.get("star_collected")),
+            "reached_goal": bool(info.get("reached_goal")), "died": bool(info.get("died")),
             "final_pos": [float(v) for v in self.pos[-1]],
             "final_dist_to_goal": info.get("dist_to_goal"),
             "max_height": float(np.max(np.stack(self.pos)[:, 1])),
@@ -458,14 +460,14 @@ def main():
                 obs, reward, terminated, truncated, info = env.step(action)
             pos = info["pos_3d"] if info.get("pos_3d") is not None else env.ram.get_pos_3d()
             attempt.record(action, list(env.last_frame_masks), exact, obs, float(reward), info, pos)
-            if info.get("star_collected"):
+            if info.get("star_collected") or info.get("reached_goal"):  # star (TTC) or slide finish
                 target = attempt.promote(os.path.join(run, "completed"), "completed", env, args.input,
                                          source_state, source_hash, rom_hash, info)
                 attempt = None
                 status.update(state="completed")
                 status["saved"].append(target)
                 print(json.dumps({"validated_recording": target, "state": "completed"}), flush=True)
-                idle(["Star collected! Recording saved."])
+                idle(["Goal reached! Recording saved."])
                 time.sleep(3)
                 break
             if terminated:  # death (no other terminal exists on ds8)

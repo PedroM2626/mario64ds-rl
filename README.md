@@ -22,7 +22,7 @@ displayed, and `tools/check_readme_numbers.py` re-derives each cell from
 `videos/dashboard/dashboard_*.json` — including the $\times 2.5$ column, which is
 recomputed from the logged weight-free flow sum rather than copied.
 
-| Track | Steps survived | R at flow $\times 1.0$ (single recorded episode) | R re-priced at $\times 2.5$ | In-track falls | Near-stationary decisions | Clip |
+| Track | Steps survived | R at flow $\times 1.0$ (single recorded episode) | R re-priced at $\times 2.5$ | Fast-fall clamps (not falls) | Near-stationary decisions | Clip |
 |---|---|---|---|---|---|---|
 | `ds1` (Cool, Cool Mountain) | 1350 / 1350 | +131.77 | +369.94 | 2 | 695 | [dashboard_ds1.mp4](videos/dashboard/dashboard_ds1.mp4) — 90.0 s, 60 fps, policy on cpu |
 | `ds2` (Peach Slide) | 1350 / 1350 | +329.92 | +865.29 | 1 | 226 | [dashboard_ds2.mp4](videos/dashboard/dashboard_ds2.mp4) — 90.0 s, 60 fps, policy on cpu |
@@ -36,7 +36,7 @@ of `ds1` as an inline GIF, because GitHub strips `<video>` from README markdown
 and serves repository `.mp4` as a download rather than a stream — the links above
 open the real 90-second, 60 fps files.
 
-**What "1350 / 1350" does and does not mean in the historical baseline.** In the original visual-only baseline environment, there was no finish-line detector: an episode ended either on the black-screen death or on the horizon, so surviving all 1350 decisions was the repo's original completion criterion, not a verified traversal. (The modern environment architecture now implements full 3D finish-line and star completion detection via RAM coordinates; see §"3D Proximity & RAM State Architecture"). The per-decision traces (`videos/dashboard/dashboard_*_trace.json`) make the difference visible — on `ds1` the agent is nearly stationary (speed below 0.5 track units in magnitude) for **695** of the 1350 decisions and gets zero forward flow for 585 of them, yet still scores +131.77, because the flow reward pays for sliding and the step cost is only 0.02. It also falls to the kill plane twice mid-course and respawns (`in-track falls 2`), which a pixel-only reward cannot see.
+**What "1350 / 1350" does and does not mean in the historical baseline.** In the original visual-only baseline environment, there was no finish-line detector: an episode ended either on the black-screen death or on the horizon, so surviving all 1350 decisions was the repo's original completion criterion, not a verified traversal. (The modern environment architecture now implements full 3D finish-line and star completion detection via RAM coordinates; see §"3D Proximity & RAM State Architecture"). The per-decision traces (`videos/dashboard/dashboard_*_trace.json`) make the difference visible — on `ds1` the agent is nearly stationary (speed below 0.5 track units in magnitude) for **695** of the 1350 decisions and gets zero forward flow for 585 of them, yet still scores +131.77, because the flow reward pays for sliding and the step cost is only 0.02. Most of those stationary decisions come after the finish: Mario drops into the end room at decision 605 and stands there until the horizon (see *Measured against the RAM finish line* below). The "fast-fall clamps" column counts entries of the RAM word `0x0217F760` into its $-75$ clamp, which happens on any long drop: on `ds1` the second one is the drop through the exit hole into the end room. They are not falls into the void; none of these runs falls below its course's `kill_y`.
 
 ### ⚠️ One checkpoint, two outcomes: `ds3` depends on the arithmetic
 
@@ -79,9 +79,9 @@ The agent's primary objective is to **complete each stage** — traversing the f
 
 ---
 
-## 🏆 Current Benchmark State: full-horizon survival on all three slides (finish line reached on `ds2`)
+## 🏆 Current Benchmark State: `ds1` and `ds2` finished, `ds3` not
 
-**`curriculum_flow25_r3_best.zip`** (PPO + NatureCNN, optical flow weight $\times 2.5$) — the first agent checkpoint in the project's history to survive the full 1350-decision horizon on all 3 slide tracks, corroborated by independent deterministic evaluation (9/9 full 90-second episodes). "Completed Steps" below means surviving the horizon under the historical environment (black-screen death, so falls into the void respawn Mario); the finish-line check that follows shows what it does not mean:
+**`curriculum_flow25_r3_best.zip`** (PPO + NatureCNN, optical flow weight $\times 2.5$) — the first agent checkpoint in the project's history to survive the full 1350-decision horizon on all 3 slide tracks, corroborated by independent deterministic evaluation (9/9 full 90-second episodes). "Completed Steps" below means surviving the horizon; the finish-line check that follows shows that it reaches the end of `ds1` and `ds2` but not of `ds3`:
 
 | Track | Reward (video, flow $\times 2.5$) | Completed Steps | Demonstration Video |
 |---|---|---|---|
@@ -97,24 +97,31 @@ deterministic evaluation episodes per track come out identical, so the published
 mean is one trajectory replayed three times, and the dashboard recordings at the
 top of this file reproduce each of these cells to the cent.
 
-> **Measured against the RAM finish line (2026-11-03).** `scripts/compare_rewards.py`
-> replays this checkpoint deterministically on CPU with the finish coordinates of
-> `src/ram_state.py` (`TRACK_GOALS`, goal radius 250 units). Under the historical
-> settings (flow $	imes 1.0$, black-screen death):
+> **Measured against the RAM finish line (2026-11-04).** [`scripts/eval_finish_line.py`](scripts/eval_finish_line.py)
+> replays the checkpoint deterministically on CPU (horizon 2000). The finish is
+> the end area measured from each finish savestate (`TRACK_GOALS` `finish_region`
+> in `src/ram_state.py`: the `ds1` end room, the `ds2` area past the checkered
+> line, where the in-game timer stops); a death is a fall below the course's
+> `kill_y`:
 >
-> | Track | Outcome | Closest straight-line distance to the finish |
+> | Track | Outcome | Falls below `kill_y` |
 > |---|---|---|
-> | `ds1` (Cool, Cool Mountain) | horizon reached, **finish not reached** | 417.5 |
-> | `ds2` (Peach Slide) | **finish reached** at decision 911 | 248.9 |
-> | `ds3` (Monkey Slide) | horizon reached, **finish not reached** | 23,980 (start: 36,404) |
+> | `ds1` (Cool, Cool Mountain) | **finish** at decision 605 | 0 |
+> | `ds2` (Peach Slide) | **finish** at decision 739 | 0 |
+> | `ds3` (Monkey Slide) | not finished: stuck on a flat section at $Y = 7{,}179$ from decision ~140, closest 23,979.7 of 36,403.6 | 0 |
 >
-> With RAM kill-plane death enabled the same policy dies at decisions 66, 836
-> and 38: the "in-track falls" in the dashboard table are falls the historical
-> environment respawned from. Numbers: [docs/REWARD_COMPARISON_RESULTS.json](docs/REWARD_COMPARISON_RESULTS.json).
-> The earlier version of that file recorded the start position as the final one
-> (it read RAM after the vector env's auto-reset) and counted timeouts as deaths;
-> both are fixed. The finish-line fine-tune and the world-model head measured
-> the same way are in the next section.
+> **Two corrections to the 2026-11-03 version of this table**, which said `ds1`
+> was not finished and that the policy died at decisions 66, 836 and 38 once
+> falls ended the episode. (1) The finish was a 250-unit radius around one
+> point; the `ds1` end room extends 1,046.6 units from it, and Mario stood in it
+> 417.5 units away. (2) "RAM death" used the `0x0217F760` clamp, which fires on
+> every long drop, including the drop through the `ds1` exit hole into the end
+> room (decision 599) and drops on the slides themselves; in Tick Tock Clock the
+> real fall off the start platform crosses `kill_y` on the same frame the clamp
+> fires, so the position rule loses nothing. The environment now uses the
+> position rule (`death_rule="position"`; `"struct"` reproduces the old one).
+> Results: `results/finish_line_curriculum_flow25_r3_best.json`; dashboards under
+> these rules: [`videos/dashboard_finish/`](videos/dashboard_finish).
 
 To re-record the demonstration videos:
 ```bash
@@ -122,37 +129,35 @@ python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
 python scripts/record_dashboard.py --supervisor rust --parallel 3   # annotated 60 Hz
 ```
 
-### 🏁 Fine-tuning for the finish line: `curriculum_finish_r4` (2026-11-03)
+### 🏁 What the corrected finish line changed, and the remaining track
 
-`curriculum_flow25_r3_best` was fine-tuned with the current environment: a fall
-into the void ends the episode (RAM kill plane), a ratcheted 3D-progress reward
-towards the RAM finish line (weight 0.05) and $+200$ on reaching it, horizon
-2000, flow $	imes 2.5$, `ds3` weighted twice in the mix, 400k steps at lr
-$5 	imes 10^{-5}$ then 300k at $2.5 	imes 10^{-5}$. Checkpoints are now
-selected by finishes first, then survival, then reward. The best checkpoint
-came from the first phase (`models/curriculum_finish_r4_best.zip`).
-
-| Track | r3 with RAM death (horizon 1350) | **r4 with RAM death** (horizon 2000) | r4, historical env |
+| Controller | `ds1` | `ds2` | `ds3` |
 |---|---|---|---|
-| `ds1` (Cool, Cool Mountain) | falls at 66, closest 12,238.3 | falls at 315, closest 9,929.7 | falls at 386, closest 4,681.2 |
-| `ds2` (Peach Slide) | falls at 836, closest 586.4 | **finish at decision 636, no fall** | finish at decision 636 |
-| `ds3` (Monkey Slide) | falls at 38, closest 33,404.5 | falls at 92, closest 30,435.4 | falls at 115, closest 28,978.2 |
+| PPO `curriculum_flow25_r3_best` | finish at decision 605 | finish at decision 739 | horizon, closest 23,979.7 |
+| world-model head `wm_mario64ds_mem` | finish at decision 657 | finish at decision 729 | horizon, closest 23,979.7 |
+| PPO `curriculum_finish_r4_best` | falls at 374, closest 4,681.2 | finish at decision 627 | ended at 115 by the black-screen rule, closest 28,978.2 |
 
-So `ds2` is now finished without a single respawn, and `ds1`/`ds3` last longer
-before the first fall, but neither is finished, and r4 no longer survives
-`ds1`/`ds3` in the historical environment as r3 did. Measured on CPU with
-[`scripts/eval_finish_line.py`](scripts/eval_finish_line.py)
-(`results/finish_line_*.json`); dashboards with RAM death in
-[`videos/dashboard_finish_r4/`](videos/dashboard_finish_r4) agree on every
-decision count. The distilled world-model head (`models/wm_mario64ds_mem.pt`)
-measured the same way reaches the finish only on `ds1` in the historical
-environment (decision 672, after 2 respawns); on `ds2` it gets within 271.1 of
-the finish (goal radius 250) and on `ds3` within 23,979.7.
+`curriculum_finish_r4` was fine-tuned from r3 (700k steps, horizon 2000,
+progress reward and $+200$ at the finish) **under the old clamp rule**, so it
+was punished for legitimate drops, and on the old 250-unit finish. Measured
+with the corrected rules it finishes `ds2` faster but really falls on `ds1`
+where r3 does not, so r3 remains the reference checkpoint. The historical
+environment (black-screen death only) gives the same outcomes, except that it
+detects r4's `ds1` fall 12 decisions later (386); see
+[`results/finish_line_*.json`](results).
+
+**`ds3` is the open problem**, and it is not about falling: every controller
+reaches the same flat section and wanders there, 20,000 units above the
+finish, without finding the way on. A single human run would provide the route
+(as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
+accepts the slide finish as a completed run), then
+`python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
 
 ```bash
-python scripts/eval_finish_line.py --controller ppo --model models/curriculum_finish_r4_best.zip --max-steps 2000
-python scripts/eval_finish_line.py --controller mem --model models/wm_mario64ds_mem.pt
-python -m src.train_curriculum --run-id curriculum_finish_r4 --start-model models/curriculum_flow25_r3_best.zip     --states ds1,ds2,ds3,ds3 --n-envs 4 --phases "400000:5e-5,300000:2.5e-5" --flow-weight 2.5     --max-steps 2000 --results-csv results/results_curriculum_finish_r4.csv
+python scripts/eval_finish_line.py --controller ppo --model models/curriculum_flow25_r3_best.zip --max-steps 2000
+python scripts/eval_finish_line.py --controller mem --model models/wm_mario64ds_mem.pt --max-steps 2000
+python scripts/record_dashboard.py --model models/curriculum_flow25_r3_best.zip --tracks ds1,ds2,ds3 \
+    --max-steps 2000 --use-ram-death --dist-reward --out-dir videos/dashboard_finish
 ```
 
 ### 📦 Model assets (a clean clone does not contain them)
@@ -221,7 +226,7 @@ Each training round initially consolidated one track at the expense of another; 
 - **Video Rendering**: `scripts/record_phases.py` (real-time RGB MP4 per track) and `scripts/record_dashboard.py` (annotated 60 Hz dashboard: gameplay, CNN input, flow window, $\pi(a|s)$, critic value, RAM struct, reward instrument; plus a per-decision trace JSON).
 - **Process Supervision**: `rust/sm64_sup.exe` (std-only Rust; one process per track because two DeSmuME cores in one process crash, with live streaming, per-run budget, kill on overrun and result collection — see [`rust/README.md`](rust/README.md)).
 - **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (where a step's milliseconds go), `tools/check_readme_numbers.py` (re-derives every figure quoted here).
-- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), hardware kill-plane death detection (`0x0217F760`), course ID extraction (`0x02285238`), and star collection detected when Mario is within $80$ units of the star, or when the star counter (`0x0209FB64`) rises while he is within $500$ units (the counter alone fluctuates; see §10.6 of the reward doc). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
+- **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), death detection by position (Y below each course's `kill_y`; the `0x0217F760` fast-fall clamp is kept only as `death_rule="struct"`), course ID extraction (`0x02285238`), and star collection detected when Mario is within $80$ units of the star, or when the star counter (`0x0209FB64`) rises while he is within $500$ units (the counter alone fluctuates; see §10.6 of the reward doc). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
 - **Human Demonstrations**: `scripts/record_human.py` / `record-ttc.bat` (interactive 60 Hz recorder, any button combination, per-frame masks, checkpoint savestates) and `scripts/prepare_human_route.py` (frame-exact replay check, loop-erased route, curriculum checkpoints); consumed by `src/route.py` (route progress reward) and `src/demos.py` (replay-buffer prefill). See [`docs/HUMAN_RECORDING.md`](docs/HUMAN_RECORDING.md).
 - **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
 - **Curriculum Pipeline**: `src/train_curriculum.py` (multi-phase fine-tuning with learning rate decay and balanced multi-track validation).
@@ -259,9 +264,10 @@ Each training round initially consolidated one track at the expense of another; 
 - **Issue**: Survival-only optimization ($R_{\text{timeout}} = 0$, $R_{\text{death}} = -100$) incentivized safe idling/camping and could not verify whether an agent surviving 1350 steps reached the course terminus or merely idled. In addition, symmetric potential differences ($D_t - D_{t+1}$) created in-place jumping exploit loops under discounted Q-learning ($\gamma < 1$).
 - **Solution**: Implemented monotonic high-water mark progression reward shaping ($r_{\text{dist}} = w_{\text{dist}} \max(0, D_{\min} - D_t)$) based on Mario's exact 3D coordinates in RAM (`0x0217F714`-`0x0217F71C`), terminating upon crossing goal thresholds with a completion bonus ($+200.0$ for slide finishes, $+500.0$ for Tick Tock Clock star collection gated by $D \le 500.0$). Full mathematical derivations and RAM maps in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
 
-### 8. Instantaneous RAM-Based Death Detection
-- **Issue**: Visual death detection via black-screen thresholding suffered from a 60–80 frame latency during camera descent and screen fade-out.
-- **Solution**: Intercepted the ARM9 hardware descent clamp at `0x0217F760 <= -300000`, detecting fatal falls on the exact frame of boundary crossing.
+### 8. RAM-Based Death Detection
+- **Issue**: Visual death detection via black-screen thresholding has a long latency: in Tick Tock Clock the screen goes black 122 frames after Mario falls past the course floor (frame 290 vs 168).
+- **First solution, withdrawn 2026-11-04**: treat the `0x0217F760 <= -300000` clamp as death. That word clamps on any long drop, including the legitimate drop into the `ds1` end room and drops on the slides, so it produced false deaths (the `ds1`/`ds2`/`ds3` "deaths" at decisions 66, 836 and 38 of the earlier finish-line table).
+- **Current solution**: a fall below the course's lowest floor (`kill_y` in `TRACK_GOALS`), which in Tick Tock Clock fires on the same frame as the clamp; the black screen stays as a fallback.
 
 ### 9. Savestate Management & External Asset Distribution
 - **Issue**: Cold-booting the ROM for each episode reset consumes $\approx 1700\text{--}2400\text{ frames}$ ($28\text{--}40\text{ seconds}$), making RL training intractable across $10^5$ episodes ($>40$ days of idle boot time). Savestates reduce reset latency to $<2\text{ ms}$, but cannot be committed to Git due to proprietary RAM dumps and repository bloat.
@@ -533,7 +539,8 @@ python -m src.train_curriculum --run-id curriculum_flow25_r3 --start-model model
 > survival, total survival and mean reward.
 >
 > **Environment defaults changed after r3.** `train_curriculum` now trains with
-> RAM kill-plane death, the 3D-progress reward and the finish bonus. The r1-r3
+> position-based death (below `kill_y`), the 3D-progress reward and the finish
+> bonus. The r1-r3
 > runs had none of them: add `--no-ram-death --no-dist-reward` to the commands
 > above to reproduce them. `--max-steps` (default 1350) sets the horizon.
 

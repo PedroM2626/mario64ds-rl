@@ -8,7 +8,12 @@ and how the episode ended. Two environments:
 
   historical  black-screen death only (a fall into the void respawns Mario),
               the setting the published slide results were produced under
-  ram         RAM kill-plane death (a fall ends the episode)
+  ram         a fall below the course's kill_y ends the episode (position rule)
+  struct      legacy rule: the 0x0217F760 fast-fall clamp also ends it, which
+              fires on legitimate long drops (e.g. the ds1 exit into the end room)
+
+The finish is target_pos within 250 units or the measured end area
+(TRACK_GOALS finish_region).
 
 Each track runs in its own process (two DeSmuME cores in one process crash).
 
@@ -69,10 +74,10 @@ def run_track(args):
     from src.envs import rom_path, savestate_path
     from src.ram_state import TRACK_GOALS, Sm64DsState
 
-    ram = args.env == "ram"
     env = Mario64DSEnv(rom_path=rom_path(), state_path=savestate_path(args.track), max_steps=args.max_steps,
-                       flow_weight=1.0, use_ram_death=ram, dist_reward_enabled=False,
-                       track_id=args.track)
+                       flow_weight=1.0, use_ram_death=args.env != "historical", dist_reward_enabled=False,
+                       track_id=args.track, death_rule="struct" if args.env == "struct" else "position")
+    kill_y = TRACK_GOALS[args.track]["kill_y"]
     reset, act = make_policy(args.controller, os.path.join(ROOT_DIR, args.model),
                              os.path.join(ROOT_DIR, args.bundle), args.device)
     goal = TRACK_GOALS[args.track]["target_pos"]
@@ -80,24 +85,26 @@ def run_track(args):
         obs, info = env.reset()
         reset(obs)
         d0 = float(np.linalg.norm(info["pos_3d"] - goal))
-        dmin, falls, was_down, t = d0, 0, False, 0
+        dmin, fast, void, was_fast, was_void, t = d0, 0, 0, False, False, 0
         for t in range(1, args.max_steps + 1):
             obs, _, term, trunc, info = env.step(act(obs))
             p = info.get("pos_3d")
             if p is not None:
                 dmin = min(dmin, float(np.linalg.norm(p - goal)))
-            # Same rule as the dashboard: count each entry into the kill-plane
-            # clamp; in the historical env the game then respawns Mario.
-            down = info.get("ram") is not None and Sm64DsState.is_dead(info["ram"])
-            falls += int(down and not was_down)
-            was_down = down
+            # fast: entries into the 0x0217F760 clamp (any long drop; the
+            # dashboard's "in-track falls"). void: drops below kill_y.
+            f_now = info.get("ram") is not None and Sm64DsState.is_dead(info["ram"])
+            v_now = Sm64DsState.fell_out_of_course(p, kill_y)
+            fast += int(f_now and not was_fast)
+            void += int(v_now and not was_void)
+            was_fast, was_void = f_now, v_now
             if term or trunc:
                 break
         end = ("finish" if info.get("reached_goal") else "died" if info.get("died")
                else "horizon")
         row = {"track": args.track, "env": args.env, "controller": args.controller, "model": args.model,
                "end": end, "decisions": t, "start_dist": round(d0, 1), "min_dist": round(dmin, 1),
-               "falls": falls}
+               "fast_falls": fast, "void_falls": void}
     finally:
         env.close()
     print("__ROW__" + json.dumps(row), flush=True)
@@ -133,7 +140,7 @@ def main():
             rows.append(row)
             print(f"{env_name:10s} {track}  {row['end']:8s} decisions={row['decisions']:5d} "
                   f"min_dist={row['min_dist']:9.1f} / start {row['start_dist']:9.1f} "
-                  f"falls={row['falls']}", flush=True)
+                  f"void_falls={row['void_falls']} fast_falls={row['fast_falls']}", flush=True)
     name = os.path.splitext(os.path.basename(args.model))[0]
     out = args.out or os.path.join(ROOT_DIR, "results", f"finish_line_{name}.json")
     with open(out, "w", encoding="utf-8") as fh:

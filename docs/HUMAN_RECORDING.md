@@ -118,7 +118,8 @@ Both detect the action set from the checkpoint.
 ## The first recording (2026-11-03)
 
 `runs/human-demonstrations/20261103-181832/completed/attempt-000005` (local
-only): star reached after 4 discarded deaths, 2,674 decisions (178 s),
+only): star reached after 4 discarded deaths (judged by the withdrawn clamp
+rule, so some may have been long legitimate drops; see REWARD_SYSTEM_AND_RAM.md 6.1), 2,674 decisions (178 s),
 free input. 64.8% of decisions (1,732) are exact `compound12` decisions. R
 (crouch, 304 frames) has no agent action, and Y (1,328 frames) exists only as
 up+Y, so decisions using them otherwise are not exact.
@@ -159,3 +160,14 @@ up+Y, so decisions using them otherwise are not exact.
 `qrdqn_impala_ds8_v4` (the command above, 300k steps, 1.03 h) moves along the
 route but still falls: from `ds8` at decision 128, and from 11 of 13 human
 checkpoints. See [REWARD_SYSTEM_AND_RAM.md, section 10.9](REWARD_SYSTEM_AND_RAM.md#109-model-v4-human-route-curriculum-and-demonstrations-2026-11-03).
+
+## Recording a slide (`ds3`)
+
+The recorder also completes a run at the slide finish (the measured end area of
+`TRACK_GOALS`). Every controller so far gets stuck on a flat section of the
+Tall, Tall Mountain slide (`ds3`), so one human run there would give its route:
+
+```powershell
+record-ds3.bat
+.venv\Scripts\python.exe scripts/prepare_human_route.py runs/human-demonstrations/<time>/completed/attempt-000001 --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1
+```

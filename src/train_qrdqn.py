@@ -112,6 +112,8 @@ def main():
                              "learning (repeatable)")
     parser.add_argument("--learning-starts", type=int, default=100,
                         help="Environment steps collected before gradient updates (SB3 default 100)")
+    parser.add_argument("--death-rule", choices=["position", "struct"], default="position",
+                        help='"position" (default): a fall below the course kill_y; "struct": legacy rule that also counts the 0x0217F760 fast-fall clamp (any long drop) as death')
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching goal coordinates")
     parser.add_argument("--star-reward", type=float, default=500.0,
@@ -155,7 +157,7 @@ def main():
         if not os.path.exists(sp):
             raise FileNotFoundError(f"Curriculum savestate not found: {sp}")
     env_extra = dict(action_set=args.action_set, route_path=route_full,
-                     route_total_reward=args.route_total_reward)
+                     route_total_reward=args.route_total_reward, death_rule=args.death_rule)
 
     train_envs = SubprocVecEnv([
         make_env(rom_full, savestates[i % len(savestates)], rank=i, seed=args.seed,
@@ -247,6 +249,7 @@ def main():
         "star_reward": args.star_reward,
         "use_ram_death": args.use_ram_death,
         "action_set": args.action_set,
+        "death_rule": args.death_rule,
         "route": args.route,
         "route_total_reward": args.route_total_reward,
         "start_states": len(start_states),

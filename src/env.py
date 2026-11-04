@@ -67,7 +67,8 @@ class Mario64DSEnv(gym.Env):
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
-                 route_total_reward=500.0, start_states=None, full_start_prob=0.25):
+                 route_total_reward=500.0, start_states=None, full_start_prob=0.25,
+                 death_rule="position"):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -103,6 +104,12 @@ class Mario64DSEnv(gym.Env):
         self.goal_reward = float(goal_reward)
         self.star_reward = float(star_reward)
         self.use_ram_death = bool(use_ram_death)
+        # "position": Y below the course's kill_y (a real fall into the void).
+        # "struct": legacy rule of the runs trained before 2026-11-04, which also
+        # counted the 0x0217F760 fast-fall clamp, i.e. any long drop, as death.
+        if death_rule not in ("position", "struct"):
+            raise ValueError(f"death_rule must be 'position' or 'struct', got {death_rule!r}")
+        self.death_rule = death_rule
         self.dist_reward_mode = str(dist_reward_mode).lower()
         self.track_id = track_id or self._infer_track_id()
         self.goal_spec = TRACK_GOALS.get(self.track_id)
@@ -350,7 +357,10 @@ class Mario64DSEnv(gym.Env):
                 curr_ram = self.ram.poll()
                 pos_3d = self.ram.get_pos_3d()
                 kill_y = self.goal_spec.get("kill_y") if self.goal_spec else None
-                if Sm64DsState.is_dead(state=curr_ram, pos_3d=pos_3d, kill_y=kill_y):
+                dead = (Sm64DsState.is_dead(state=curr_ram, pos_3d=pos_3d, kill_y=kill_y)
+                        if self.death_rule == "struct"
+                        else Sm64DsState.fell_out_of_course(pos_3d, kill_y))
+                if dead:
                     is_dead = True
                     death_source = "RAM"
             except Exception as exc:
@@ -422,8 +432,9 @@ class Mario64DSEnv(gym.Env):
                         if self.verbose:
                             logger.info("Star collected! (reward=+%g) at step %d",
                                         self.star_reward, self.episode_steps)
-                else:  # "position"
-                    if curr_dist <= success_dist:
+                else:  # "position": near target_pos, or anywhere in the measured end area
+                    if curr_dist <= success_dist or Sm64DsState.in_finish_region(
+                            curr_pos, self.target_pos, self.goal_spec.get("finish_region")):
                         done = True
                         self.reached_goal = True
                         reward += self.goal_reward

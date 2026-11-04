@@ -32,7 +32,7 @@ bundle (`models/state_wm.pt`) and the base replay buffer (`data/wm_buffer.pkl`).
 
 | Asset | Role | Size | SHA256 |
 |---|---|---:|---|
-| `models/curriculum_finish_r4_best.zip` | PPO + NatureCNN fine-tuned from r3 with RAM death, progress and finish reward; finishes `ds2` without a fall | 20,590,973 | `755282a8...f33775ef` |
+| `models/curriculum_finish_r4_best.zip` | PPO + NatureCNN fine-tuned from r3 under the withdrawn clamp death rule; finishes `ds2`, falls on `ds1` (r3 remains the reference) | 20,590,973 | `755282a8...f33775ef` |
 
 ## Tick Tock Clock checkpoints (local, not in the manifest)
 

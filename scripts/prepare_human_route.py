@@ -63,7 +63,7 @@ def verify_replay(demo, tol=1e-3):
                 return err, False, t
             if terminated and t != len(actions) - 1:
                 return err, False, t
-        return err, bool(info.get("star_collected")), len(actions)
+        return err, bool(info.get("star_collected") or info.get("reached_goal")), len(actions)
     finally:
         env.close()
 
@@ -99,7 +99,7 @@ def main():
     verified = None
     if not args.no_verify:
         err, star, upto = verify_replay(demo)
-        print(f"replay: max position error {err:.6f} over {upto} decisions, star={star}")
+        print(f"replay: max position error {err:.6f} over {upto} decisions, goal reproduced={star}")
         if upto != len(demo["actions"]) or (m["state"] == "completed" and not star):
             raise SystemExit("the replay does not reproduce the recording; refusing to build a route")
         verified = {"max_position_error": err, "star_reproduced": star}

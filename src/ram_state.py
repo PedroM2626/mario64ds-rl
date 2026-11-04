@@ -10,8 +10,11 @@ src/ram_verify.py): Mario's physics struct lives at 0x0217F74C-0x0217F764 as
   0x0217F754  constant (-16384) during slides; part of the struct
   0x0217F75C  LATERAL position (delta sign follows LEFT/RIGHT; frozen when
               pinned against a wall; +-~100 track units across the track)
-  0x0217F760  HEIGHT -- during a death fall it clamps at -307200 (-75.0: the
-              kill plane); resets to -32768 (-8.0) on respawn
+  0x0217F760  vertical-speed-like word -- clamps at -307200 (-75.0) after
+              ~7 decisions of free fall; -32768 (-8.0) when grounded. It clamps
+              on ANY long drop: the legitimate drop into the end room of ds1,
+              drops on the slides themselves and real falls into the void
+              alike, so it is not a death signal (see fell_out_of_course)
   0x0217F764  vertical velocity (spikes on JUMP; decays with gravity)
 
 This is the exact-state observation the reference (smw-pinn) uses and the
@@ -45,7 +48,7 @@ STAR_COUNT_ADDR = 0x0209FB64         # Global Star Counter in save RAM
 # values only as fingerprints of these savestates.
 COURSE_ID_ADDR = 0x02285238
 
-KILL_PLANE = -300000               # height clamp observed during death falls
+KILL_PLANE = -300000               # fast-fall clamp of 0x0217F760 (not a death signal)
 RESPAWN_HEIGHT = -32768            # -8.0: post-respawn height
 
 FIXED_POINT_TOL = 5000             # boot-time verification tolerance for 'const'
@@ -59,6 +62,9 @@ TRACK_GOALS = {
         "goal_type": "position",
         "target_pos": np.array([-6342.00, -5700.00, -6625.27], dtype=np.float64),
         "success_dist": 250.0,
+        # End room, measured by walking Mario around from ds4: floor 0..+28.8
+        # above target_pos, up to 1,046.6 units away horizontally.
+        "finish_region": {"dy": (-50.0, 100.0), "radius": 1100.0},
         "kill_y": -6500.0,
     },
     # The Princess's Secret Slide (start: ds2 -> finish: ds5)
@@ -68,6 +74,10 @@ TRACK_GOALS = {
         "goal_type": "position",
         "target_pos": np.array([-6240.47, -4479.99, 4506.09], dtype=np.float64),
         "success_dist": 250.0,
+        # End area from ds5: floor at +0 above target_pos (95% of samples; max
+        # +100), up to 2,167.7 away. The band stops at +30 because the last
+        # stretch of carpet before the checkered line is at about +147.
+        "finish_region": {"dy": (-50.0, 30.0), "radius": 2200.0},
         "kill_y": -6000.0,
     },
     # Tall, Tall Mountain slide (start: ds3 -> finish: ds6)
@@ -77,6 +87,9 @@ TRACK_GOALS = {
         "goal_type": "position",
         "target_pos": np.array([-514.75, -13645.99, -11697.84], dtype=np.float64),
         "success_dist": 250.0,
+        # End area from ds6: -546..+242 around target_pos (not flat), up to
+        # 1,537.4 away horizontally.
+        "finish_region": {"dy": (-600.0, 300.0), "radius": 1550.0},
         "kill_y": -14500.0,
     },
     # Level 8: Tick Tock Clock (start: ds8 -> star: ds9)
@@ -156,8 +169,30 @@ class Sm64DsState:
         return np.asarray(v, dtype=np.float64) / SCALE
 
     @staticmethod
+    def fell_out_of_course(pos_3d, kill_y) -> bool:
+        """Below the course's lowest floor: a real fall into the void.
+
+        Measured from ds8 (hold Up off the start platform): Y crosses
+        kill_y=-5500 at frame 168, the same frame the 0x0217F760 word clamps,
+        and the screen goes black only at frame 290 (Y=-10057).
+        """
+        return pos_3d is not None and kill_y is not None and pos_3d[1] < kill_y
+
+    @staticmethod
+    def in_finish_region(pos_3d, target_pos, region) -> bool:
+        """Inside a measured end area (height band + horizontal radius)."""
+        if pos_3d is None or region is None:
+            return False
+        dy = pos_3d[1] - target_pos[1]
+        h = float(np.hypot(pos_3d[0] - target_pos[0], pos_3d[2] - target_pos[2]))
+        return region["dy"][0] <= dy <= region["dy"][1] and h <= region["radius"]
+
+    @staticmethod
     def is_dead(state=None, kill_plane=KILL_PLANE, pos_3d=None, kill_y=None) -> bool:
-        """Kill-plane hit (a real fall), readable BEFORE the screen fades."""
+        """Legacy rule: fast-fall clamp OR below kill_y.
+
+        The clamp fires on legitimate long drops too (see 0x0217F760 above);
+        Mario64DSEnv uses it only with death_rule="struct"."""
         if state is not None and len(state) >= 5:
             if state[4] <= kill_plane + 1:
                 return True

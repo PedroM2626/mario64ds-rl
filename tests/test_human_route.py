@@ -198,3 +198,44 @@ def test_erase_loops_removes_a_lap_and_a_reclimb():
     climb = [[0, y, 0] for y in range(0, 500, 100)] + [[0, 100, 0], [0, 200, 0], [0, 300, 0]]
     # fell from 400 to 100 and re-climbed only to 300: the abandoned 400 apex goes
     assert erase_loops(climb, radius=50)[:, 1].tolist() == [0, 100, 200, 300]
+
+
+def _slide_env(**kw):
+    env = _make_env(track_id="ds1", flow_weight=0.0, **kw)
+    env.ram = MagicMock()
+    env.ram.get_star_count.return_value = 0
+    env._get_obs = lambda: np.full((84, 84, 1), 128, np.uint8)
+    return env
+
+
+def test_fast_fall_clamp_is_not_death_under_position_rule():
+    from src.ram_state import KILL_PLANE, TRACK_GOALS
+    clamp = np.array([0, 0, -16384, 0, KILL_PLANE - 7200, 0], float)   # 0x0217F760 at -307200
+    mid_slide = TRACK_GOALS["ds1"]["target_pos"] + np.array([3000.0, 2000.0, 0.0])
+    for rule, dies in (("position", False), ("struct", True)):
+        env = _slide_env(death_rule=rule)
+        env.ram.get_pos_3d.return_value = mid_slide
+        env.reset()
+        env.ram.poll.return_value = clamp
+        assert bool(env.step(0)[2]) is dies, rule
+    env = _slide_env()
+    env.ram.get_pos_3d.return_value = mid_slide
+    env.reset()
+    env.ram.poll.return_value = np.zeros(6)
+    env.ram.get_pos_3d.return_value = np.array([0.0, TRACK_GOALS["ds1"]["kill_y"] - 1, 0.0])
+    _, r, done, _, info = env.step(0)
+    assert done and info["died"]
+
+
+def test_finish_region_counts_as_goal():
+    from src.ram_state import TRACK_GOALS
+    g = TRACK_GOALS["ds1"]["target_pos"]
+    env = _slide_env()
+    env.ram.poll.return_value = np.zeros(6)
+    env.ram.get_pos_3d.return_value = g + np.array([3000.0, 2000.0, 0.0])
+    env.reset()
+    env.ram.get_pos_3d.return_value = g + np.array([0.0, 10.0, 900.0])   # 900 away, in the room
+    _, r, done, _, info = env.step(0)
+    assert done and info["reached_goal"] and not info["died"]
+    with pytest.raises(ValueError):
+        _make_env(death_rule="nope")

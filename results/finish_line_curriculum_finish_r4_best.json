@@ -12,7 +12,8 @@
       "decisions": 386,
       "start_dist": 12274.7,
       "min_dist": 4681.2,
-      "falls": 1
+      "fast_falls": 1,
+      "void_falls": 1
     },
     {
       "track": "ds2",
@@ -20,10 +21,11 @@
       "controller": "ppo",
       "model": "models/curriculum_finish_r4_best.zip",
       "end": "finish",
-      "decisions": 636,
+      "decisions": 627,
       "start_dist": 16618.4,
-      "min_dist": 239.9,
-      "falls": 0
+      "min_dist": 850.7,
+      "fast_falls": 0,
+      "void_falls": 0
     },
     {
       "track": "ds3",
@@ -34,7 +36,8 @@
       "decisions": 115,
       "start_dist": 36403.6,
       "min_dist": 28978.2,
-      "falls": 2
+      "fast_falls": 2,
+      "void_falls": 0
     },
     {
       "track": "ds1",
@@ -42,10 +45,11 @@
       "controller": "ppo",
       "model": "models/curriculum_finish_r4_best.zip",
       "end": "died",
-      "decisions": 315,
+      "decisions": 374,
       "start_dist": 12274.7,
-      "min_dist": 9929.7,
-      "falls": 1
+      "min_dist": 4681.2,
+      "fast_falls": 1,
+      "void_falls": 1
     },
     {
       "track": "ds2",
@@ -53,10 +57,11 @@
       "controller": "ppo",
       "model": "models/curriculum_finish_r4_best.zip",
       "end": "finish",
-      "decisions": 636,
+      "decisions": 627,
       "start_dist": 16618.4,
-      "min_dist": 239.9,
-      "falls": 0
+      "min_dist": 850.7,
+      "fast_falls": 0,
+      "void_falls": 0
     },
     {
       "track": "ds3",
@@ -64,10 +69,11 @@
       "controller": "ppo",
       "model": "models/curriculum_finish_r4_best.zip",
       "end": "died",
-      "decisions": 92,
+      "decisions": 115,
       "start_dist": 36403.6,
-      "min_dist": 30435.4,
-      "falls": 1
+      "min_dist": 28978.2,
+      "fast_falls": 2,
+      "void_falls": 0
     }
   ]
 }

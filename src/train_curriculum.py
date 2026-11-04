@@ -106,6 +106,8 @@ def main():
                         help="Ratcheted 3D progress towards the RAM finish line (default)")
     parser.add_argument("--no-dist-reward", dest="dist_reward", action="store_false",
                         help="Historical r1-r3 setting: no distance reward")
+    parser.add_argument("--death-rule", choices=["position", "struct"], default="position",
+                        help='"position" (default): a fall below the course kill_y; "struct": legacy rule that also counts the 0x0217F760 fast-fall clamp (any long drop) as death')
     parser.add_argument("--dist-weight", type=float, default=0.05)
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching the RAM finish line")
@@ -113,7 +115,8 @@ def main():
                         help="Per-phase evaluation table (default keeps the historical path)")
     args = parser.parse_args()
     env_kwargs = dict(use_ram_death=args.use_ram_death, dist_reward_enabled=args.dist_reward,
-                      dist_weight=args.dist_weight, goal_reward=args.goal_reward)
+                      dist_weight=args.dist_weight, goal_reward=args.goal_reward,
+                      death_rule=args.death_rule)
 
     phases = []
     for token in args.phases.split(","):

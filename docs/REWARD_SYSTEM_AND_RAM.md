@@ -30,7 +30,7 @@ Through differential memory tracing and hardware-level state inspection in DeSmu
 | `0x0217F714` | `int32` | $s20.12$ Fixed-Point | **Mario 3D Position $X$** (Track units: value / 4096.0) |
 | `0x0217F718` | `int32` | $s20.12$ Fixed-Point | **Mario 3D Position $Y$** (Height: value / 4096.0) |
 | `0x0217F71C` | `int32` | $s20.12$ Fixed-Point | **Mario 3D Position $Z$** (Lateral/Depth: value / 4096.0) |
-| `0x0217F760` | `int32` | $s20.12$ Fixed-Point | **Kill-Plane / Height Clamp** (Clamps to $-307200 = -75.0$ on void fall) |
+| `0x0217F760` | `int32` | $s20.12$ Fixed-Point | **Fast-fall clamp** (clamps to $-307200 = -75.0$ after ~7 decisions of any free fall, not only void falls; see 6.1) |
 | `0x02285238` | `uint32` | Integer ID | **Active Course / Level ID** (`11`=PSS, `5`=TTM, `3`=CCM, `14`=TTC) |
 | `0x0209FB64` | `uint32` | Integer Counter | **Global Star Counter** in persistent save RAM |
 | `0x02169B10` | `int32[3]` | $s20.12$ Fixed-Point | **Tick Tock Clock Star Object Position** $(X, Y, Z)$ |
@@ -112,11 +112,23 @@ A standard single jump ($B$) reaches a maximum height of $Y = 7091.19$, which is
 
 Visual death detection via black-screen pixel thresholding (`obs < 10` on $>95\%$ pixels) suffers from an intrinsic delay of $\sim 60\text{--}80$ frames during the camera tracking and screen fade-out sequence. 
 
-### 6.1 Instantaneous Detection via Hardware Register
-In the SM64DS ARM9 physics pipeline:
-- Register `0x0217F760` acts as a vertical descent clamp.
-- During any fatal abyss fall, this register clamps at exactly $-307200$ (representing $-75.0$ units in $20.12$ fixed-point).
-- By monitoring `0x0217F760 <= -300000` (or $Y < Y_{\text{kill}}$ for the course), fatal falls are flagged instantaneously on the exact frame the agent crosses the void plane, prior to camera lag or screen fading.
+### 6.1 The `0x0217F760` clamp is not a death signal (corrected 2026-11-04)
+The first version of this section treated `0x0217F760 <= -300000` as a fatal fall. Measured since:
+- The word clamps at $-307200$ ($-75.0$) after about 7 decisions of free fall, on **any** long drop. On `ds1` it fires at decision 599, while Mario drops through the slide's exit hole into the end room (the finish), and at decision 66, on a drop on the slide itself after which Mario keeps sliding. Used as a death rule it ended correct runs: the earlier finish-line table reported "deaths" at decisions 66, 836 and 38 for a policy that finishes `ds1` and `ds2` without ever leaving the course.
+- A real fall into the void (`ds8`, Up held off the start platform) crosses the course's `kill_y` ($-5500$) at frame 168, the frame before the clamp (169); the screen turns black at frame 290 ($Y = -10057$).
+
+`Mario64DSEnv` therefore detects death as $Y < Y_{\text{kill}}$ (`death_rule="position"`, default), with the black screen as a fallback. `death_rule="struct"` reproduces the old rule, under which TTC v1-v4, the first TTC human recording (4 discarded deaths) and `curriculum_finish_r4` were produced. v4's full-start fall at decision 128 is a real one under the position rule ($Y = -5632 < -5500$).
+
+### 6.2 Finish regions
+A 250-unit radius around one finish coordinate is smaller than the end areas. Walking Mario around from each finish savestate (`ds4`-`ds6`) measured them; `TRACK_GOALS` now also accepts a position inside this region as the finish:
+
+| Track | Height band above `target_pos` (measured) | Horizontal extent (measured) | Region used |
+|---|---|---|---|
+| `ds1` | $0$ to $+28.8$ (end room) | $1{,}046.6$ | $-50 \le \Delta y \le 100$, $r \le 1100$ |
+| `ds2` | $+0$ (95% of samples), max $+100$ | $2{,}167.7$ | $-50 \le \Delta y \le 30$, $r \le 2200$ |
+| `ds3` | $-546$ to $+242$ (not flat) | $1{,}537.4$ | $-600 \le \Delta y \le 300$, $r \le 1550$ |
+
+The `ds2` band stops at $+30$ because the last carpet before the checkered line lies at about $+147$; with it, the finish fires at decision 739 of the reference run, just past the line, where the in-game timer stops ($0'49''34$). On `ds1` it fires at decision 605, as Mario lands in the end room. No controller reaches the `ds3` region, so that band has not been checked against a run.
 
 ---
 
@@ -299,7 +311,7 @@ The IMPALA CNN architecture incorporates 3 residual convolutional stacks (each c
 | Star Reward ($R_{\text{star}}$) | $+500.0$ | Terminal milestone bonus on star acquisition |
 | Step Penalty ($c_{\text{step}}$) | $0.02$ | Anti-camping cost ($-27.0$ for full-horizon idling) |
 | Abyss Death Penalty ($R_{\text{death}}$) | $-100.0$ | Punishes void falls |
-| RAM Death Detection | `True` | Instantaneous void clamp detection (`0x0217F760 <= -300000`) |
+| RAM Death Detection | `True` | `0x0217F760 <= -300000` clamp or $Y < -5500$ (the clamp part was withdrawn on 2026-11-04, see 6.1) |
 
 ---
 
@@ -470,7 +482,7 @@ The route and checkpoints come from one human run recorded with `scripts/record_
 `qrdqn_impala_ds8_v4` is the first run with everything from 10.8: `compound12`, flow weight $0$, the route reward from one human ascent (`config/routes/ttc_human_v1.json`, 53.2k units, see [HUMAN_RECORDING.md](HUMAN_RECORDING.md)), 75% of training resets at one of the 89 checkpoints along that ascent, 1,732 exact human decisions prefilled into the replay buffer, horizon $3000$. Everything else as v3 (QR-DQN + IMPALA, 4 envs, buffer $100{,}000$, $\varepsilon$ $1.0 \to 0.05$ over the first 30%), but $300{,}000$ steps ($1.03$ h on the RTX 4070 laptop GPU). Config: `models/qrdqn_impala_ds8_v4/run_config.json`.
 
 #### 1. Full start (`ds8`, deterministic, 15 evaluations every 20k steps)
-Every evaluation ended in a fall within $47$-$128$ decisions. Returns: $-99.25$ (20k, 40k), $-96.94$ (60k-200k, 240k, 280k, 300k), $-98.24$ (220k), best $-90.79$ (260k, kept as `*_best.zip`). The dashboard of the best checkpoint (`videos/dashboard_ds8_v4/`) reproduces it exactly: 128 decisions, route reward $+11.77$ (1,253 of 53,246 route units), then the kill plane; decomposition residual $1.6 \times 10^{-8}$. Peak height gain from `ds8` is $+268.5$ (v3 best: $+378.0$ without dying). `scripts/eval_qrdqn_ttc.py` used to start its frame stack with four copies of the first frame instead of SB3's $[0, 0, 0, 	ext{frame}]$; for v4 that gave a different trajectory (137 decisions, $+299.2$). It now follows SB3 and reproduces EvalCallback; v3's numbers are identical under both conventions. On the full start, v4 is not better than v3.
+Every evaluation ended in a fall within $47$-$128$ decisions. Returns: $-99.25$ (20k, 40k), $-96.94$ (60k-200k, 240k, 280k, 300k), $-98.24$ (220k), best $-90.79$ (260k, kept as `*_best.zip`). The dashboard of the best checkpoint (`videos/dashboard_ds8_v4/`) reproduces it exactly: 128 decisions, route reward $+11.77$ (1,253 of 53,246 route units), then the kill plane; decomposition residual $1.6 \times 10^{-8}$. Peak height gain from `ds8` is $+268.5$ (v3 best: $+378.0$ without dying). `scripts/eval_qrdqn_ttc.py` used to start its frame stack with four copies of the first frame instead of SB3's $[0, 0, 0, \text{frame}]$; for v4 that gave a different trajectory (137 decisions, $+299.2$). It now follows SB3 and reproduces EvalCallback; v3's numbers are identical under both conventions. On the full start, v4 is not better than v3.
 
 #### 2. From the human checkpoints (`scripts/eval_route_starts.py`, 13 starts, 600 decisions each)
 | Policy | Route units gained (median) | Starts ending in a fall | Star |

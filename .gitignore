@@ -46,3 +46,5 @@ assets/
 # Human demonstrations and curriculum checkpoints (game RAM dumps; local only)
 runs/
 data/curriculum/
+# 23 MB of the reference policy stuck on the ds3 plateau; its JSON/trace are tracked
+videos/dashboard_finish/dashboard_ds3.mp4
