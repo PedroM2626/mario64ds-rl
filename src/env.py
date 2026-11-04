@@ -73,7 +73,7 @@ class Mario64DSEnv(gym.Env):
                  track_id=None, action_set="legacy6", route_path=None,
                  route_total_reward=500.0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
-                 ram_coin_reward=0.0):
+                 ram_coin_reward=0.0, black_screen_death=True):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -127,6 +127,9 @@ class Mario64DSEnv(gym.Env):
         # (src/ram_state.COIN_COUNT_ADDR). Unlike the HSV detector above, it
         # cannot be triggered by yellow floors or walls. 0 disables it.
         self.ram_coin_reward = float(ram_coin_reward)
+        # The black-screen fallback can fire in dark parts of a course (the
+        # ds3 exit is a dark shaft); False leaves death to the position rule.
+        self.black_screen_death = bool(black_screen_death)
         self.coins = None
         self.last_ram_coin_reward = 0.0
         self.dist_reward_mode = str(dist_reward_mode).lower()
@@ -391,8 +394,8 @@ class Mario64DSEnv(gym.Env):
                     raise
                 logger.debug("RAM death check failed: %s", exc)
 
-        if not is_dead:
-            obs_2d = np.squeeze(obs)
+        obs_2d = np.squeeze(obs)
+        if not is_dead and self.black_screen_death:
             if np.mean(obs_2d < 10) > 0.95:
                 is_dead = True
                 death_source = "black_screen"

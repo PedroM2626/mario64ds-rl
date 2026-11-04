@@ -98,6 +98,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--track", default="ds3")
     ap.add_argument("--model", default="models/curriculum_flow25_r3_best.zip")
+    ap.add_argument("--start-actions", default=None,
+                    help="JSON list of actions to replay from the track start instead of the greedy "
+                         "--prefix (e.g. a search's actions plus an opening found by sweep_moves.py)")
     ap.add_argument("--prefix", type=int, default=100,
                     help="Greedy policy decisions before the search starts (still on the slide)")
     ap.add_argument("--rollouts", type=int, default=48)
@@ -140,7 +143,12 @@ def main():
         env.emu.savestate.save_file(path)
         return path, hist, p[-1], c[-1]
 
-    acts, _, _, died, _, _ = _play(env, policy, start, None, args.prefix, 0.0, None)
+    if args.start_actions:
+        with open(args.start_actions, encoding="utf-8") as fh:
+            given = [int(a) for a in json.load(fh)]
+        acts, _, _, died, _, _ = _play(env, policy, start, None, 0, 0.0, None, forced=given)
+    else:
+        acts, _, _, died, _, _ = _play(env, policy, start, None, args.prefix, 0.0, None)
     assert not died, "the greedy prefix already dies; use a shorter --prefix"
     full = list(acts)
     state, history, p_last, c_last = advance(start, None, acts, "stage-000.dst")
