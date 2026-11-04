@@ -1,0 +1,154 @@
+{
+  "track": "ds3",
+  "policy": "models/curriculum_flow25_r3_best.zip",
+  "sweeps": [
+    {
+      "sweep": "runs/explore/ds3-20261104-084950/sweep-102238/sweep.json",
+      "branch_points": [
+        [
+          300,
+          18
+        ],
+        [
+          320,
+          18
+        ],
+        [
+          335,
+          19
+        ],
+        [
+          346,
+          21
+        ]
+      ],
+      "attempts": 1728,
+      "tail": 150,
+      "survivors": 2,
+      "survivor_openings": [
+        [
+          [
+            7,
+            16
+          ],
+          [
+            5,
+            8
+          ]
+        ],
+        [
+          [
+            7,
+            16
+          ],
+          [
+            5,
+            4
+          ]
+        ]
+      ],
+      "max_coins_gained": 7,
+      "min_dist": 11483.4
+    },
+    {
+      "sweep": "runs/explore/ds3-20261104-103916/sweep-104930/sweep.json",
+      "branch_points": [
+        [
+          600,
+          27
+        ],
+        [
+          615,
+          29
+        ],
+        [
+          630,
+          29
+        ],
+        [
+          640,
+          30
+        ],
+        [
+          650,
+          31
+        ]
+      ],
+      "attempts": 2160,
+      "tail": 150,
+      "survivors": 0,
+      "survivor_openings": [],
+      "max_coins_gained": 8,
+      "min_dist": 4668.7
+    },
+    {
+      "sweep": "runs/explore/ds3-20261104-110701/sweep-111730/sweep.json",
+      "branch_points": [
+        [
+          630,
+          29
+        ],
+        [
+          645,
+          29
+        ],
+        [
+          660,
+          29
+        ],
+        [
+          675,
+          31
+        ]
+      ],
+      "attempts": 1728,
+      "tail": 150,
+      "survivors": 0,
+      "survivor_openings": [],
+      "max_coins_gained": 7,
+      "min_dist": 4703.3
+    },
+    {
+      "sweep": "runs/explore/ds3-spot3b/sweep-113415/sweep.json",
+      "branch_points": [
+        [
+          690,
+          31
+        ],
+        [
+          700,
+          31
+        ],
+        [
+          708,
+          31
+        ],
+        [
+          714,
+          36
+        ],
+        [
+          720,
+          36
+        ]
+      ],
+      "attempts": 2160,
+      "tail": 200,
+      "survivors": 0,
+      "survivor_openings": [],
+      "max_coins_gained": 5,
+      "min_dist": 4517.3
+    }
+  ],
+  "long_jump_test": {
+    "branch_points": [
+      700,
+      714,
+      720
+    ],
+    "timings": 15,
+    "styles": 2,
+    "attempts": 90,
+    "survivors": 0
+  }
+}

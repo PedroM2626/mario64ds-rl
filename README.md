@@ -179,6 +179,19 @@ per stage, also with random actions held up to 30 decisions and with combined
 direction+jump actions). The coins mark the way; neither the policy nor random
 perturbations of it get onto that path.
 
+**Systematic move sweeps** ([`scripts/sweep_moves.py`](scripts/sweep_moves.py),
+[`results/ds3_sweeps.json`](results/ds3_sweeps.json)) then tried every held
+action and every turn-then-jump/run pair from savestates just before each such
+spot, followed by the policy. At the arrow, 2 of 1,728 openings survive, both
+"up+right for 16 decisions, then B": that is the way onto the plank path. From
+there the coin search and two more sweeps followed the coins to 36 and to
+4,517.3 units from the finish, where a narrow path ends above a shaft; no
+attempt survives it (0 of 2,160, 0 of 1,728 and 0 of 2,160), nor any of 90 long
+jumps (R+B while running, which the action sets lack). The falls there are real:
+Mario drops below $Y = -18{,}000$ and the game respawns him with the coin count
+reset. `ds3` is therefore still not finished, and the remaining obstacle is
+this one gap.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.

@@ -347,6 +347,24 @@ def ds3_search_checks(readme):
     check("ds3 coin-search result", ", ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_sweep_checks(readme):
+    """The move-sweep sentence must equal results/ds3_sweeps.json."""
+    path = os.path.join(ROOT, "results", "ds3_sweeps.json")
+    if not os.path.exists(path):
+        check("ds3_sweeps.json", "present", "missing")
+        return
+    d = load(path)
+    first, rest = d["sweeps"][0], d["sweeps"][1:]
+    lj = d["long_jump_test"]
+    want = [f"{first['survivors']} of {_num(first['attempts'], 0)} openings survive",
+            _num(min(r["min_dist"] for r in d["sweeps"])),
+            "(" + ", ".join(f"0 of {_num(r['attempts'], 0)}" for r in rest[:-1]) + f" and 0 of {_num(rest[-1]['attempts'], 0)})",
+            f"any of {lj['attempts']} long"]
+    ok = (all(r["survivors"] == 0 for r in rest) and lj["survivors"] == 0
+          and all(w in " ".join(readme.split()) for w in want))
+    check("ds3 move-sweep result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -396,6 +414,7 @@ def main():
     finetune_checks(readme)
     ds3_explore_checks(readme)
     ds3_search_checks(readme)
+    ds3_sweep_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")
