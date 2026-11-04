@@ -27,7 +27,7 @@ import argparse
 import csv
 import os
 
-import mlflow
+from src.tracking import mlflow
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
@@ -40,7 +40,7 @@ PHASES_DEFAULT = "200000:1e-4,200000:5e-5,200000:2.5e-5"
 
 
 def eval_tracks(model_path, rom_path, states, seed, n_eps=3, max_steps=1350,
-                step_penalty=0.02, flow_weight=1.0, device="auto"):
+                step_penalty=0.02, flow_weight=1.0, device="auto", **env_kwargs):
     """Deterministic evaluation per track (sequential SubprocVecEnv for process isolation)."""
     from src.eval import _load_sb3_with_legacy_patch
     model = _load_sb3_with_legacy_patch(PPO, model_path, device=device)
@@ -48,20 +48,23 @@ def eval_tracks(model_path, rom_path, states, seed, n_eps=3, max_steps=1350,
     rows = []
     for s_idx, sp in enumerate(states):
         vec = build_vec(rom_path, [sp], 2000 + s_idx, seed, max_steps, 4,
-                        step_penalty=step_penalty, flow_weight=flow_weight)
+                        step_penalty=step_penalty, flow_weight=flow_weight, **env_kwargs)
         track_label = os.path.basename(sp).split(".")[-1]
         for ep in range(n_eps):
             obs = vec.reset()
-            done, ep_rew, steps = False, 0.0, 0
+            done, ep_rew, steps, finished = False, 0.0, 0, False
             while not done:
                 action, _ = model.predict(obs, deterministic=True)
                 obs, rews, dones, infos = vec.step(action)
                 ep_rew += float(rews[0])
                 steps += 1
                 done = bool(dones[0])
+                finished = finished or bool(infos[0].get("reached_goal"))
+            # Reaching the RAM finish line ends the episode early, so it also
+            # counts as surviving.
             rows.append({"track": track_label, "episode": ep,
-                         "reward": ep_rew, "steps": steps,
-                         "survived": steps >= max_steps})
+                         "reward": ep_rew, "steps": steps, "finished": finished,
+                         "survived": finished or steps >= max_steps})
         vec.close()
     return rows
 
@@ -74,7 +77,7 @@ def main():
     parser.add_argument("--rom", type=str, default="data/Super Mario 64 DS (USA) (Rev 1).nds")
     parser.add_argument("--run-id", type=str, default="ppo_curriculum")
     parser.add_argument("--start-model", type=str, default="models/grid_ppo_nature_s0_500k_best.zip",
-                        help="Initial checkpoint (default: 2-way 500k, ds1✓ ds3✓)")
+                        help="Initial checkpoint (default: 2-way 500k, survives ds1 and ds3)")
     parser.add_argument("--states", type=str, default="ds1,ds2,ds3")
     parser.add_argument("--phases", type=str, default=PHASES_DEFAULT,
                         help="Comma-separated 'steps:lr' phases (decaying learning rate schedule)")
@@ -92,7 +95,25 @@ def main():
     parser.add_argument("--device", type=str, default="auto",
                         help="Torch device for training and evaluation: auto, cpu or cuda")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--max-steps", type=int, default=1350, help="Episode horizon (decisions)")
+    parser.add_argument("--progress-bar", action="store_true",
+                        help="SB3 progress bar (needs tqdm and rich)")
+    parser.add_argument("--use-ram-death", dest="use_ram_death", action="store_true", default=True,
+                        help="End an episode at the RAM kill plane (default; a fall is terminal)")
+    parser.add_argument("--no-ram-death", dest="use_ram_death", action="store_false",
+                        help="Historical r1-r3 setting: black-screen death only, falls respawn")
+    parser.add_argument("--dist-reward", dest="dist_reward", action="store_true", default=True,
+                        help="Ratcheted 3D progress towards the RAM finish line (default)")
+    parser.add_argument("--no-dist-reward", dest="dist_reward", action="store_false",
+                        help="Historical r1-r3 setting: no distance reward")
+    parser.add_argument("--dist-weight", type=float, default=0.05)
+    parser.add_argument("--goal-reward", type=float, default=200.0,
+                        help="Terminal bonus for reaching the RAM finish line")
+    parser.add_argument("--results-csv", type=str, default="results/results_curriculum.csv",
+                        help="Per-phase evaluation table (default keeps the historical path)")
     args = parser.parse_args()
+    env_kwargs = dict(use_ram_death=args.use_ram_death, dist_reward_enabled=args.dist_reward,
+                      dist_weight=args.dist_weight, goal_reward=args.goal_reward)
 
     phases = []
     for token in args.phases.split(","):
@@ -117,15 +138,16 @@ def main():
     models_dir = os.path.join(base_dir, "models")
     results_dir = os.path.join(base_dir, "results")
     os.makedirs(results_dir, exist_ok=True)
-    results_csv = os.path.join(results_dir, "results_curriculum.csv")
+    results_csv = os.path.join(base_dir, args.results_csv)
 
     all_rows = []
     current_model = args.start_model
     global_best_path, global_best_mean = None, -np.inf
-    # Scale-free selection: worst-track survival first, then total survival,
-    # then mean reward. Selecting on mean reward alone lets a high-reward track
-    # hide a track that regressed.
-    global_best_key = (-1.0, -1, -np.inf)
+    # Scale-free selection: worst-track finish rate (RAM finish line) first, then
+    # total finishes, worst-track survival, total survival and mean reward.
+    # Selecting on mean reward alone lets a high-reward track hide a track that
+    # regressed; selecting on survival alone counted idling as completion.
+    global_best_key = (-1.0, -1, -1.0, -1, -np.inf)
 
     with mlflow.start_run(run_name=args.run_id):
         mlflow.log_param("model_type", "PPO_Nature_Curriculum")
@@ -137,19 +159,23 @@ def main():
         mlflow.log_param("flow_weight", args.flow_weight)
         mlflow.log_param("eval_flow_weight", args.eval_flow_weight)
         mlflow.log_param("device", args.device)
+        mlflow.log_param("max_steps", args.max_steps)
+        for k, v in env_kwargs.items():
+            mlflow.log_param(k, v)
 
         for i, (steps, lr) in enumerate(phases, 1):
             phase_id = f"{args.run_id}_p{i}"
             print(f"\n===== PHASE {i}/{len(phases)}: {steps} steps @ lr={lr} "
                   f"(resume: {current_model}) =====", flush=True)
 
-            train_envs = build_vec(rom_full, states, 0, args.seed, 1350, 4, n_stack=4,
-                                   step_penalty=args.step_penalty, flow_weight=args.flow_weight)
+            train_envs = build_vec(rom_full, states, 0, args.seed, args.max_steps, 4, n_stack=4,
+                                   step_penalty=args.step_penalty, flow_weight=args.flow_weight,
+                                   **env_kwargs)
             # Eval env contains ALL tracks (1 env per track): mean reward
             # from EvalCallback selects the balanced model across all geometries.
-            eval_env = build_vec(rom_full, states_unique, 1000 + i, args.seed, 1350, 4,
+            eval_env = build_vec(rom_full, states_unique, 1000 + i, args.seed, args.max_steps, 4,
                                  n_stack=4, step_penalty=args.step_penalty,
-                                 flow_weight=args.eval_flow_weight)
+                                 flow_weight=args.eval_flow_weight, **env_kwargs)
 
             model = PPO.load(current_model, env=train_envs, device=args.device)
             # Override learning rate schedule with current curriculum phase LR
@@ -172,7 +198,7 @@ def main():
             try:
                 model.learn(total_timesteps=steps,
                             callback=[eval_callback, MLflowCallback()],
-                            progress_bar=True,
+                            progress_bar=args.progress_bar,
                             reset_num_timesteps=False)
             finally:
                 train_envs.close()
@@ -185,31 +211,36 @@ def main():
                 continue
 
             rows = eval_tracks(phase_best, rom_full, states_unique, args.seed, n_eps=3,
-                               max_steps=1350,
+                               max_steps=args.max_steps,
                                step_penalty=args.step_penalty,
                                flow_weight=args.eval_flow_weight,
-                               device=args.device)
+                               device=args.device, **env_kwargs)
             track_means = {}
             for track in sorted(set(r["track"] for r in rows)):
                 vv = [r for r in rows if r["track"] == track]
                 track_means[track] = (np.mean([r["reward"] for r in vv]),
-                                      sum(1 for r in vv if r["survived"]), len(vv))
+                                      sum(1 for r in vv if r["survived"]), len(vv),
+                                      sum(1 for r in vv if r["finished"]))
             balanced_mean = float(np.mean([m[0] for m in track_means.values()]))
             min_surv = float(min(m[1] / m[2] for m in track_means.values()))
             total_surv = int(sum(m[1] for m in track_means.values()))
-            all_survived = min_surv >= 1.0
-            selection_key = (min_surv, total_surv, balanced_mean)
+            min_fin = float(min(m[3] / m[2] for m in track_means.values()))
+            total_fin = int(sum(m[3] for m in track_means.values()))
+            all_finished = min_fin >= 1.0
+            selection_key = (min_fin, total_fin, min_surv, total_surv, balanced_mean)
 
-            for track, (mean_r, surv, n) in track_means.items():
-                print(f"  {track}: {mean_r:.2f} · surv {surv}/{n}", flush=True)
+            for track, (mean_r, surv, n, fin) in track_means.items():
+                print(f"  {track}: {mean_r:.2f} · surv {surv}/{n} · finish {fin}/{n}", flush=True)
                 mlflow.log_metric(f"{track}_reward", mean_r, step=i)
                 mlflow.log_metric(f"{track}_surv", surv / n, step=i)
+                mlflow.log_metric(f"{track}_finish", fin / n, step=i)
             mlflow.log_metric("balanced_mean", balanced_mean, step=i)
             mlflow.log_metric("min_track_survival", min_surv, step=i)
             mlflow.log_metric("total_survivals", total_surv, step=i)
+            mlflow.log_metric("total_finishes", total_fin, step=i)
             print(f"  BALANCED MEAN: {balanced_mean:.2f} | min-track survival: "
-                  f"{min_surv:.2f} | total survivals: {total_surv} | "
-                  f"all tracks survived: {all_survived}", flush=True)
+                  f"{min_surv:.2f} | total survivals: {total_surv} | finishes: {total_fin} | "
+                  f"all tracks finished: {all_finished}", flush=True)
 
             for r in rows:
                 r["phase"] = i
@@ -224,14 +255,14 @@ def main():
             # Next phase resumes from the balanced best of this phase
             current_model = phase_best
 
-            if all_survived:
-                print(f"\nCONVERGED in phase {i}: all 3 tracks survived!", flush=True)
+            if all_finished:
+                print(f"\nCONVERGED in phase {i}: every track reached the finish line!", flush=True)
                 break
 
         # Consolidate CSV
         with open(results_csv, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=["phase", "lr", "track", "episode",
-                                              "reward", "steps", "survived"])
+                                              "reward", "steps", "survived", "finished"])
             w.writeheader()
             w.writerows(all_rows)
 

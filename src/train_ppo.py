@@ -1,6 +1,7 @@
+import importlib.util
 import os
 import argparse
-import mlflow
+from src.tracking import mlflow
 import torch
 import numpy as np
 
@@ -180,7 +181,7 @@ def main():
             model.learn(
                 total_timesteps=args.timesteps,
                 callback=[eval_callback, MLflowCallback()],
-                progress_bar=True,
+                progress_bar=all(importlib.util.find_spec(m) for m in ("tqdm", "rich")),
                 reset_num_timesteps=not bool(args.resume)
             )
         finally:

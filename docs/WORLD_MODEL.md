@@ -11,8 +11,10 @@
 
 > **Note (2026-11-03).** Results in this document count an episode as complete
 > when it survives 1350 decisions. They were not checked against the RAM finish
-> line; for the PPO expert this distills, that check reaches the finish only on
-> `ds2` (README, *Measured against the RAM finish line*).
+> line. Checked afterwards with `scripts/eval_finish_line.py`: the PPO expert this
+> distills reaches it only on `ds2`, and the memoryless head
+> (`models/wm_mario64ds_mem.pt`) only on `ds1` (decision 672, after 2
+> respawns); see the README section *Fine-tuning for the finish line*.
 
 ## 1. Why a world model? The reference idea
 

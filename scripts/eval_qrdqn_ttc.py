@@ -60,9 +60,10 @@ def evaluate_model(model_path: str, dist_mode: str = "progress", max_steps: int 
     
     # 4-frame buffer stack matching training VecFrameStack
     from collections import deque
-    frame_stack = deque(maxlen=4)
-    for _ in range(4):
-        frame_stack.append(obs.squeeze(-1))
+    # SB3's VecFrameStack opens as [0, 0, 0, reset_frame] (not four copies of
+    # it); matching that keeps this evaluator on the EvalCallback trajectory.
+    frame_stack = deque([np.zeros_like(obs.squeeze(-1))] * 3, maxlen=4)
+    frame_stack.append(obs.squeeze(-1))
     
     def get_stacked_obs():
         arr = np.stack(list(frame_stack), axis=0) # shape (4, 84, 84)

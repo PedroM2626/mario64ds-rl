@@ -1,0 +1,73 @@
+{
+  "max_steps": 2000,
+  "goal_radius": 250.0,
+  "device": "cpu",
+  "rows": [
+    {
+      "track": "ds1",
+      "env": "historical",
+      "controller": "ppo",
+      "model": "models/curriculum_finish_r4_best.zip",
+      "end": "died",
+      "decisions": 386,
+      "start_dist": 12274.7,
+      "min_dist": 4681.2,
+      "falls": 1
+    },
+    {
+      "track": "ds2",
+      "env": "historical",
+      "controller": "ppo",
+      "model": "models/curriculum_finish_r4_best.zip",
+      "end": "finish",
+      "decisions": 636,
+      "start_dist": 16618.4,
+      "min_dist": 239.9,
+      "falls": 0
+    },
+    {
+      "track": "ds3",
+      "env": "historical",
+      "controller": "ppo",
+      "model": "models/curriculum_finish_r4_best.zip",
+      "end": "died",
+      "decisions": 115,
+      "start_dist": 36403.6,
+      "min_dist": 28978.2,
+      "falls": 2
+    },
+    {
+      "track": "ds1",
+      "env": "ram",
+      "controller": "ppo",
+      "model": "models/curriculum_finish_r4_best.zip",
+      "end": "died",
+      "decisions": 315,
+      "start_dist": 12274.7,
+      "min_dist": 9929.7,
+      "falls": 1
+    },
+    {
+      "track": "ds2",
+      "env": "ram",
+      "controller": "ppo",
+      "model": "models/curriculum_finish_r4_best.zip",
+      "end": "finish",
+      "decisions": 636,
+      "start_dist": 16618.4,
+      "min_dist": 239.9,
+      "falls": 0
+    },
+    {
+      "track": "ds3",
+      "env": "ram",
+      "controller": "ppo",
+      "model": "models/curriculum_finish_r4_best.zip",
+      "end": "died",
+      "decisions": 92,
+      "start_dist": 36403.6,
+      "min_dist": 30435.4,
+      "falls": 1
+    }
+  ]
+}

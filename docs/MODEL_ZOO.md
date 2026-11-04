@@ -28,6 +28,12 @@ publish the same bytes as GitHub Release/LFS assets so consumers can check them.
 The full hashes are in `models/ASSETS.json`. Optional assets are the exact-state
 bundle (`models/state_wm.pt`) and the base replay buffer (`data/wm_buffer.pkl`).
 
+## Finish-line slide checkpoint (local, not in the manifest)
+
+| Asset | Role | Size | SHA256 |
+|---|---|---:|---|
+| `models/curriculum_finish_r4_best.zip` | PPO + NatureCNN fine-tuned from r3 with RAM death, progress and finish reward; finishes `ds2` without a fall | 20,590,973 | `755282a8...f33775ef` |
+
 ## Tick Tock Clock checkpoints (local, not in the manifest)
 
 These are experiment checkpoints, not headline results, so `ASSETS.json` does

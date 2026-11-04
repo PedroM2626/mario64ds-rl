@@ -113,13 +113,46 @@ top of this file reproduce each of these cells to the cent.
 > environment respawned from. Numbers: [docs/REWARD_COMPARISON_RESULTS.json](docs/REWARD_COMPARISON_RESULTS.json).
 > The earlier version of that file recorded the start position as the final one
 > (it read RAM after the vector env's auto-reset) and counted timeouts as deaths;
-> both are fixed. The world-model controllers below were measured by survival
-> only, not against the finish line.
+> both are fixed. The finish-line fine-tune and the world-model head measured
+> the same way are in the next section.
 
 To re-record the demonstration videos:
 ```bash
 python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
 python scripts/record_dashboard.py --supervisor rust --parallel 3   # annotated 60 Hz
+```
+
+### 🏁 Fine-tuning for the finish line: `curriculum_finish_r4` (2026-11-03)
+
+`curriculum_flow25_r3_best` was fine-tuned with the current environment: a fall
+into the void ends the episode (RAM kill plane), a ratcheted 3D-progress reward
+towards the RAM finish line (weight 0.05) and $+200$ on reaching it, horizon
+2000, flow $	imes 2.5$, `ds3` weighted twice in the mix, 400k steps at lr
+$5 	imes 10^{-5}$ then 300k at $2.5 	imes 10^{-5}$. Checkpoints are now
+selected by finishes first, then survival, then reward. The best checkpoint
+came from the first phase (`models/curriculum_finish_r4_best.zip`).
+
+| Track | r3 with RAM death (horizon 1350) | **r4 with RAM death** (horizon 2000) | r4, historical env |
+|---|---|---|---|
+| `ds1` (Cool, Cool Mountain) | falls at 66, closest 12,238.3 | falls at 315, closest 9,929.7 | falls at 386, closest 4,681.2 |
+| `ds2` (Peach Slide) | falls at 836, closest 586.4 | **finish at decision 636, no fall** | finish at decision 636 |
+| `ds3` (Monkey Slide) | falls at 38, closest 33,404.5 | falls at 92, closest 30,435.4 | falls at 115, closest 28,978.2 |
+
+So `ds2` is now finished without a single respawn, and `ds1`/`ds3` last longer
+before the first fall, but neither is finished, and r4 no longer survives
+`ds1`/`ds3` in the historical environment as r3 did. Measured on CPU with
+[`scripts/eval_finish_line.py`](scripts/eval_finish_line.py)
+(`results/finish_line_*.json`); dashboards with RAM death in
+[`videos/dashboard_finish_r4/`](videos/dashboard_finish_r4) agree on every
+decision count. The distilled world-model head (`models/wm_mario64ds_mem.pt`)
+measured the same way reaches the finish only on `ds1` in the historical
+environment (decision 672, after 2 respawns); on `ds2` it gets within 271.1 of
+the finish (goal radius 250) and on `ds3` within 23,979.7.
+
+```bash
+python scripts/eval_finish_line.py --controller ppo --model models/curriculum_finish_r4_best.zip --max-steps 2000
+python scripts/eval_finish_line.py --controller mem --model models/wm_mario64ds_mem.pt
+python -m src.train_curriculum --run-id curriculum_finish_r4 --start-model models/curriculum_flow25_r3_best.zip     --states ds1,ds2,ds3,ds3 --n-envs 4 --phases "400000:5e-5,300000:2.5e-5" --flow-weight 2.5     --max-steps 2000 --results-csv results/results_curriculum_finish_r4.csv
 ```
 
 ### 📦 Model assets (a clean clone does not contain them)
@@ -496,7 +529,13 @@ python -m src.train_curriculum --run-id curriculum_flow25_r3 --start-model model
 > r1-r3 checkpoints were selected at the *training* weight (2.5); pass
 > --eval-flow-weight 2.5 to reproduce that exact selection rule. The phase log
 > records both weights, and the global best is now chosen by worst-track
-> survival first, then total survival, then mean reward.
+> finish rate (RAM finish line) first, then total finishes, worst-track
+> survival, total survival and mean reward.
+>
+> **Environment defaults changed after r3.** `train_curriculum` now trains with
+> RAM kill-plane death, the 3D-progress reward and the finish bonus. The r1-r3
+> runs had none of them: add `--no-ram-death --no-dist-reward` to the commands
+> above to reproduce them. `--max-steps` (default 1350) sets the horizon.
 
 
 ### Training Other Baselines

@@ -245,6 +245,111 @@ def asset_checks(readme):
           "docs/MODEL_ZOO.md" in readme, ok="docs/MODEL_ZOO.md" in readme)
 
 
+def _section(readme, start, end):
+    i = readme.find(start)
+    j = readme.find(end, i + 1) if i >= 0 else -1
+    return readme[i:j] if i >= 0 and j > i else ""
+
+
+def _num(x, nd=1):
+    """README style: thousands separators, fixed decimals (12345.6 -> 12,345.6)."""
+    return f"{x:,.{nd}f}"
+
+
+def finish_line_checks(readme):
+    """The finish-line callout must equal docs/REWARD_COMPARISON_RESULTS.json."""
+    path = os.path.join(ROOT, "docs", "REWARD_COMPARISON_RESULTS.json")
+    block = _section(readme, "Measured against the RAM finish line", "To re-record")
+    check("finish-line callout present", "present", "present" if block else "missing", ok=bool(block))
+    if not block or not os.path.exists(path):
+        return
+    rows = {(r["track"], r["mode"]): r for r in load(path)}
+    for track in ("ds1", "ds2", "ds3"):
+        old = rows.get((track, "old"))
+        if old is None:
+            check(f"{track}: comparison row (old)", "present", "missing")
+            continue
+        line = next((ln for ln in block.splitlines() if f"`{track}`" in ln), "")
+        reached = "**finish reached**" in line
+        check(f"{track}: finish reached as stated", old["goal_reached"], reached,
+              ok=reached == old["goal_reached"])
+        nd = 1 if old["min_dist"] < 1000 else 0
+        check(f"{track}: closest distance to finish", _num(old["min_dist"], nd),
+              "quoted" if _num(old["min_dist"], nd) in line else "absent",
+              ok=_num(old["min_dist"], nd) in line)
+        if old["goal_reached"]:
+            check(f"{track}: finish decision", old["steps"],
+                  "quoted" if f"decision {old['steps']}" in line else "absent",
+                  ok=f"decision {old['steps']}" in line)
+    new_steps = [rows[(t, "new")]["steps"] for t in ("ds1", "ds2", "ds3") if (t, "new") in rows]
+    quoted = f"{new_steps[0]}, {new_steps[1]}\n> and {new_steps[2]}" if len(new_steps) == 3 else ""
+    check("RAM-death decisions quoted", ", ".join(map(str, new_steps)),
+          "quoted" if quoted and quoted in block else "absent", ok=bool(quoted) and quoted in block)
+
+
+def _finish_cell(row):
+    if row["end"] == "finish":
+        return f"finish at decision {row['decisions']}"
+    return f"falls at {row['decisions']}, closest {_num(row['min_dist'])}"
+
+
+def finetune_checks(readme):
+    """The r4 finish-line table must equal results/finish_line_*.json."""
+    block = _section(readme, "Fine-tuning for the finish line", "### 📦 Model assets")
+    check("finish-line fine-tune section present", "present", "present" if block else "missing",
+          ok=bool(block))
+    if not block:
+        return
+    res = {}
+    for name in ("curriculum_flow25_r3_best", "curriculum_finish_r4_best", "wm_mario64ds_mem"):
+        path = os.path.join(ROOT, "results", f"finish_line_{name}.json")
+        if not os.path.exists(path):
+            check(f"finish_line_{name}.json", "present", "missing")
+            return
+        res[name] = {(r["env"], r["track"]): r for r in load(path)["rows"]}
+    for track in ("ds1", "ds2", "ds3"):
+        line = next((ln for ln in block.splitlines() if ln.startswith(f"| `{track}`")), "")
+        for name, env in (("curriculum_flow25_r3_best", "ram"), ("curriculum_finish_r4_best", "ram"),
+                          ("curriculum_finish_r4_best", "historical")):
+            cell = _finish_cell(res[name][(env, track)])
+            check(f"{track}: {name.split('_')[1]} {env} cell", cell,
+                  "quoted" if cell in line else "absent", ok=cell in line)
+    mem = res["wm_mario64ds_mem"]
+    want = [f"decision {mem[('historical', 'ds1')]['decisions']}",
+            f"within {_num(mem[('historical', 'ds2')]['min_dist'])}",
+            f"within {_num(mem[('historical', 'ds3')]['min_dist'])}"]
+    ok = mem[("historical", "ds1")]["end"] == "finish" and all(w in block for w in want)
+    check("world-model head finish-line sentence", ", ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
+def ttc_checks(readme):
+    """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
+    block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
+    check("TTC status section present", "present", "present" if block else "missing", ok=bool(block))
+    if not block:
+        return
+    for label, name in (("v4", "qrdqn_impala_ds8_v4_best"), ("do nothing", "noop")):
+        path = os.path.join(ROOT, "results", f"route_starts_{name}.json")
+        if not os.path.exists(path):
+            check(f"TTC {label}: route_starts json", "present", "missing")
+            continue
+        r = load(path)
+        line = next((ln for ln in block.splitlines() if ln.startswith(f"| {label}")), "")
+        cell = f"{r['median_route_gain']:.1f} units / {r['died']} of {r['starts']}"
+        check(f"TTC {label}: median gain / falls", cell, "quoted" if cell in line else "absent",
+              ok=cell in line)
+        if name != "noop":
+            start = r["rows"][0]
+            want = f"falls at decision {start['decisions']}, $+{start['height_gain']}$ height"
+            check(f"TTC {label}: full-start cell", want, "quoted" if want in line else "absent",
+                  ok=start["end"] == "died" and want in line)
+            dash = os.path.join(ROOT, "videos", "dashboard_ds8_v4", "dashboard_ds8.json")
+            if os.path.exists(dash):
+                d = load(dash)
+                check("TTC v4 dashboard agrees with the evaluator", start["decisions"], d["steps"],
+                      ok=d["steps"] == start["decisions"] and d["died"])
+
+
 def main():
     readme = open(README, encoding="utf-8").read()
     payloads = {}
@@ -261,6 +366,9 @@ def main():
     repro_checks(readme)
     parallel_checks(readme)
     asset_checks(readme)
+    finish_line_checks(readme)
+    ttc_checks(readme)
+    finetune_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

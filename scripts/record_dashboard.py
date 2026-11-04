@@ -544,7 +544,9 @@ def _record_single(args, out_dir_full):
                     and (ram_prev is None or not Sm64DsState.is_dead(ram_prev)))
         if fell:
             falls += 1
-        if done:
+        # A terminal step is a death only when the env says so: reaching the RAM
+        # finish line or the star also ends the episode.
+        if done and info.get("died", True):
             deaths += 1
         flow_sum_raw += env.last_flow_mean if env.last_flow_mean > 0 else 0.0
         flow_term += env.last_flow_reward
@@ -643,7 +645,7 @@ def _record_single(args, out_dir_full):
         "completed": bool(trunc and step >= args.max_steps),
         "star_collected": bool(star_bonus > 0),
         "reached_goal": bool(goal_bonus > 0),
-        "died": bool(done), "deaths": deaths, "in_track_falls": falls,
+        "died": bool(deaths), "deaths": deaths, "in_track_falls": falls,
         "reward_recorded": round(total_reward, 4),
         "flow_weight": flow_weight, "step_penalty": args.step_penalty,
         "death_penalty": args.death_penalty, "timeout_penalty": args.timeout_penalty,

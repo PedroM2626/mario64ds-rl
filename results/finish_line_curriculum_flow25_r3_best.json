@@ -1,0 +1,73 @@
+{
+  "max_steps": 1350,
+  "goal_radius": 250.0,
+  "device": "cpu",
+  "rows": [
+    {
+      "track": "ds1",
+      "env": "historical",
+      "controller": "ppo",
+      "model": "models/curriculum_flow25_r3_best.zip",
+      "end": "horizon",
+      "decisions": 1350,
+      "start_dist": 12274.7,
+      "min_dist": 417.5,
+      "falls": 2
+    },
+    {
+      "track": "ds2",
+      "env": "historical",
+      "controller": "ppo",
+      "model": "models/curriculum_flow25_r3_best.zip",
+      "end": "finish",
+      "decisions": 911,
+      "start_dist": 16618.4,
+      "min_dist": 248.9,
+      "falls": 1
+    },
+    {
+      "track": "ds3",
+      "env": "historical",
+      "controller": "ppo",
+      "model": "models/curriculum_flow25_r3_best.zip",
+      "end": "horizon",
+      "decisions": 1350,
+      "start_dist": 36403.6,
+      "min_dist": 23979.7,
+      "falls": 3
+    },
+    {
+      "track": "ds1",
+      "env": "ram",
+      "controller": "ppo",
+      "model": "models/curriculum_flow25_r3_best.zip",
+      "end": "died",
+      "decisions": 66,
+      "start_dist": 12274.7,
+      "min_dist": 12238.3,
+      "falls": 1
+    },
+    {
+      "track": "ds2",
+      "env": "ram",
+      "controller": "ppo",
+      "model": "models/curriculum_flow25_r3_best.zip",
+      "end": "died",
+      "decisions": 836,
+      "start_dist": 16618.4,
+      "min_dist": 586.4,
+      "falls": 1
+    },
+    {
+      "track": "ds3",
+      "env": "ram",
+      "controller": "ppo",
+      "model": "models/curriculum_flow25_r3_best.zip",
+      "end": "died",
+      "decisions": 38,
+      "start_dist": 36403.6,
+      "min_dist": 33404.5,
+      "falls": 1
+    }
+  ]
+}
