@@ -239,3 +239,28 @@ def test_finish_region_counts_as_goal():
     assert done and info["reached_goal"] and not info["died"]
     with pytest.raises(ValueError):
         _make_env(death_rule="nope")
+
+
+def test_exploration_bonus_decays_with_visits_and_persists_across_episodes():
+    env = _slide_env(explore_bonus=1.0, explore_cell=100.0)
+    env.ram.poll.return_value = np.zeros(6)
+    env.ram.get_pos_3d.return_value = np.array([50.0, 9000.0, 50.0])
+    env.reset()
+    b = [env.step(0)[4]["explore_bonus"] for _ in range(4)]
+    assert b == pytest.approx([1.0, 1 / np.sqrt(2), 1 / np.sqrt(3), 0.5])
+    env.reset()
+    assert env.step(0)[4]["explore_bonus"] == pytest.approx(1 / np.sqrt(5))
+    env.ram.get_pos_3d.return_value = np.array([250.0, 9000.0, 50.0])   # new cell
+    info = env.step(0)[4]
+    assert info["explore_bonus"] == pytest.approx(1.0) and info["explore_cells"] == 2
+    assert _slide_env().step(0)[4]["explore_bonus"] == 0.0
+
+
+def test_no_exploration_bonus_in_free_fall():
+    from src.ram_state import KILL_PLANE
+    env = _slide_env(explore_bonus=1.0)
+    env.ram.get_pos_3d.return_value = np.array([50.0, 9000.0, 50.0])
+    env.ram.poll.return_value = np.zeros(6)
+    env.reset()
+    env.ram.poll.return_value = np.array([0, 0, -16384, 0, KILL_PLANE - 7200, 0], float)
+    assert env.step(0)[4]["explore_bonus"] == 0.0

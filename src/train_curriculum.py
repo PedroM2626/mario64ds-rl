@@ -30,7 +30,7 @@ import os
 from src.tracking import mlflow
 import numpy as np
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 
 from src.artifacts import log_model_reference
 from src.envs import build_vec, savestate_paths
@@ -109,6 +109,14 @@ def main():
     parser.add_argument("--death-rule", choices=["position", "struct"], default="position",
                         help='"position" (default): a fall below the course kill_y; "struct": legacy rule that also counts the 0x0217F760 fast-fall clamp (any long drop) as death')
     parser.add_argument("--dist-weight", type=float, default=0.05)
+    parser.add_argument("--explore-bonus", type=float, default=0.0,
+                        help="Count-based exploration bonus beta/sqrt(N(cell)) in the TRAINING envs "
+                             "only (evaluation and checkpoint selection never see it)")
+    parser.add_argument("--checkpoint-every", type=int, default=0,
+                        help="Also save the model every N environment steps (0 = off); the "
+                             "phase's final model is always saved as final_model.zip")
+    parser.add_argument("--explore-cell", type=float, default=400.0,
+                        help="Cell size of the exploration counts (world units)")
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching the RAM finish line")
     parser.add_argument("--results-csv", type=str, default="results/results_curriculum.csv",
@@ -163,6 +171,8 @@ def main():
         mlflow.log_param("eval_flow_weight", args.eval_flow_weight)
         mlflow.log_param("device", args.device)
         mlflow.log_param("max_steps", args.max_steps)
+        mlflow.log_param("explore_bonus", args.explore_bonus)
+        mlflow.log_param("explore_cell", args.explore_cell)
         for k, v in env_kwargs.items():
             mlflow.log_param(k, v)
 
@@ -173,6 +183,7 @@ def main():
 
             train_envs = build_vec(rom_full, states, 0, args.seed, args.max_steps, 4, n_stack=4,
                                    step_penalty=args.step_penalty, flow_weight=args.flow_weight,
+                                   explore_bonus=args.explore_bonus, explore_cell=args.explore_cell,
                                    **env_kwargs)
             # Eval env contains ALL tracks (1 env per track): mean reward
             # from EvalCallback selects the balanced model across all geometries.
@@ -198,12 +209,18 @@ def main():
                 render=False,
             )
 
+            callbacks = [eval_callback, MLflowCallback()]
+            if args.checkpoint_every > 0:
+                callbacks.append(CheckpointCallback(
+                    save_freq=max(1, args.checkpoint_every // args.n_envs),
+                    save_path=os.path.join(best_model_dir, "checkpoints"), name_prefix="step"))
             try:
                 model.learn(total_timesteps=steps,
-                            callback=[eval_callback, MLflowCallback()],
+                            callback=callbacks,
                             progress_bar=args.progress_bar,
                             reset_num_timesteps=False)
             finally:
+                model.save(os.path.join(best_model_dir, "final_model"))
                 train_envs.close()
                 eval_env.close()
 

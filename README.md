@@ -156,8 +156,18 @@ point survived for 40 more decisions) left that section and brought the
 distance from 26,368.5 to 14,592.8 in 4 stages, but along a dead end: the
 surface ends at a skull sign at $Y pprox 193$ and all 48 branches of the next
 3 stages fell into the void. Greedy distance to a finish 20,000 units below is
-not a reliable guide on this course. A single human run would provide the route
-(as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
+not a reliable guide on this course.
+
+Training more, with an exploration bonus instead of the distance reward, did
+not find another way either (`ds3_explore_r5`, 2026-11-04): 600k steps from r3
+on `ds3` only, flow 0, no distance reward, $+500$ at the finish, a count-based
+bonus $1/\sqrt{N}$ per 400-unit cell (none in free fall, which otherwise paid
+falls through the void as exploration), checkpoints every ~100k. No checkpoint
+finished; greedy on CPU they reached at best 15,237.1 from the finish, at ~599k
+steps, along the same dead-end route, before dying at decision 399, and the
+final model stays on the flat section (closest 23,999.8)
+([`results/ds3_explore_r5_checkpoints.json`](results/ds3_explore_r5_checkpoints.json)).
+A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
 

@@ -57,6 +57,10 @@ def buttons_to_mask(buttons) -> int:
 def mask_to_buttons(mask: int) -> tuple:
     return tuple(b for i, b in enumerate(FREE_BUTTONS) if mask >> i & 1)
 
+class _NoBonus(Exception):
+    """Internal: skip the exploration bonus for this step."""
+
+
 class Mario64DSEnv(gym.Env):
     metadata = {'render_modes': ['human', 'rgb_array']}
 
@@ -68,7 +72,7 @@ class Mario64DSEnv(gym.Env):
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
                  route_total_reward=500.0, start_states=None, full_start_prob=0.25,
-                 death_rule="position"):
+                 death_rule="position", explore_bonus=0.0, explore_cell=400.0):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -110,6 +114,14 @@ class Mario64DSEnv(gym.Env):
         if death_rule not in ("position", "struct"):
             raise ValueError(f"death_rule must be 'position' or 'struct', got {death_rule!r}")
         self.death_rule = death_rule
+        # Count-based exploration bonus (Strehl & Littman 2008; Bellemare et al.
+        # 2016): explore_bonus / sqrt(N) for the 3D cell Mario is in, where N
+        # counts this env's visits to the cell across episodes, so a dead end
+        # stops paying once it has been seen. 0 disables it.
+        self.explore_bonus = float(explore_bonus)
+        self.explore_cell = float(explore_cell)
+        self.visit_counts = {}
+        self.last_explore_bonus = 0.0
         self.dist_reward_mode = str(dist_reward_mode).lower()
         self.track_id = track_id or self._infer_track_id()
         self.goal_spec = TRACK_GOALS.get(self.track_id)
@@ -271,6 +283,8 @@ class Mario64DSEnv(gym.Env):
             "flow_reward": self.last_flow_reward,
             "coin_reward": self.last_coin_reward,
             "route_progress": self.route_best_s,
+            "explore_bonus": self.last_explore_bonus,
+            "explore_cells": len(self.visit_counts),
             "start_state": os.path.basename(self.current_start) if self.current_start else None,
         }
         try:
@@ -445,6 +459,27 @@ class Mario64DSEnv(gym.Env):
                 if self.strict_errors:
                     raise
                 logger.debug("3D distance reward computation failed: %s", exc)
+
+        self.last_explore_bonus = 0.0
+        if self.explore_bonus > 0 and not done and self.has_emulator:
+            try:
+                # No bonus in free fall: a fall through the void crosses a new
+                # cell every few decisions and would otherwise be paid as
+                # exploration (measured: training episodes shrank from 790 to
+                # 301 decisions in 120k steps when falls were paid).
+                if Sm64DsState.is_dead(state=self.ram.poll()):
+                    raise _NoBonus
+                cell = tuple(np.floor(self.ram.get_pos_3d() / self.explore_cell).astype(int))
+                n = self.visit_counts.get(cell, 0) + 1
+                self.visit_counts[cell] = n
+                self.last_explore_bonus = self.explore_bonus / np.sqrt(n)
+                reward += self.last_explore_bonus
+            except _NoBonus:
+                pass
+            except Exception as exc:
+                if self.strict_errors:
+                    raise
+                logger.debug("exploration bonus failed: %s", exc)
 
         # Coin Tracking / Guidance via HSV
         if not done and hasattr(self, 'last_coin_reward'):

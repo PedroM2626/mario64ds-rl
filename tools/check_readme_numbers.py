@@ -317,6 +317,21 @@ def finetune_checks(readme):
             check(f"{name} {track} cell", cell, "quoted" if cell in line else "absent", ok=cell in line)
 
 
+def ds3_explore_checks(readme):
+    """The ds3 exploration-bonus sentence must equal results/ds3_explore_r5_checkpoints.json."""
+    path = os.path.join(ROOT, "results", "ds3_explore_r5_checkpoints.json")
+    if not os.path.exists(path):
+        check("ds3_explore_r5_checkpoints.json", "present", "missing")
+        return
+    rows = load(path)["rows"]
+    best = min(rows, key=lambda r: r["min_dist"])
+    final = next(r for r in rows if r["checkpoint"] == "final")
+    want = [_num(best["min_dist"]), f"decision {best['decisions']}", f"closest {_num(final['min_dist'])}"]
+    ok = (not any(r["end"] == "finish" for r in rows) and "No checkpoint\nfinished" in readme
+          and all(w in readme for w in want))
+    check("ds3 exploration-bonus result", ", ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -364,6 +379,7 @@ def main():
     finish_line_checks(readme)
     ttc_checks(readme)
     finetune_checks(readme)
+    ds3_explore_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

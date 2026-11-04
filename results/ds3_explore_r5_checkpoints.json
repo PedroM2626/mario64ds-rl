@@ -1,0 +1,76 @@
+{
+  "run": "ds3_explore_r5",
+  "start_model": "models/curriculum_flow25_r3_best.zip",
+  "config": {
+    "states": "ds3 x4",
+    "steps": 600000,
+    "lr": 5e-05,
+    "flow_weight": 0.0,
+    "dist_reward": false,
+    "goal_reward": 500.0,
+    "explore_bonus": 1.0,
+    "explore_cell": 400.0,
+    "bonus_in_free_fall": false,
+    "max_steps": 2000,
+    "death_rule": "position"
+  },
+  "instrument": "scripts/eval_finish_line.py, CPU, env ram, horizon 2000, greedy",
+  "rows": [
+    {
+      "checkpoint": "step_1670000_steps",
+      "steps_trained": 98976,
+      "end": "died",
+      "decisions": 106,
+      "min_dist": 27819.3,
+      "void_falls": 0
+    },
+    {
+      "checkpoint": "step_1770000_steps",
+      "steps_trained": 198976,
+      "end": "died",
+      "decisions": 151,
+      "min_dist": 24159.8,
+      "void_falls": 0
+    },
+    {
+      "checkpoint": "step_1870000_steps",
+      "steps_trained": 298976,
+      "end": "died",
+      "decisions": 84,
+      "min_dist": 28026.5,
+      "void_falls": 0
+    },
+    {
+      "checkpoint": "step_1970000_steps",
+      "steps_trained": 398976,
+      "end": "horizon",
+      "decisions": 2000,
+      "min_dist": 23961.2,
+      "void_falls": 0
+    },
+    {
+      "checkpoint": "step_2070000_steps",
+      "steps_trained": 498976,
+      "end": "died",
+      "decisions": 184,
+      "min_dist": 23414.2,
+      "void_falls": 0
+    },
+    {
+      "checkpoint": "step_2170000_steps",
+      "steps_trained": 598976,
+      "end": "died",
+      "decisions": 399,
+      "min_dist": 15237.1,
+      "void_falls": 0
+    },
+    {
+      "checkpoint": "final",
+      "steps_trained": 600000,
+      "end": "horizon",
+      "decisions": 2000,
+      "min_dist": 23999.8,
+      "void_falls": 0
+    }
+  ]
+}
