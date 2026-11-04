@@ -332,6 +332,21 @@ def ds3_explore_checks(readme):
     check("ds3 exploration-bonus result", ", ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_search_checks(readme):
+    """The coin-search sentence must equal results/ds3_searches.json."""
+    path = os.path.join(ROOT, "results", "ds3_searches.json")
+    if not os.path.exists(path):
+        check("ds3_searches.json", "present", "missing")
+        return
+    d = load(path)
+    coin = [r for r in d["searches"] if r["score"] == "coins"]
+    most = max(r["coins_at_end"] for r in coin)
+    died = all(r["last_stage_deaths"] == r["rollouts_per_stage"] for r in coin)
+    want = [f"from {d['coins_at_prefix']} coins to", f"at most {most}", "96 of 96"]
+    ok = died and not any(r["finish"] for r in d["searches"]) and all(w in readme for w in want)
+    check("ds3 coin-search result", ", ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -380,6 +395,7 @@ def main():
     ttc_checks(readme)
     finetune_checks(readme)
     ds3_explore_checks(readme)
+    ds3_search_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

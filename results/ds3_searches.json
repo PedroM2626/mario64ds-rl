@@ -1,0 +1,60 @@
+{
+  "track": "ds3",
+  "policy": "models/curriculum_flow25_r3_best.zip",
+  "prefix_decisions": 100,
+  "coins_at_prefix": 15,
+  "searches": [
+    {
+      "run": "ds3-20261103-233600",
+      "score": "distance",
+      "action_set": "legacy6",
+      "hold_max": 6,
+      "eps": 0.25,
+      "rollouts_per_stage": 48,
+      "stages": 7,
+      "coins_at_end": null,
+      "min_dist": 14592.8,
+      "finish": false,
+      "last_stage_deaths": 48
+    },
+    {
+      "run": "ds3-20261104-083859",
+      "score": "coins",
+      "action_set": "legacy6",
+      "hold_max": 6,
+      "eps": 0.25,
+      "rollouts_per_stage": 48,
+      "stages": 5,
+      "coins_at_end": 19,
+      "min_dist": 16247.0,
+      "finish": false,
+      "last_stage_deaths": 48
+    },
+    {
+      "run": "ds3-20261104-084950",
+      "score": "coins",
+      "action_set": "legacy6",
+      "hold_max": 30,
+      "eps": 0.35,
+      "rollouts_per_stage": 96,
+      "stages": 7,
+      "coins_at_end": 21,
+      "min_dist": 15937.6,
+      "finish": false,
+      "last_stage_deaths": 96
+    },
+    {
+      "run": "ds3-20261104-090120",
+      "score": "coins",
+      "action_set": "compound12",
+      "hold_max": 30,
+      "eps": 0.35,
+      "rollouts_per_stage": 96,
+      "stages": 9,
+      "coins_at_end": 18,
+      "min_dist": 16178.0,
+      "finish": false,
+      "last_stage_deaths": 96
+    }
+  ]
+}

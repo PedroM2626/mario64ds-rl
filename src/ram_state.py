@@ -42,6 +42,11 @@ POS_ADDRS = (POS_X_ADDR, POS_Y_ADDR, POS_Z_ADDR)
 
 # Save-data & Level Context Registers
 STAR_COUNT_ADDR = 0x0209FB64         # Global Star Counter in save RAM
+# Coins collected in the current course. Found by matching every word of RAM
+# against the HUD over a ds3 run (8, 8, 13, 13, 15, 15, 15, 15): the only match;
+# on ds2 it reads 5, 5, 6, 9, 15, 18 where the HUD shows 5, 5, 6, 9, 15, 17 (the
+# HUD's counting animation lags by one coin).
+COIN_COUNT_ADDR = 0x02098998
 # Level/area register. Not the in-game course number: it reads 11 on the Cool,
 # Cool Mountain slide (ds1), 5 on the Princess's Secret Slide (ds2), 3 on the
 # Tall, Tall Mountain slide (ds3) and 14 in Tick Tock Clock (ds8/ds9). Use the
@@ -155,6 +160,10 @@ class Sm64DsState:
             return int(self.emu.memory.read(STAR_COUNT_ADDR, STAR_COUNT_ADDR, 4, False))
         except Exception:
             return 0
+
+    def get_coins(self) -> int:
+        """Coins collected in the current course."""
+        return int(self.emu.memory.read(COIN_COUNT_ADDR, COIN_COUNT_ADDR, 4, False))
 
     def get_course_id(self) -> int:
         """Reads current level/course ID from active level register."""

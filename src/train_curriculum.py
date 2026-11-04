@@ -117,6 +117,8 @@ def main():
                              "phase's final model is always saved as final_model.zip")
     parser.add_argument("--explore-cell", type=float, default=400.0,
                         help="Cell size of the exploration counts (world units)")
+    parser.add_argument("--coin-reward", type=float, default=0.0,
+                        help="Reward per coin collected (RAM coin counter); the coins trace the courses")
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching the RAM finish line")
     parser.add_argument("--results-csv", type=str, default="results/results_curriculum.csv",
@@ -124,7 +126,7 @@ def main():
     args = parser.parse_args()
     env_kwargs = dict(use_ram_death=args.use_ram_death, dist_reward_enabled=args.dist_reward,
                       dist_weight=args.dist_weight, goal_reward=args.goal_reward,
-                      death_rule=args.death_rule)
+                      death_rule=args.death_rule, ram_coin_reward=args.coin_reward)
 
     phases = []
     for token in args.phases.split(","):

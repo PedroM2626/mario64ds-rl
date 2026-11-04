@@ -72,7 +72,8 @@ class Mario64DSEnv(gym.Env):
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
                  route_total_reward=500.0, start_states=None, full_start_prob=0.25,
-                 death_rule="position", explore_bonus=0.0, explore_cell=400.0):
+                 death_rule="position", explore_bonus=0.0, explore_cell=400.0,
+                 ram_coin_reward=0.0):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -122,6 +123,12 @@ class Mario64DSEnv(gym.Env):
         self.explore_cell = float(explore_cell)
         self.visit_counts = {}
         self.last_explore_bonus = 0.0
+        # Reward per coin collected, read from the course coin counter in RAM
+        # (src/ram_state.COIN_COUNT_ADDR). Unlike the HSV detector above, it
+        # cannot be triggered by yellow floors or walls. 0 disables it.
+        self.ram_coin_reward = float(ram_coin_reward)
+        self.coins = None
+        self.last_ram_coin_reward = 0.0
         self.dist_reward_mode = str(dist_reward_mode).lower()
         self.track_id = track_id or self._infer_track_id()
         self.goal_spec = TRACK_GOALS.get(self.track_id)
@@ -285,6 +292,8 @@ class Mario64DSEnv(gym.Env):
             "route_progress": self.route_best_s,
             "explore_bonus": self.last_explore_bonus,
             "explore_cells": len(self.visit_counts),
+            "coins": self.coins,
+            "coin_reward": self.last_ram_coin_reward,
             "start_state": os.path.basename(self.current_start) if self.current_start else None,
         }
         try:
@@ -460,6 +469,19 @@ class Mario64DSEnv(gym.Env):
                     raise
                 logger.debug("3D distance reward computation failed: %s", exc)
 
+        self.last_ram_coin_reward = 0.0
+        if self.has_emulator:
+            try:
+                coins = self.ram.get_coins()
+                if self.ram_coin_reward and self.coins is not None and coins > self.coins:
+                    self.last_ram_coin_reward = self.ram_coin_reward * (coins - self.coins)
+                    reward += self.last_ram_coin_reward
+                self.coins = coins
+            except Exception as exc:
+                if self.strict_errors:
+                    raise
+                logger.debug("coin counter read failed: %s", exc)
+
         self.last_explore_bonus = 0.0
         if self.explore_bonus > 0 and not done and self.has_emulator:
             try:
@@ -541,6 +563,8 @@ class Mario64DSEnv(gym.Env):
         self.last_dist_reward = 0.0
         self.last_flow_reward = 0.0
         self.route_best_s = None
+        self.coins = None  # re-read below: a new start may hold fewer coins than the last episode
+        self.last_ram_coin_reward = 0.0
         self.reached_goal = False
         self.star_collected = False
         self.died = False
@@ -566,6 +590,14 @@ class Mario64DSEnv(gym.Env):
         else:
             self.start_star_count = 0
             self.target_pos = None
+
+        if self.has_emulator:
+            try:
+                self.coins = self.ram.get_coins()
+            except Exception as exc:
+                if self.strict_errors:
+                    raise
+                logger.debug("coin counter read failed: %s", exc)
 
         obs = self._get_obs()
         return obs, self._get_info()

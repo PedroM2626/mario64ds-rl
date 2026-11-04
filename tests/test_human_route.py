@@ -264,3 +264,28 @@ def test_no_exploration_bonus_in_free_fall():
     env.reset()
     env.ram.poll.return_value = np.array([0, 0, -16384, 0, KILL_PLANE - 7200, 0], float)
     assert env.step(0)[4]["explore_bonus"] == 0.0
+
+
+def test_ram_coin_reward_pays_only_new_coins_and_resets():
+    env = _slide_env(ram_coin_reward=2.0, step_penalty=0.0)
+    env.ram.poll.return_value = np.zeros(6)
+    env.ram.get_pos_3d.return_value = np.array([50.0, 9000.0, 50.0])
+    env.ram.get_coins.return_value = 8
+    env.reset()
+    rewards = []
+    for c in (8, 9, 12, 12):
+        env.ram.get_coins.return_value = c
+        _, r, _, _, info = env.step(0)
+        rewards.append(info["coin_reward"])
+    assert rewards == [0.0, 2.0, 6.0, 0.0] and info["coins"] == 12
+    env.ram.get_coins.return_value = 3          # a start state with fewer coins
+    env.reset()
+    env.ram.get_coins.return_value = 4
+    assert env.step(0)[4]["coin_reward"] == 2.0
+    off = _slide_env()
+    off.ram.poll.return_value = np.zeros(6)
+    off.ram.get_pos_3d.return_value = np.array([50.0, 9000.0, 50.0])
+    off.ram.get_coins.return_value = 1
+    off.reset()
+    off.ram.get_coins.return_value = 5
+    assert off.step(0)[4]["coin_reward"] == 0.0

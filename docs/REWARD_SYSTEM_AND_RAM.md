@@ -31,6 +31,7 @@ Through differential memory tracing and hardware-level state inspection in DeSmu
 | `0x0217F718` | `int32` | $s20.12$ Fixed-Point | **Mario 3D Position $Y$** (Height: value / 4096.0) |
 | `0x0217F71C` | `int32` | $s20.12$ Fixed-Point | **Mario 3D Position $Z$** (Lateral/Depth: value / 4096.0) |
 | `0x0217F760` | `int32` | $s20.12$ Fixed-Point | **Fast-fall clamp** (clamps to $-307200 = -75.0$ after ~7 decisions of any free fall, not only void falls; see 6.1) |
+| `0x02098998` | `int32` | Integer | **Course coin counter** (matches the HUD over a `ds3` run; the HUD's counting animation lags by up to one coin) |
 | `0x02285238` | `uint32` | Integer ID | **Active Course / Level ID** (`11`=PSS, `5`=TTM, `3`=CCM, `14`=TTC) |
 | `0x0209FB64` | `uint32` | Integer Counter | **Global Star Counter** in persistent save RAM |
 | `0x02169B10` | `int32[3]` | $s20.12$ Fixed-Point | **Tick Tock Clock Star Object Position** $(X, Y, Z)$ |

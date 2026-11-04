@@ -167,6 +167,18 @@ finished; greedy on CPU they reached at best 15,237.1 from the finish, at ~599k
 steps, along the same dead-end route, before dying at decision 399, and the
 final model stays on the flat section (closest 23,999.8)
 ([`results/ds3_explore_r5_checkpoints.json`](results/ds3_explore_r5_checkpoints.json)).
+**Following the coins.** The course's coins trace its path, and the coin
+counter is now read from RAM (`0x02098998`, the only word matching the HUD over
+a `ds3` run; `ram_coin_reward` in the env, `--coin-reward` in `train_curriculum`).
+The same search scored by coins collected instead of distance
+([`results/ds3_searches.json`](results/ds3_searches.json)) went from 15 coins to
+at most 21, and the frames show why it stops: at that point a red arrow points
+right, to a wooden plank path carrying coins, while Mario stays on the sand
+beside it and drifts towards the skull. From there every rollout died (96 of 96
+per stage, also with random actions held up to 30 decisions and with combined
+direction+jump actions). The coins mark the way; neither the policy nor random
+perturbations of it get onto that path.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
