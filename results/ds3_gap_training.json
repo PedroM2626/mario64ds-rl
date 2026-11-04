@@ -1,0 +1,28 @@
+{
+  "run": "ds3_gap_r6",
+  "start_model": "models/curriculum_flow25_r3_best.zip",
+  "config": {
+    "start_states": "data/curriculum/ds3_gap/*.dst (8 savestates, decisions 690-720 of the found route)",
+    "full_start_prob": 0.0,
+    "steps": 200000,
+    "lr": 0.0001,
+    "max_steps": 300,
+    "flow_weight": 0.0,
+    "dist_reward": false,
+    "coin_reward": 1.0,
+    "goal_reward": 500.0
+  },
+  "training_ep_len_mean_range": [
+    32.9,
+    40.6
+  ],
+  "training_ep_rew_mean_range": [
+    -99.0,
+    -97.6
+  ],
+  "eval": {
+    "baseline_r3": "0/8 survive",
+    "checkpoints_50k_100k_150k_200k_final": "0/8 survive each"
+  },
+  "episodes_estimate": 5373
+}

@@ -112,6 +112,11 @@ def main():
     parser.add_argument("--explore-bonus", type=float, default=0.0,
                         help="Count-based exploration bonus beta/sqrt(N(cell)) in the TRAINING envs "
                              "only (evaluation and checkpoint selection never see it)")
+    parser.add_argument("--start-states", type=str, default=None,
+                        help="Comma-separated savestates the TRAINING envs reset to (curriculum); "
+                             "evaluation still starts from --states")
+    parser.add_argument("--full-start-prob", type=float, default=0.0,
+                        help="With --start-states: probability a reset uses the track start instead")
     parser.add_argument("--checkpoint-every", type=int, default=0,
                         help="Also save the model every N environment steps (0 = off); the "
                              "phase's final model is always saved as final_model.zip")
@@ -139,6 +144,10 @@ def main():
     # The training mix may repeat a track to emphasize it (r2 used ds3 twice,
     # r3 used ds1 twice); the evaluation set must not double-count it.
     states_unique = list(dict.fromkeys(states))
+    start_states = savestate_paths(args.start_states, base_dir) if args.start_states else []
+    for sp in start_states:
+        if not os.path.exists(sp):
+            raise FileNotFoundError(f"Start savestate not found: {sp}")
     for sp in states:
         if not os.path.exists(sp):
             raise FileNotFoundError(f"Savestate not found: {sp}")
@@ -186,6 +195,7 @@ def main():
             train_envs = build_vec(rom_full, states, 0, args.seed, args.max_steps, 4, n_stack=4,
                                    step_penalty=args.step_penalty, flow_weight=args.flow_weight,
                                    explore_bonus=args.explore_bonus, explore_cell=args.explore_cell,
+                                   start_states=start_states, full_start_prob=args.full_start_prob,
                                    **env_kwargs)
             # Eval env contains ALL tracks (1 env per track): mean reward
             # from EvalCallback selects the balanced model across all geometries.

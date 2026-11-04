@@ -365,6 +365,21 @@ def ds3_sweep_checks(readme):
     check("ds3 move-sweep result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_gap_training_checks(readme):
+    """The gap-training sentence must equal results/ds3_gap_training.json."""
+    path = os.path.join(ROOT, "results", "ds3_gap_training.json")
+    if not os.path.exists(path):
+        check("ds3_gap_training.json", "present", "missing")
+        return
+    d = load(path)
+    lo, hi = d["training_ep_len_mean_range"]
+    rlo, rhi = d["training_ep_rew_mean_range"]
+    want = [f"about {_num(d['episodes_estimate'], 0)}", f"{lo}-{hi} decisions", f"${rlo}$ to ${rhi}$", "(0/8)"]
+    flat = " ".join(readme.split())
+    ok = all(w in flat for w in want)
+    check("ds3 gap-training result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -415,6 +430,7 @@ def main():
     ds3_explore_checks(readme)
     ds3_search_checks(readme)
     ds3_sweep_checks(readme)
+    ds3_gap_training_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

@@ -192,6 +192,19 @@ Mario drops below $Y = -18{,}000$ and the game respawns him with the coin count
 reset. `ds3` is therefore still not finished, and the remaining obstacle is
 this one gap.
 
+**Is the gap just a matter of training?** Frames show the sandy path ending at
+a brick tower with a dark doorway; Mario arrives airborne at full speed, passes
+beside the doorway and falls along the tower; braking for up to 16 decisions
+does not stop him on the slope. Training PPO from r3 only from 8 savestates
+just before it (decisions 690-720 of the found route; 200k steps, about 5,373
+episodes, coin reward and $+500$ at the finish,
+[`results/ds3_gap_training.json`](results/ds3_gap_training.json)) did not
+learn it: training episodes kept averaging 32.9-40.6 decisions with return
+$-99.0$ to $-97.6$, and r3 and every checkpoint fall from all 8 savestates
+(0/8). Together with the sweeps, that is more than 11,000 attempts from right
+before the gap without one success, so at this scale it is not a lack of
+training: the passage needs a manoeuvre none of them has produced.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
