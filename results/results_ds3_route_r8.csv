@@ -1,0 +1,4 @@
+phase,lr,track,episode,reward,steps,survived,finished
+1,0.0001,ds3,0,-92.71999975383281,136,False,False
+1,0.0001,ds3,1,-92.71999975383281,136,False,False
+1,0.0001,ds3,2,-92.71999975383281,136,False,False

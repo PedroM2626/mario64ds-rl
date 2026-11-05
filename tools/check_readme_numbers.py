@@ -398,6 +398,24 @@ def ds3_coins_checks(readme):
     check("ds3 coin-only training result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_route_run_checks(readme):
+    """The route-start PPO sentence must equal results/ds3_route_r8.json."""
+    path = os.path.join(ROOT, "results", "ds3_route_r8.json")
+    if not os.path.exists(path):
+        check("ds3_route_r8.json", "present", "missing")
+        return
+    d = load(path)
+    models = d["checkpoints"] + [d["final_model"]]
+    evals = [a for m in models for a in m["arrow_states"]]
+    passes = [a for a in evals if a["end"] == "finish"]
+    best = min(m["from_start"]["min_dist"] for m in models if m["from_start"])
+    want = [f"{len(passes)} of {len(evals)} arrow-state", f"({_num(passes[0]['min_dist'], 0)} from its centre",
+            f"{_num(best)} from the goal", f"Twelve checkpoints"]
+    flat = " ".join(readme.split())
+    ok = len(d["checkpoints"]) == 12 and all(w in flat for w in want)
+    check("ds3 route-start PPO result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -450,6 +468,7 @@ def main():
     ds3_sweep_checks(readme)
     ds3_gap_training_checks(readme)
     ds3_coins_checks(readme)
+    ds3_route_run_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

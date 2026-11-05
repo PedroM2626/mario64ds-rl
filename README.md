@@ -221,6 +221,19 @@ moves, so what the agent lacks is exploration of that one manoeuvre. 1M steps is
 a small budget (comparable work uses tens to hundreds of millions), so this
 does not show that longer training would fail.
 
+**Longer, with the route as start states (`ds3_route_r8`, PPO, 3M steps,
+[`results/ds3_route_r8.json`](results/ds3_route_r8.json)).** Continued from
+the coin-only model, with 75% of the episodes reset to one of 49 savestates along
+the found route (decisions 0-720), same rewards. Twelve checkpoints (every 250k
+steps) and the final model were evaluated greedy from the four savestates just
+before the red arrow (decisions 300-345) and from the start. The arrow was
+passed in 1 of 52 arrow-state evaluations: the 500k-step checkpoint, from the
+decision-345 savestate, reached the gap goal (550 from its centre, +10 coins);
+the same savestate failed at every later checkpoint and the other three never
+passed. From the real start no checkpoint passed the arrow; the closest was
+14,951.9 from the goal (final model), along the skull route that the policy
+converged to instead of the planks.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.

@@ -1,0 +1,481 @@
+{
+  "run": "ds3_route_r8",
+  "algo": "PPO",
+  "start_model": "models/ds3_coins_r7_p1/final_model.zip",
+  "config": {
+    "steps": 3000000,
+    "lr": 0.0001,
+    "start_states": "49 route savestates (decisions 0-720), full_start_prob 0.25",
+    "max_steps": 1200,
+    "coin_reward": 1.0,
+    "goal_reward": 500.0,
+    "goal": {
+      "pos": [
+        6432,
+        -11263,
+        -11499
+      ],
+      "radius": 600
+    },
+    "dist_reward": false,
+    "action_set": "compound12"
+  },
+  "instrument": "scripts/eval_from_states.py, CPU, greedy; arrow states = route-0300/0315/0330/0345 (horizon 400), start = ds3 (horizon 1200)",
+  "checkpoints": [
+    {
+      "steps": 250000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 16021
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15765
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 16170
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15965
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 167,
+        "coins_gained": 11,
+        "min_dist": 22586.9
+      }
+    },
+    {
+      "steps": 500000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 19564
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 18525
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 16540
+        },
+        {
+          "state": "0345",
+          "end": "finish",
+          "coins_gained": 10,
+          "min_dist": 550
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 75,
+        "coins_gained": 9,
+        "min_dist": 26297.6
+      }
+    },
+    {
+      "steps": 750000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 2,
+          "min_dist": 15346
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15249
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15253
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 16243
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 146,
+        "coins_gained": 10,
+        "min_dist": 23030.5
+      }
+    },
+    {
+      "steps": 1000000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 2,
+          "min_dist": 15157
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 14849
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 16110
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15034
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 351,
+        "coins_gained": 13,
+        "min_dist": 15026.2
+      }
+    },
+    {
+      "steps": 1250000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 2,
+          "min_dist": 14971
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15054
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 14893
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 14782
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 396,
+        "coins_gained": 8,
+        "min_dist": 21947.5
+      }
+    },
+    {
+      "steps": 1500000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 14867
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 2,
+          "min_dist": 14824
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15307
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 14816
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 409,
+        "coins_gained": 6,
+        "min_dist": 15404.7
+      }
+    },
+    {
+      "steps": 1750000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15066
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 2,
+          "min_dist": 14797
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15339
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15039
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 106,
+        "coins_gained": 0,
+        "min_dist": 25286.0
+      }
+    },
+    {
+      "steps": 2000000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 14712
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15116
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15126
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15104
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 91,
+        "coins_gained": 0,
+        "min_dist": 25145.8
+      }
+    },
+    {
+      "steps": 2250000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15352
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15320
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15338
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15128
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 242,
+        "coins_gained": 10,
+        "min_dist": 23273.5
+      }
+    },
+    {
+      "steps": 2500000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15448
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15546
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15417
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15385
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 409,
+        "coins_gained": 13,
+        "min_dist": 16064.7
+      }
+    },
+    {
+      "steps": 2750000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 14753
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15381
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15061
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15079
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 497,
+        "coins_gained": 12,
+        "min_dist": 15658.9
+      }
+    },
+    {
+      "steps": 3000000,
+      "arrow_states": [
+        {
+          "state": "0300",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15313
+        },
+        {
+          "state": "0315",
+          "end": "died",
+          "coins_gained": 2,
+          "min_dist": 15368
+        },
+        {
+          "state": "0330",
+          "end": "died",
+          "coins_gained": 1,
+          "min_dist": 15215
+        },
+        {
+          "state": "0345",
+          "end": "died",
+          "coins_gained": 0,
+          "min_dist": 15290
+        }
+      ],
+      "from_start": {
+        "end": "died",
+        "decisions": 480,
+        "coins_gained": 7,
+        "min_dist": 15521.2
+      }
+    }
+  ],
+  "final_model": {
+    "steps": "final_model",
+    "arrow_states": [
+      {
+        "state": "0300",
+        "end": "died",
+        "coins_gained": 1,
+        "min_dist": 14910.1
+      },
+      {
+        "state": "0315",
+        "end": "died",
+        "coins_gained": 1,
+        "min_dist": 15294.6
+      },
+      {
+        "state": "0330",
+        "end": "died",
+        "coins_gained": 1,
+        "min_dist": 15265.6
+      },
+      {
+        "state": "0345",
+        "end": "died",
+        "coins_gained": 0,
+        "min_dist": 15260.1
+      }
+    ],
+    "from_start": {
+      "end": "died",
+      "decisions": 481,
+      "coins_gained": 12,
+      "min_dist": 14951.9
+    }
+  }
+}
