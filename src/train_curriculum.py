@@ -117,6 +117,12 @@ def main():
                              "evaluation still starts from --states")
     parser.add_argument("--full-start-prob", type=float, default=0.0,
                         help="With --start-states: probability a reset uses the track start instead")
+    parser.add_argument("--target-kl", type=float, default=None,
+                        help="PPO early-stops an update's epochs when the KL to the old policy exceeds this")
+    parser.add_argument("--clip-range", type=float, default=None, help="Override the PPO clip range")
+    parser.add_argument("--ent-coef", type=float, default=None, help="Override the PPO entropy coefficient")
+    parser.add_argument("--value-warmup-steps", type=int, default=0,
+                        help="Train only the value head for this many steps first (src/ppo_extras.py)")
     parser.add_argument("--checkpoint-every", type=int, default=0,
                         help="Also save the model every N environment steps (0 = off); the "
                              "phase's final model is always saved as final_model.zip")
@@ -215,6 +221,12 @@ def main():
             # Override learning rate schedule with current curriculum phase LR
             model.learning_rate = lr
             model.lr_schedule = lambda _: lr
+            if args.target_kl is not None:
+                model.target_kl = args.target_kl
+            if args.clip_range is not None:
+                model.clip_range = lambda _, c=args.clip_range: c
+            if args.ent_coef is not None:
+                model.ent_coef = args.ent_coef
             print(f"Device: {model.device} | phase lr: {lr}", flush=True)
 
             best_model_dir = os.path.join(models_dir, phase_id)
@@ -230,6 +242,9 @@ def main():
             )
 
             callbacks = [eval_callback, MLflowCallback()]
+            if args.value_warmup_steps > 0 and i == 1:
+                from src.ppo_extras import ValueWarmup
+                callbacks.append(ValueWarmup(args.value_warmup_steps))
             if args.checkpoint_every > 0:
                 callbacks.append(CheckpointCallback(
                     save_freq=max(1, args.checkpoint_every // args.n_envs),
