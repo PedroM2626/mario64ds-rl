@@ -51,7 +51,7 @@ def verify_replay(demo, tol=1e-3):
     actions = demo["actions"].astype(int)
     env = Mario64DSEnv(rom_path=rom_path(), state_path=m["source_state"], max_steps=len(actions) + 1,
                        frameskip=m["frameskip"], flow_weight=0.0, action_set=m["action_set"],
-                       track_id=m["track_id"])
+                       track_id=m["track_id"], black_screen_death=False)
     try:
         env.reset()
         err = float(np.max(np.abs(env.ram.get_pos_3d() - demo["positions"][0])))

@@ -304,3 +304,18 @@ def test_goal_override_ends_episode_as_goal():
     env.ram.get_pos_3d.return_value = np.array([1100.0, 5100.0, 50.0])
     _, r, done, _, info = env.step(0)
     assert done and info["reached_goal"] and r == pytest.approx(500.0)
+
+
+def test_respawn_jump_counts_the_games_own_respawn_as_death():
+    from src.ram_state import TRACK_GOALS
+    mid = TRACK_GOALS["ds1"]["target_pos"] + np.array([3000.0, 2000.0, 0.0])
+    for jump, dies in ((0.0, False), (2000.0, True)):
+        env = _slide_env(respawn_jump=jump)
+        env.ram.poll.return_value = np.zeros(6)
+        env.ram.get_pos_3d.return_value = mid
+        env.reset()
+        env.ram.get_pos_3d.return_value = mid + np.array([150.0, -150.0, 0.0])   # a fast fall
+        assert not env.step(0)[2]
+        env.ram.get_pos_3d.return_value = mid + np.array([9000.0, 4000.0, 0.0])   # put back at the start
+        _, _, done, _, info = env.step(0)
+        assert done is dies and bool(info["died"]) is dies

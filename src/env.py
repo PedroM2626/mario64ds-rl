@@ -73,7 +73,8 @@ class Mario64DSEnv(gym.Env):
                  track_id=None, action_set="legacy6", route_path=None,
                  route_total_reward=500.0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
-                 ram_coin_reward=0.0, black_screen_death=True, goal_override=None):
+                 ram_coin_reward=0.0, black_screen_death=True, goal_override=None,
+                 respawn_jump=0.0):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -130,6 +131,11 @@ class Mario64DSEnv(gym.Env):
         # The black-screen fallback can fire in dark parts of a course (the
         # ds3 exit is a dark shaft); False leaves death to the position rule.
         self.black_screen_death = bool(black_screen_death)
+        # The game itself puts Mario back at the start when he falls off the ds3 slide (the coin count
+        # resets) well above kill_y: a displacement larger than this in one decision is such a respawn
+        # and counts as a death (0 = off; free fall moves ~150 units per decision).
+        self.respawn_jump = float(respawn_jump)
+        self._last_pos = None
         # Optional intermediate goal {"pos": [x, y, z], "radius": r}: entering
         # that sphere ends the episode as reached_goal with goal_reward (e.g. a
         # spot partway down a course), in addition to the course's own finish.
@@ -401,6 +407,14 @@ class Mario64DSEnv(gym.Env):
                     raise
                 logger.debug("RAM death check failed: %s", exc)
 
+        if self.respawn_jump > 0 and self.has_emulator:
+            pos_now = self.ram.get_pos_3d()
+            if (not is_dead and self._last_pos is not None and pos_now is not None
+                    and float(np.linalg.norm(pos_now - self._last_pos)) > self.respawn_jump):
+                is_dead = True
+                death_source = "respawn"
+            self._last_pos = None if pos_now is None else np.array(pos_now, dtype=np.float64)
+
         obs_2d = np.squeeze(obs)
         if not is_dead and self.black_screen_death:
             if np.mean(obs_2d < 10) > 0.95:
@@ -583,10 +597,12 @@ class Mario64DSEnv(gym.Env):
         self.reached_goal = False
         self.star_collected = False
         self.died = False
+        self._last_pos = None
 
         if self.has_emulator and self.goal_spec is not None:
             try:
                 current_pos = self.ram.get_pos_3d()
+                self._last_pos = np.array(current_pos, dtype=np.float64)
                 self.target_pos = self.goal_spec["target_pos"]
                 self.prev_dist = float(np.linalg.norm(current_pos - self.target_pos))
                 self.best_dist = self.prev_dist

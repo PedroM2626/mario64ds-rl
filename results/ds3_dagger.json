@@ -1,0 +1,400 @@
+{
+ "demo": "runs/human-demonstrations/20261105-134615/completed/attempt-000001",
+ "args": {
+  "demo": "runs/human-demonstrations/20261105-134615/completed/attempt-000001",
+  "model": "models/curriculum_flow25_r3_c12.zip",
+  "out": "models/ds3_dagger.zip",
+  "result": "results/ds3_dagger.json",
+  "iterations": 8,
+  "rollouts": 16,
+  "horizon": 700,
+  "beta": 0.5,
+  "beta_decay": 0.7,
+  "eps": 0.15,
+  "off_route": 2500.0,
+  "epochs": 12,
+  "lr": 0.0001,
+  "batch": 64,
+  "eval_seeds": 6
+ },
+ "history": [
+  {
+   "iteration": 0,
+   "samples": 563,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 271,
+    "min_dist": 14531.3
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 280,
+     "min_dist": 14621.2
+    },
+    {
+     "end": "off-route",
+     "decisions": 272,
+     "min_dist": 14441.1
+    },
+    {
+     "end": "off-route",
+     "decisions": 142,
+     "min_dist": 22231.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 267,
+     "min_dist": 14476.6
+    },
+    {
+     "end": "off-route",
+     "decisions": 138,
+     "min_dist": 22193.2
+    },
+    {
+     "end": "off-route",
+     "decisions": 141,
+     "min_dist": 23265.2
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 1,
+   "samples": 3123,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 178,
+    "min_dist": 21187.7
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 167,
+     "min_dist": 23700.3
+    },
+    {
+     "end": "off-route",
+     "decisions": 164,
+     "min_dist": 23724.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 164,
+     "min_dist": 23591.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 220,
+     "min_dist": 18054.2
+    },
+    {
+     "end": "off-route",
+     "decisions": 161,
+     "min_dist": 23317.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 165,
+     "min_dist": 23567.9
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 2,
+   "samples": 5396,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 216,
+    "min_dist": 16710.3
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 191,
+     "min_dist": 21353.1
+    },
+    {
+     "end": "off-route",
+     "decisions": 234,
+     "min_dist": 15464.9
+    },
+    {
+     "end": "off-route",
+     "decisions": 162,
+     "min_dist": 24207.4
+    },
+    {
+     "end": "off-route",
+     "decisions": 191,
+     "min_dist": 21256.6
+    },
+    {
+     "end": "off-route",
+     "decisions": 168,
+     "min_dist": 23847.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 217,
+     "min_dist": 17939.2
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 3,
+   "samples": 7183,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 206,
+    "min_dist": 18050.8
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 169,
+     "min_dist": 22637.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 181,
+     "min_dist": 21217.9
+    },
+    {
+     "end": "off-route",
+     "decisions": 183,
+     "min_dist": 21205.9
+    },
+    {
+     "end": "off-route",
+     "decisions": 218,
+     "min_dist": 17833.5
+    },
+    {
+     "end": "off-route",
+     "decisions": 195,
+     "min_dist": 21247.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 303,
+     "min_dist": 12553.0
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 4,
+   "samples": 9154,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 233,
+    "min_dist": 14807.3
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 195,
+     "min_dist": 21799.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 182,
+     "min_dist": 20926.4
+    },
+    {
+     "end": "off-route",
+     "decisions": 191,
+     "min_dist": 20980.5
+    },
+    {
+     "end": "off-route",
+     "decisions": 195,
+     "min_dist": 22046.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 235,
+     "min_dist": 15184.9
+    },
+    {
+     "end": "off-route",
+     "decisions": 160,
+     "min_dist": 23099.0
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 5,
+   "samples": 11145,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 209,
+    "min_dist": 18789.2
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 248,
+     "min_dist": 14575.5
+    },
+    {
+     "end": "off-route",
+     "decisions": 182,
+     "min_dist": 21055.9
+    },
+    {
+     "end": "off-route",
+     "decisions": 138,
+     "min_dist": 22838.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 169,
+     "min_dist": 24060.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 143,
+     "min_dist": 22819.4
+    },
+    {
+     "end": "off-route",
+     "decisions": 148,
+     "min_dist": 23071.8
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 6,
+   "samples": 12981,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 263,
+    "min_dist": 13153.1
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 196,
+     "min_dist": 20854.0
+    },
+    {
+     "end": "off-route",
+     "decisions": 181,
+     "min_dist": 20985.2
+    },
+    {
+     "end": "off-route",
+     "decisions": 139,
+     "min_dist": 22896.8
+    },
+    {
+     "end": "off-route",
+     "decisions": 178,
+     "min_dist": 24060.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 157,
+     "min_dist": 23115.4
+    },
+    {
+     "end": "off-route",
+     "decisions": 187,
+     "min_dist": 21287.1
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 7,
+   "samples": 15002,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 263,
+    "min_dist": 13148.0
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 196,
+     "min_dist": 21415.5
+    },
+    {
+     "end": "off-route",
+     "decisions": 182,
+     "min_dist": 21127.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 150,
+     "min_dist": 23077.6
+    },
+    {
+     "end": "off-route",
+     "decisions": 178,
+     "min_dist": 24060.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 156,
+     "min_dist": 23031.0
+    },
+    {
+     "end": "off-route",
+     "decisions": 151,
+     "min_dist": 23025.4
+    }
+   ],
+   "perturbed_finished": 0
+  },
+  {
+   "iteration": 8,
+   "samples": 16985,
+   "from_start": {
+    "end": "off-route",
+    "decisions": 229,
+    "min_dist": 15370.4
+   },
+   "perturbed": [
+    {
+     "end": "off-route",
+     "decisions": 250,
+     "min_dist": 14482.5
+    },
+    {
+     "end": "off-route",
+     "decisions": 182,
+     "min_dist": 20720.0
+    },
+    {
+     "end": "off-route",
+     "decisions": 270,
+     "min_dist": 14630.0
+    },
+    {
+     "end": "off-route",
+     "decisions": 165,
+     "min_dist": 24060.7
+    },
+    {
+     "end": "off-route",
+     "decisions": 233,
+     "min_dist": 15525.4
+    },
+    {
+     "end": "off-route",
+     "decisions": 154,
+     "min_dist": 22991.3
+    }
+   ],
+   "perturbed_finished": 0
+  }
+ ]
+}

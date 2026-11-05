@@ -137,6 +137,11 @@ def main():
                         help="Terminal bonus for star collection")
     parser.add_argument("--use-ram-death", action="store_true", default=True,
                         help="Enable instantaneous RAM-based kill-plane detection")
+    parser.add_argument("--respawn-jump", type=float, default=0.0,
+                        help="A displacement larger than this in one decision is the game's own respawn after a "
+                             "fall and counts as a death; 0 = off")
+    parser.add_argument("--no-black-screen-death", dest="black_screen_death", action="store_false", default=True,
+                        help="A black screen is not a death (ds3 runs through a dark shaft)")
     parser.add_argument("--buffer-size", type=int, default=100000,
                         help="Replay buffer capacity in transitions (default: 100000)")
     parser.add_argument("--exploration-fraction", type=float, default=0.3,
@@ -175,7 +180,8 @@ def main():
             raise FileNotFoundError(f"Curriculum savestate not found: {sp}")
     env_extra = dict(action_set=args.action_set, route_path=route_full,
                      route_total_reward=args.route_total_reward, death_rule=args.death_rule,
-                     ram_coin_reward=args.coin_reward,
+                     ram_coin_reward=args.coin_reward, black_screen_death=args.black_screen_death,
+                     respawn_jump=args.respawn_jump,
                      goal_override=None if not args.goal_pos else
                      {"pos": [float(v) for v in args.goal_pos.split(",")], "radius": args.goal_radius})
 

@@ -137,15 +137,29 @@ def main():
                         help="Reward per coin collected (RAM coin counter); the coins trace the courses")
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching the RAM finish line")
+    parser.add_argument("--route", type=str, default=None,
+                        help="Human route JSON (scripts/prepare_human_route.py): the distance reward becomes the "
+                             "ratcheted progress along it (dist_reward_mode='route')")
+    parser.add_argument("--route-reward", type=float, default=500.0,
+                        help="Total reward for covering the whole --route")
+    parser.add_argument("--respawn-jump", type=float, default=0.0,
+                        help="A displacement larger than this in one decision is the game's own respawn after a "
+                             "fall (ds3: above kill_y) and counts as a death; 0 = off")
+    parser.add_argument("--no-black-screen-death", dest="black_screen_death", action="store_false",
+                        default=True, help="A black screen is not a death (ds3 runs through a dark shaft)")
     parser.add_argument("--results-csv", type=str, default="results/results_curriculum.csv",
                         help="Per-phase evaluation table (default keeps the historical path)")
     args = parser.parse_args()
     env_kwargs = dict(use_ram_death=args.use_ram_death, dist_reward_enabled=args.dist_reward,
                       dist_weight=args.dist_weight, goal_reward=args.goal_reward,
                       death_rule=args.death_rule, ram_coin_reward=args.coin_reward,
-                      action_set=args.action_set,
+                      action_set=args.action_set, black_screen_death=args.black_screen_death,
+                      respawn_jump=args.respawn_jump,
                       goal_override=None if not args.goal_pos else
                       {"pos": [float(v) for v in args.goal_pos.split(",")], "radius": args.goal_radius})
+    if args.route:
+        env_kwargs.update(dist_reward_mode="route", route_path=os.path.abspath(args.route),
+                          route_total_reward=args.route_reward)
 
     phases = []
     for token in args.phases.split(","):
