@@ -260,6 +260,21 @@ from the start; from each of the four arrow savestates it ends at the same place
 it is not robust: with 3-8 random actions before it takes over, 0 of 20 runs
 reach the goal. It reproduces one trajectory; it has not learned the course.
 
+**Is an image-based "coin centred on screen" reward usable on `ds3`?**
+`scripts/probe_coin_detector.py`
+([`results/ds3_coin_detector.json`](results/ds3_coin_detector.json), overlay in
+[`results/ds3_coin_detector.png`](results/ds3_coin_detector.png)) replays the found
+route (2,868 frames, 28 collection events by the RAM coin counter) and compares four
+colour detectors with it. Every variant sees a blob before each collection (28 of
+28), so recall is not the problem. The signal is: the original yellow mask is
+positive in every frame because of the HUD coin icon, with the HUD masked it is still
+positive in 94.6% of frames (sand and wooden planks sit next to yellow in hue), and
+the strictest variant (round blobs only) fires in 25.2% of frames but typically only
+at the last frames before a collection (median lead 0 frames, 75th percentile 6),
+which is no better than the collection reward itself. The coins of the plank path at
+the red arrow are small and olive-coloured on the sand and are mostly missed by it.
+A colour detector is therefore not a reliable long-range "coin ahead" signal here.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.

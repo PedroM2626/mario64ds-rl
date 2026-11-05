@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # PPO fine-tune of the behaviour-cloned ds3 policy (scripts/clone_demo.py -> models/ds3_bc_c12.zip).
-# The clone passes the red arrow but dies at decision ~671 of the route and is not robust;
-# RL from the route savestates (extra weight on decisions 600-690) should fix and robustify it.
+# The clone passes the red arrow but dies at decision ~671 of the route and is not robust.
+# The first version (lr 3e-5, 33% of route resets on decisions 600-690, no value warm-up) fixed the
+# failure near 671 but forgot the arrow passage within 100k steps. This one: value-head warm-up
+# (policy frozen), lr 1e-5, target_kl 0.02, clip 0.1, no entropy bonus, and balanced start-state
+# weights (arrow states x3, decisions 600-690 x2, the rest x1).
 # Usage: bash scripts/run_ds3_finetune.sh [run_id] [timesteps]
 set -u
 cd "$(dirname "$0")/.."
-RUN=${1:-ds3_finetune}
+RUN=${1:-ds3_finetune3}
 STEPS=${2:-800000}
 PY=.venv/Scripts/python.exe
 GOAL=6432,-11263,-11499
@@ -13,9 +16,10 @@ GOAL=6432,-11263,-11499
 until [ "$(powershell.exe -NoProfile -Command "(Get-CimInstance Win32_Process -Filter \"Name='python.exe' or Name='Dolphin.exe'\" | Where-Object { \$_.CommandLine -match 'smg_rl' }).Count" | tr -d '\r')" = "0" ]; do sleep 30; done
 
 ROUTE=$(ls data/curriculum/ds3_route/route-*.dst | tr '\n' ',' | sed 's/,$//')
-# two extra copies of the states around the clone's failure (route decisions 600-690)
-HARD=$(ls data/curriculum/ds3_route/route-06[0-9]0.dst data/curriculum/ds3_route/route-06[0-9]5.dst 2>/dev/null | grep -E 'route-0(600|615|630|645|660|675|690)' | tr '\n' ',' | sed 's/,$//')
-STARTS="$ROUTE,$HARD,$HARD"
+# the states around the clone's failure (route decisions 600-690) and the red arrow (300-345)
+HARD=$(ls data/curriculum/ds3_route/route-06[0-9][05].dst | grep -E 'route-0(600|615|630|645|660|675|690)' | tr '\n' ',' | sed 's/,$//')
+ARROW=$(ls data/curriculum/ds3_route/route-03[0-4][05].dst | tr '\n' ',' | sed 's/,$//')
+STARTS="$ROUTE,$ARROW,$ARROW,$HARD"
 mkdir -p logs
 
 (
@@ -49,7 +53,8 @@ print(' | '.join(f\"{r['state'][-8:-4]}: {r['end'][:4]} d={r['min_dist']:.0f}\" 
 
 PYTHONIOENCODING=utf-8 $PY -u -m src.train_curriculum --run-id "$RUN" --start-model models/ds3_bc_c12.zip \
   --action-set compound12 --states ds3,ds3,ds3,ds3 --n-envs 4 --start-states "$STARTS" --full-start-prob 0.25 \
-  --phases "$STEPS:3e-5" --flow-weight 0 --eval-flow-weight 0 --eval-freq 100000 --max-steps 1200 \
+  --phases "$STEPS:1e-5" --target-kl 0.02 --clip-range 0.1 --ent-coef 0.0 --value-warmup-steps 100000 \
+  --flow-weight 0 --eval-flow-weight 0 --eval-freq 100000 --max-steps 1200 \
   --no-dist-reward --coin-reward 1.0 --goal-reward 500 --goal-pos $GOAL --goal-radius 600 \
   --checkpoint-every 100000 --results-csv results/results_$RUN.csv > logs/train_$RUN.log 2>&1
 wait

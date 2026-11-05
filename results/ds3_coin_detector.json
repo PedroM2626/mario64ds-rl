@@ -1,0 +1,69 @@
+{
+  "route": "config/routes/ds3_search_route_v1.json",
+  "frames": 2868,
+  "collection_events": 28,
+  "lookback": 60,
+  "horizon": 120,
+  "variants": {
+    "original": {
+      "lead_frames_median": 85.0,
+      "lead_frames_p25": 28.5,
+      "lead_frames_p75": 101.5,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 1.0,
+      "positive_frames": 1.0,
+      "recall": 1.0,
+      "recall_central": 1.0,
+      "false_positive_upper_bound": 0.39539748953974896,
+      "hud_blob_share": 1.0
+    },
+    "hud_masked": {
+      "lead_frames_median": 85.0,
+      "lead_frames_p25": 28.5,
+      "lead_frames_p75": 101.5,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 1.0,
+      "positive_frames": 0.9463040446304045,
+      "recall": 1.0,
+      "recall_central": 1.0,
+      "false_positive_upper_bound": 0.3743551952837141,
+      "hud_blob_share": 0.0
+    },
+    "strict": {
+      "lead_frames_median": 32.0,
+      "lead_frames_p25": 21.5,
+      "lead_frames_p75": 44.5,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 1.0,
+      "positive_frames": 0.555439330543933,
+      "recall": 1.0,
+      "recall_central": 1.0,
+      "false_positive_upper_bound": 0.16635279347143753,
+      "hud_blob_share": 0.0
+    },
+    "strict_round": {
+      "lead_frames_median": 0.0,
+      "lead_frames_p25": 0.0,
+      "lead_frames_p75": 6.0,
+      "arrow_stretch_positive": 0.4375,
+      "arrow_stretch_blob_right_of_centre": 0.425,
+      "positive_frames": 0.2524407252440725,
+      "recall": 1.0,
+      "recall_central": 1.0,
+      "false_positive_upper_bound": 0.11740331491712708,
+      "hud_blob_share": 0.0
+    },
+    "hud_round": {
+      "lead_frames_median": 15.0,
+      "lead_frames_p25": 4.0,
+      "lead_frames_p75": 78.5,
+      "arrow_stretch_positive": 0.725,
+      "arrow_stretch_blob_right_of_centre": 0.6,
+      "positive_frames": 0.8152022315202232,
+      "recall": 1.0,
+      "recall_central": 1.0,
+      "false_positive_upper_bound": 0.3438836612489307,
+      "hud_blob_share": 0.0
+    }
+  }
+}
