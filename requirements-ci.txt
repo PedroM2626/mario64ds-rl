@@ -8,3 +8,4 @@ opencv-python-headless==4.11.0.86
 pytest==9.1.0
 tianshou==2.0.1
 stable-baselines3==2.8.0
+sb3_contrib==2.8.0
