@@ -329,6 +329,10 @@ def show(rgb, lines, names=()):
     cv2.waitKey(1)
 
 
+def env_track_is_not_ds3(source_state):
+    return "ds3" not in os.path.basename(str(source_state)).lower()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--state", default="ds8", help="Start savestate (track id or path; default ds8)")
@@ -343,6 +347,9 @@ def main():
                     help="Per-attempt limit (default 9000 = 10 min); reaching it saves a partial demo")
     ap.add_argument("--max-minutes", type=int, default=120)
     ap.add_argument("--max-attempts", type=int, default=200)
+    ap.add_argument("--black-screen-death", choices=["auto", "on", "off"], default="auto",
+                    help="A (nearly) black screen counts as a death. auto: off on ds3, whose route runs through "
+                         "a dark shaft (about 60-90%% of the pixels are already dark before the jump), on elsewhere")
     ap.add_argument("--out", default=os.path.join(ROOT_DIR, "runs", "human-demonstrations"))
     args = ap.parse_args()
     if os.name != "nt":
@@ -372,7 +379,9 @@ def main():
 
     env = Mario64DSEnv(rom_path=rom, state_path=source_state, max_steps=args.max_decisions,
                        frameskip=args.frameskip, flow_weight=0.0, action_set=args.action_set,
-                       dist_reward_mode="progress")
+                       dist_reward_mode="progress",
+                       black_screen_death=(args.black_screen_death == "on" or
+                                           (args.black_screen_death == "auto" and env_track_is_not_ds3(source_state))))
     kb = Keyboard()
     attempt = None
     clock = {"next": time.perf_counter()}
@@ -471,6 +480,10 @@ def main():
                 time.sleep(3)
                 break
             if terminated:  # death (no other terminal exists on ds8)
+                dark = float(np.mean(np.squeeze(obs) < 10))
+                print(json.dumps({"death": {"decision": len(attempt.actions), "pos": [round(float(v)) for v in pos],
+                                            "dark_fraction": round(dark, 3),
+                                            "cause": "black_screen" if dark > 0.95 else "below kill_y"}}), flush=True)
                 attempt.discard()
                 attempt = None
                 status["deaths_discarded"] += 1

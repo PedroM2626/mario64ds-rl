@@ -171,3 +171,9 @@ Tall, Tall Mountain slide (`ds3`), so one human run there would give its route:
 record-ds3.bat
 .venv\Scripts\python.exe scripts/prepare_human_route.py runs/human-demonstrations/<time>/completed/attempt-000001 --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1
 ```
+
+On `ds3` the recorder does not count a black screen as a death (`--black-screen-death auto`): the
+route runs through a dark shaft where 60-90% of the pixels are already dark, and a human reported
+that the attempt was discarded at the platform-to-platform jump. Every death now prints its cause,
+decision, position and dark fraction (`{"death": ...}`); the position rule (below `kill_y`, -14,500)
+still applies.
