@@ -114,6 +114,11 @@ def main():
                         help="Environment steps collected before gradient updates (SB3 default 100)")
     parser.add_argument("--death-rule", choices=["position", "struct"], default="position",
                         help='"position" (default): a fall below the course kill_y; "struct": legacy rule that also counts the 0x0217F760 fast-fall clamp (any long drop) as death')
+    parser.add_argument("--coin-reward", type=float, default=0.0,
+                        help="Reward per coin collected (RAM coin counter, src/ram_state.COIN_COUNT_ADDR)")
+    parser.add_argument("--goal-pos", type=str, default=None,
+                        help="x,y,z of an intermediate goal that ends the episode with --goal-reward")
+    parser.add_argument("--goal-radius", type=float, default=600.0)
     parser.add_argument("--goal-reward", type=float, default=200.0,
                         help="Terminal bonus for reaching goal coordinates")
     parser.add_argument("--star-reward", type=float, default=500.0,
@@ -157,7 +162,10 @@ def main():
         if not os.path.exists(sp):
             raise FileNotFoundError(f"Curriculum savestate not found: {sp}")
     env_extra = dict(action_set=args.action_set, route_path=route_full,
-                     route_total_reward=args.route_total_reward, death_rule=args.death_rule)
+                     route_total_reward=args.route_total_reward, death_rule=args.death_rule,
+                     ram_coin_reward=args.coin_reward,
+                     goal_override=None if not args.goal_pos else
+                     {"pos": [float(v) for v in args.goal_pos.split(",")], "radius": args.goal_radius})
 
     train_envs = SubprocVecEnv([
         make_env(rom_full, savestates[i % len(savestates)], rank=i, seed=args.seed,
@@ -250,6 +258,9 @@ def main():
         "use_ram_death": args.use_ram_death,
         "action_set": args.action_set,
         "death_rule": args.death_rule,
+        "coin_reward": args.coin_reward,
+        "goal_pos": args.goal_pos,
+        "goal_radius": args.goal_radius,
         "route": args.route,
         "route_total_reward": args.route_total_reward,
         "start_states": len(start_states),
