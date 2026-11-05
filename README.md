@@ -247,6 +247,19 @@ decision 426, the closest of any non-passing run, but it was not repeated from
 was 15,658.4 (800k), by the skull route. Neither algorithm has learned the
 manoeuvre, although the demonstration contains it.
 
+**Cloning the demonstration (`scripts/clone_demo.py`,
+[`results/ds3_bc_demo.json`](results/ds3_bc_demo.json)).** Cross-entropy on the
+demonstrated action (1,481 samples: the continuous replay plus the next 16
+decisions from each of the 49 route savestates), PPO network of the 12-action
+policy, 60 epochs (train accuracy 0.999). The clone passes the red arrow and the
+planks: from the real start it follows the route for 671 decisions, collects 21
+coins and gets to 5,137.6 from the gap goal, the first agent to pass the arrow
+from the start; from each of the four arrow savestates it ends at the same place
+(decision 671 of the route). It still dies there, 46 decisions short of the goal
+(0 of 4 reach it; 12 of 49 route savestates do, those after decision 671), and
+it is not robust: with 3-8 random actions before it takes over, 0 of 20 runs
+reach the goal. It reproduces one trajectory; it has not learned the course.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.

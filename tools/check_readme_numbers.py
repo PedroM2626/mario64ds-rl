@@ -434,6 +434,23 @@ def ds3_qrdqn_checks(readme):
     check("ds3 QR-DQN result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_clone_checks(readme):
+    """The behaviour-cloning sentence must equal results/ds3_bc_demo.json."""
+    path = os.path.join(ROOT, "results", "ds3_bc_demo.json")
+    if not os.path.exists(path):
+        check("ds3_bc_demo.json", "present", "missing")
+        return
+    d = load(path)
+    fs = d["from_start"]
+    want = [f"({d['samples']:,} samples", f"(train accuracy {d['train_accuracy']})", f"{fs['decisions']} decisions",
+            f"collects {fs['coins_gained']}", f"{_num(fs['min_dist'])} from the gap goal",
+            f"({d['arrow_reached_goal']} of 4 reach it; {d['route_states_reached_goal']} of {d['route_states']}",
+            f"{d['perturbed_reached_goal']} of {d['perturbed_runs']} runs"]
+    flat = " ".join(readme.split())
+    ok = d["arrow_reached_goal"] == 0 and all(w in flat for w in want)
+    check("ds3 behaviour-cloning result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -488,6 +505,7 @@ def main():
     ds3_coins_checks(readme)
     ds3_route_run_checks(readme)
     ds3_qrdqn_checks(readme)
+    ds3_clone_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

@@ -1,0 +1,226 @@
+{
+  "demo": "data/curriculum/ds3_route_demo/attempt-000001",
+  "samples": 1481,
+  "epochs": 60,
+  "train_accuracy": 0.999,
+  "arrow_states": {
+    "300": {
+      "end": "died",
+      "decisions": 371,
+      "coins_gained": 11,
+      "min_dist": 5137.6
+    },
+    "315": {
+      "end": "died",
+      "decisions": 356,
+      "coins_gained": 11,
+      "min_dist": 5137.6
+    },
+    "330": {
+      "end": "died",
+      "decisions": 341,
+      "coins_gained": 11,
+      "min_dist": 5137.6
+    },
+    "345": {
+      "end": "died",
+      "decisions": 326,
+      "coins_gained": 9,
+      "min_dist": 5137.6
+    }
+  },
+  "arrow_reached_goal": 0,
+  "route_states_reached_goal": 12,
+  "route_states": 49,
+  "perturbed_reached_goal": 0,
+  "perturbed_runs": 20,
+  "perturbed": [
+    {
+      "decision": 300,
+      "seed": 0,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 71,
+      "coins_gained": 1,
+      "min_dist": 15892.2
+    },
+    {
+      "decision": 300,
+      "seed": 1,
+      "perturb": 4,
+      "end": "died",
+      "decisions": 83,
+      "coins_gained": 1,
+      "min_dist": 15595.2
+    },
+    {
+      "decision": 300,
+      "seed": 2,
+      "perturb": 5,
+      "end": "died",
+      "decisions": 76,
+      "coins_gained": 2,
+      "min_dist": 16001.0
+    },
+    {
+      "decision": 300,
+      "seed": 3,
+      "perturb": 6,
+      "end": "died",
+      "decisions": 249,
+      "coins_gained": 6,
+      "min_dist": 13908.0
+    },
+    {
+      "decision": 300,
+      "seed": 4,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 56,
+      "coins_gained": 3,
+      "min_dist": 16399.0
+    },
+    {
+      "decision": 315,
+      "seed": 0,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 52,
+      "coins_gained": 0,
+      "min_dist": 16244.8
+    },
+    {
+      "decision": 315,
+      "seed": 1,
+      "perturb": 4,
+      "end": "horizon",
+      "decisions": 400,
+      "coins_gained": 14,
+      "min_dist": 2882.6
+    },
+    {
+      "decision": 315,
+      "seed": 2,
+      "perturb": 5,
+      "end": "died",
+      "decisions": 147,
+      "coins_gained": 1,
+      "min_dist": 17103.0
+    },
+    {
+      "decision": 315,
+      "seed": 3,
+      "perturb": 6,
+      "end": "died",
+      "decisions": 54,
+      "coins_gained": 1,
+      "min_dist": 16344.1
+    },
+    {
+      "decision": 315,
+      "seed": 4,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 49,
+      "coins_gained": 0,
+      "min_dist": 15953.3
+    },
+    {
+      "decision": 330,
+      "seed": 0,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 43,
+      "coins_gained": 1,
+      "min_dist": 16308.3
+    },
+    {
+      "decision": 330,
+      "seed": 1,
+      "perturb": 4,
+      "end": "died",
+      "decisions": 45,
+      "coins_gained": 1,
+      "min_dist": 16180.0
+    },
+    {
+      "decision": 330,
+      "seed": 2,
+      "perturb": 5,
+      "end": "died",
+      "decisions": 40,
+      "coins_gained": 1,
+      "min_dist": 16210.6
+    },
+    {
+      "decision": 330,
+      "seed": 3,
+      "perturb": 6,
+      "end": "died",
+      "decisions": 40,
+      "coins_gained": 1,
+      "min_dist": 16179.2
+    },
+    {
+      "decision": 330,
+      "seed": 4,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 39,
+      "coins_gained": 1,
+      "min_dist": 16106.8
+    },
+    {
+      "decision": 345,
+      "seed": 0,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 18,
+      "coins_gained": 0,
+      "min_dist": 16329.4
+    },
+    {
+      "decision": 345,
+      "seed": 1,
+      "perturb": 4,
+      "end": "died",
+      "decisions": 24,
+      "coins_gained": 0,
+      "min_dist": 15941.6
+    },
+    {
+      "decision": 345,
+      "seed": 2,
+      "perturb": 5,
+      "end": "died",
+      "decisions": 20,
+      "coins_gained": 0,
+      "min_dist": 16359.5
+    },
+    {
+      "decision": 345,
+      "seed": 3,
+      "perturb": 6,
+      "end": "died",
+      "decisions": 45,
+      "coins_gained": 0,
+      "min_dist": 15411.4
+    },
+    {
+      "decision": 345,
+      "seed": 4,
+      "perturb": 7,
+      "end": "died",
+      "decisions": 18,
+      "coins_gained": 0,
+      "min_dist": 16252.8
+    }
+  ],
+  "from_start": {
+    "end": "died",
+    "decisions": 671,
+    "coins_gained": 21,
+    "min_dist": 5137.6
+  },
+  "model": "models/ds3_bc_c12.zip"
+}
