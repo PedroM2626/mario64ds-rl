@@ -489,7 +489,11 @@ def ds3_template_checks(readme):
     last = ft[-1]
     want += [f"{last['steps_since_start'] // 1000}k steps it", f"dies after {last['from_start']['decisions']} decisions",
              f"with {last['from_start']['coins_gained']} coins", f"{last['hard_spot_reached']} of 4 hard-spot"]
-    ok = all(w in flat for w in want) and all(r["arrow_died"] == 4 for r in ft) and         all(x["recall"] == 1.0 for x in tb.values())
+    dv = load(os.path.join(ROOT, "results", "dive_b.json"))
+    dr = load(os.path.join(ROOT, "results", "dive_refine_285.json"))
+    want += [f"(0 of {dv['n']:,})".replace("0 of", f"{dv['finished']} of"), f"it is {dv['top'][0]['best']:,.1f}",
+             f"stops at {dr['best']:,.1f}"]
+    ok = all(w in flat for w in want) and all(r["arrow_died"] == 4 for r in ft) and         all(x["recall"] == 1.0 for x in tb.values()) and dv["finished"] == 0 and not dr["finish"]
     check("ds3 template and fine-tune results", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 

@@ -294,6 +294,18 @@ entropy bonus, resets on route and arrow savestates. After the warm-up the agent
 dies after 210 decisions from the real start with 5 coins, 0 of 4 arrow states reach the goal
 and 2 of 4 hard-spot states do. PPO did not improve the clone.
 
+**Dive search for the finish** (`scripts/dive_search.py`, `scripts/dive_refine.py`,
+[`results/dive_b.json`](results/dive_b.json), [`results/dive_refine_285.json`](results/dive_refine_285.json)):
+the earlier searches kept only branches that survive, so they could not find a dive that
+passes the finish and then falls. This one shoots random rollouts (an action held 1 to 20
+decisions, 250 decisions) from each of the 49 route savestates, 150 each (7,350 in
+all), with no survival requirement, and records the closest approach to the finish. None enters the finish
+region (0 of 7,350). The closest approach from the plank path (decisions 600-720) is
+4,264.8; from the decisions around the red arrow (285-345) it is 2,833.7, along a dive off the
+track. Refining that dive (480 rollouts per stage) stops at 3,412.1: Mario is put back at
+the start of the slide once he falls below $Y pprox -11{,}000$ there, above the finish height ($Y = -13{,}646$),
+so the finish cannot be reached by diving from that side. No finish was found by search.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
