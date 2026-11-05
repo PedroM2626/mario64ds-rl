@@ -1,0 +1,71 @@
+{
+  "template": "images/coins.png",
+  "heights": [
+    7,
+    9,
+    12,
+    16,
+    21,
+    28,
+    37,
+    48
+  ],
+  "route": "config/routes/ds3_search_route_v1.json",
+  "frames": 2868,
+  "collection_events": 28,
+  "lookback": 60,
+  "horizon": 120,
+  "overlay_threshold": 0.6,
+  "thresholds": {
+    "0.50": {
+      "positive_frames": 0.999302649930265,
+      "recall": 1.0,
+      "false_positive_upper_bound": 0.3956734124214934,
+      "lead_frames_median": 300.0,
+      "lead_frames_p25": 210.5,
+      "lead_frames_p75": 300.0,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 1.0
+    },
+    "0.60": {
+      "positive_frames": 0.9762900976290098,
+      "recall": 1.0,
+      "false_positive_upper_bound": 0.3914285714285714,
+      "lead_frames_median": 86.0,
+      "lead_frames_p25": 62.5,
+      "lead_frames_p75": 217.0,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 0.5625
+    },
+    "0.70": {
+      "positive_frames": 0.6070432357043236,
+      "recall": 1.0,
+      "false_positive_upper_bound": 0.4250430786904078,
+      "lead_frames_median": 6.0,
+      "lead_frames_p25": 2.0,
+      "lead_frames_p75": 18.5,
+      "arrow_stretch_positive": 0.6125,
+      "arrow_stretch_blob_right_of_centre": 0.175
+    },
+    "0.80": {
+      "positive_frames": 0.00906555090655509,
+      "recall": 0.07142857142857142,
+      "false_positive_upper_bound": 0.38461538461538464,
+      "lead_frames_median": 0.0,
+      "lead_frames_p25": 0.0,
+      "lead_frames_p75": 0.0,
+      "arrow_stretch_positive": 0.0,
+      "arrow_stretch_blob_right_of_centre": 0.0
+    },
+    "0.90": {
+      "positive_frames": 0.0,
+      "recall": 0.0,
+      "false_positive_upper_bound": 0.0,
+      "lead_frames_median": 0.0,
+      "lead_frames_p25": 0.0,
+      "lead_frames_p75": 0.0,
+      "arrow_stretch_positive": 0.0,
+      "arrow_stretch_blob_right_of_centre": 0.0
+    }
+  }
+}

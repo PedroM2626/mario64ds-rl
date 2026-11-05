@@ -1,0 +1,53 @@
+{
+  "mode": "game",
+  "template": "crops from the game frames",
+  "evaluated_events": 14,
+  "heights": [
+    7,
+    9,
+    12,
+    16,
+    21,
+    28,
+    37,
+    48
+  ],
+  "route": "config/routes/ds3_search_route_v1.json",
+  "frames": 2868,
+  "collection_events": 28,
+  "lookback": 60,
+  "horizon": 120,
+  "overlay_threshold": 0.8,
+  "thresholds": {
+    "0.60": {
+      "positive_frames": 1.0,
+      "recall": 1.0,
+      "false_positive_upper_bound": 0.39539748953974896,
+      "lead_frames_median": 300.0,
+      "lead_frames_p25": 300.0,
+      "lead_frames_p75": 300.0,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 1.0
+    },
+    "0.70": {
+      "positive_frames": 0.9644351464435147,
+      "recall": 1.0,
+      "false_positive_upper_bound": 0.39117859725235,
+      "lead_frames_median": 79.0,
+      "lead_frames_p25": 56.5,
+      "lead_frames_p75": 190.75,
+      "arrow_stretch_positive": 1.0,
+      "arrow_stretch_blob_right_of_centre": 0.975
+    },
+    "0.80": {
+      "positive_frames": 0.5620641562064156,
+      "recall": 1.0,
+      "false_positive_upper_bound": 0.29404466501240695,
+      "lead_frames_median": 4.0,
+      "lead_frames_p25": 2.0,
+      "lead_frames_p75": 5.5,
+      "arrow_stretch_positive": 0.775,
+      "arrow_stretch_blob_right_of_centre": 0.775
+    }
+  }
+}
