@@ -416,6 +416,24 @@ def ds3_route_run_checks(readme):
     check("ds3 route-start PPO result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_qrdqn_checks(readme):
+    """The QR-DQN sentence must equal results/qrdqn_ds3_route.json."""
+    path = os.path.join(ROOT, "results", "qrdqn_ds3_route.json")
+    if not os.path.exists(path):
+        check("qrdqn_ds3_route.json", "present", "missing")
+        return
+    d = load(path)
+    rows = d["checkpoints"]
+    evals = [a for m in rows for a in m["arrow_states"]]
+    passes = sum(a["end"] == "finish" for a in evals)
+    best_arrow = min(a["min_dist"] for a in evals)
+    best_start = min(m["from_start"]["min_dist"] for m in rows)
+    want = [f"({passes} of {len(evals)})", f"{_num(best_arrow)} from the goal", f"{_num(best_start)} (800k)"]
+    flat = " ".join(readme.split())
+    ok = passes == 0 and all(w in flat for w in want)
+    check("ds3 QR-DQN result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -469,6 +487,7 @@ def main():
     ds3_gap_training_checks(readme)
     ds3_coins_checks(readme)
     ds3_route_run_checks(readme)
+    ds3_qrdqn_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

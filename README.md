@@ -234,6 +234,19 @@ passed. From the real start no checkpoint passed the arrow; the closest was
 14,951.9 from the goal (final model), along the skull route that the policy
 converged to instead of the planks.
 
+**The same with QR-DQN + IMPALA (`qrdqn_ds3_route`, 1M steps,
+[`results/qrdqn_ds3_route.json`](results/qrdqn_ds3_route.json)).** Same
+savestates and rewards, plus the found route as a replay demonstration (717
+decisions, 10 copies at the start and one more every 10k steps, about 7% of the
+buffer) and exploration that holds a random action for up to 16 decisions.
+Evaluated every 100k steps: no checkpoint reached the gap goal from any of the
+four arrow savestates (0 of 40). The best was the 100k checkpoint from the
+decision-345 savestate: +12 coins and 7,537.1 from the goal before dying at
+decision 426, the closest of any non-passing run, but it was not repeated from
+200k to 1M steps. From the start the arrow was not passed either; the closest
+was 15,658.4 (800k), by the skull route. Neither algorithm has learned the
+manoeuvre, although the demonstration contains it.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
