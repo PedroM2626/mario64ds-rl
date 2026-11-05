@@ -43,7 +43,15 @@ def make_policy(controller, model_path, bundle, device):
     """Returns (reset_fn(obs), act_fn(obs) -> int) sharing SB3's [0,0,0,frame] stack."""
     import torch
     dq = deque(maxlen=4)
-    if controller == "ppo":
+    if controller == "qrdqn":
+        from sb3_contrib import QRDQN
+        qmodel = QRDQN.load(model_path, device=device)
+
+        def act(obs):
+            dq.append(obs[:, :, 0])
+            x = np.stack(list(dq), axis=0)[None]
+            return int(qmodel.predict(x, deterministic=True)[0][0])
+    elif controller == "ppo":
         from src.eval import _load_sb3_with_legacy_patch
         from stable_baselines3 import PPO
         model = _load_sb3_with_legacy_patch(PPO, model_path, device=device)

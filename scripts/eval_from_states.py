@@ -28,6 +28,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
     ap.add_argument("--states", required=True, help="glob of savestates")
+    ap.add_argument("--algo", default="ppo", choices=["ppo", "qrdqn"])
     ap.add_argument("--track", default="ds3")
     ap.add_argument("--max-steps", type=int, default=300)
     ap.add_argument("--goal-pos", default=None, help="x,y,z of an intermediate goal (as in train_curriculum)")
@@ -40,16 +41,19 @@ def main():
     from src.envs import rom_path
     from src.ram_state import TRACK_GOALS
     goal = TRACK_GOALS[args.track]["target_pos"]
-    from stable_baselines3 import PPO
+    if args.algo == "qrdqn":
+        from sb3_contrib import QRDQN as Algo
+    else:
+        from stable_baselines3 import PPO as Algo
     paths = sorted(glob.glob(os.path.join(ROOT_DIR, args.states)))
-    n_actions = int(PPO.load(os.path.join(ROOT_DIR, args.model), device="cpu").action_space.n)
+    n_actions = int(Algo.load(os.path.join(ROOT_DIR, args.model), device="cpu").action_space.n)
     target = goal if not args.goal_pos else np.array([float(v) for v in args.goal_pos.split(",")])
     env = Mario64DSEnv(rom_path=rom_path(), state_path=paths[0], max_steps=args.max_steps, flow_weight=0.0,
                        dist_reward_enabled=False, track_id=args.track,
                        action_set={6: "legacy6", 12: "compound12"}[n_actions],
                        goal_override=None if not args.goal_pos else
                        {"pos": target.tolist(), "radius": args.goal_radius})
-    reset, act = make_policy("ppo", os.path.join(ROOT_DIR, args.model), None, "cpu")
+    reset, act = make_policy(args.algo, os.path.join(ROOT_DIR, args.model), None, "cpu")
     rows = []
     for p in paths:
         env.state_path = p

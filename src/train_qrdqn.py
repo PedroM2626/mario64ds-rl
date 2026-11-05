@@ -24,7 +24,7 @@ except ImportError:
 import numpy as np
 from sb3_contrib import QRDQN
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecFrameStack, VecTransposeImage
-from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback, BaseCallback
 
 from src.artifacts import log_model_reference
 from src.envs import build_vec, make_env, savestate_paths
@@ -110,6 +110,18 @@ def main():
     parser.add_argument("--demo", action="append", default=[],
                         help="Recorded attempt folder to replay into the replay buffer before "
                              "learning (repeatable)")
+    parser.add_argument("--hold-max", type=int, default=1,
+                        help="Exploration holds a random action for 1..N decisions (1 = plain "
+                             "epsilon-greedy); see src/qrdqn_extras.py")
+    parser.add_argument("--demo-copies", type=int, default=1,
+                        help="Times each --demo is added to the replay buffer before learning")
+    parser.add_argument("--demo-refresh-every", type=int, default=0,
+                        help="Re-add the demos every N environment steps so they never age out (0 = off)")
+    parser.add_argument("--demo-refresh-copies", type=int, default=1,
+                        help="Copies of the demos added at each refresh")
+    parser.add_argument("--eval-freq", type=int, default=5000)
+    parser.add_argument("--checkpoint-every", type=int, default=0,
+                        help="Also save the model every N environment steps (0 = off)")
     parser.add_argument("--learning-starts", type=int, default=100,
                         help="Environment steps collected before gradient updates (SB3 default 100)")
     parser.add_argument("--death-rule", choices=["position", "struct"], default="position",
@@ -197,13 +209,14 @@ def main():
 
     eval_callback = EvalCallback(
         eval_env, best_model_save_path=best_model_dir, log_path=log_path,
-        eval_freq=5000, n_eval_episodes=3,
+        eval_freq=args.eval_freq, n_eval_episodes=3,
         deterministic=not args.eval_stochastic, render=False,
     )
 
     policy, policy_kwargs = build_policy_kwargs(args.features)
-    model = QRDQN(
-        policy, train_envs, verbose=1, tensorboard_log=log_path,
+    from src.qrdqn_extras import DemoRefreshCallback, HoldQRDQN
+    model = HoldQRDQN(
+        policy, train_envs, verbose=1, tensorboard_log=log_path, hold_max=args.hold_max,
         learning_rate=args.lr, batch_size=args.batch_size,
         buffer_size=args.buffer_size,
         exploration_fraction=args.exploration_fraction,
@@ -213,7 +226,7 @@ def main():
     )
     print(f"Starting QR-DQN ({args.features}) | device={model.device} | envs={args.n_envs} | buffer={args.buffer_size}")
 
-    demo_added = 0
+    demo_added, demo_transitions = 0, []
     if args.demo:
         from src.demos import load_demo, prefill_replay_buffer, replay_transitions
         for d in args.demo:
@@ -227,7 +240,8 @@ def main():
                 dist_reward_enabled=args.dist_reward, dist_weight=args.dist_weight,
                 goal_reward=args.goal_reward, star_reward=args.star_reward,
                 use_ram_death=args.use_ram_death, dist_reward_mode=args.dist_mode, **env_extra)
-            added = prefill_replay_buffer(model, transitions)
+            demo_transitions += transitions
+            added = sum(prefill_replay_buffer(model, transitions) for _ in range(args.demo_copies))
             demo_added += added
             print(f"Demo {d}: replayed {len(transitions)} decisions "
                   f"({sum(t['exact'] for t in transitions)} exact), "
@@ -267,6 +281,10 @@ def main():
         "full_start_prob": args.full_start_prob,
         "demos": ",".join(args.demo),
         "demo_transitions": demo_added,
+        "demo_copies": args.demo_copies,
+        "demo_refresh_every": args.demo_refresh_every,
+        "demo_refresh_copies": args.demo_refresh_copies,
+        "hold_max": args.hold_max,
         "learning_starts": args.learning_starts,
         "eval_deterministic": not args.eval_stochastic,
         "requested_device": args.device,
@@ -285,6 +303,14 @@ def main():
                 mlflow.log_param(k, v)
         try:
             callbacks = [eval_callback]
+            if demo_transitions and args.demo_refresh_every > 0:
+                callbacks.append(DemoRefreshCallback(
+                    demo_transitions, args.demo_refresh_every,
+                    lambda m, tr: [prefill_replay_buffer(m, tr) for _ in range(args.demo_refresh_copies)]))
+            if args.checkpoint_every > 0:
+                callbacks.append(CheckpointCallback(
+                    save_freq=max(1, args.checkpoint_every // args.n_envs),
+                    save_path=os.path.join(best_model_dir, "checkpoints"), name_prefix="step"))
             if mlflow is not None:
                 callbacks.append(MLflowCallback())
             model.learn(total_timesteps=args.timesteps,
