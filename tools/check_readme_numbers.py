@@ -469,6 +469,30 @@ def ds3_detector_checks(readme):
     check("ds3 coin-detector result", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ds3_template_checks(readme):
+    """The template-matching and fine-tune paragraphs must equal their result files."""
+    flat = " ".join(readme.split())
+    a = os.path.join(ROOT, "results", "ds3_coin_template.json")
+    b = os.path.join(ROOT, "results", "ds3_coin_template_game.json")
+    f = os.path.join(ROOT, "results", "ds3_finetune.json")
+    if not all(os.path.exists(x) for x in (a, b, f)):
+        check("ds3 template/fine-tune json", "present", "missing")
+        return
+    ta, tb, ft = load(a)["thresholds"], load(b)["thresholds"], load(f)["checkpoints"]
+    want = [f"{ta['0.60']['positive_frames'] * 100:.1f}% of frames",
+            f"at 0.7 in {ta['0.70']['positive_frames'] * 100:.1f}%",
+            f"median lead of {ta['0.70']['lead_frames_median']:.0f} frames",
+            f"finds {round(ta['0.80']['recall'] * 28)} of 28",
+            f"{tb['0.60']['positive_frames'] * 100:.1f}%, {tb['0.70']['positive_frames'] * 100:.1f}% and "
+            f"{tb['0.80']['positive_frames'] * 100:.1f}% of frames",
+            f"median lead is {tb['0.80']['lead_frames_median']:.0f} frames"]
+    last = ft[-1]
+    want += [f"{last['steps_since_start'] // 1000}k steps it", f"dies after {last['from_start']['decisions']} decisions",
+             f"with {last['from_start']['coins_gained']} coins", f"{last['hard_spot_reached']} of 4 hard-spot"]
+    ok = all(w in flat for w in want) and all(r["arrow_died"] == 4 for r in ft) and         all(x["recall"] == 1.0 for x in tb.values())
+    check("ds3 template and fine-tune results", "; ".join(want), "quoted" if ok else "absent", ok=ok)
+
+
 def ttc_checks(readme):
     """The TTC status table must equal results/route_starts_*.json and the v4 dashboard."""
     block = _section(readme, "### Tick Tock Clock: human route", "### Savestate")
@@ -525,6 +549,7 @@ def main():
     ds3_qrdqn_checks(readme)
     ds3_clone_checks(readme)
     ds3_detector_checks(readme)
+    ds3_template_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

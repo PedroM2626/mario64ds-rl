@@ -1,0 +1,158 @@
+{
+  "run": "ds3_finetune3",
+  "settings": "lr 1e-5, target_kl 0.02, clip 0.1, ent 0, value warm-up 100k, 800k steps",
+  "checkpoints": [
+    {
+      "checkpoint_steps": 1670000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        5138,
+        5138,
+        5138,
+        5138
+      ],
+      "hard_spot_reached": 4,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 671,
+        "coins_gained": 21,
+        "min_dist": 5137.6
+      },
+      "steps_since_start": 100000
+    },
+    {
+      "checkpoint_steps": 1770000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        15077,
+        15077,
+        15077,
+        16335
+      ],
+      "hard_spot_reached": 3,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 118,
+        "coins_gained": 10,
+        "min_dist": 22915.9
+      },
+      "steps_since_start": 200000
+    },
+    {
+      "checkpoint_steps": 1870000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        16085,
+        16085,
+        16085,
+        16363
+      ],
+      "hard_spot_reached": 2,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 487,
+        "coins_gained": 11,
+        "min_dist": 15693.5
+      },
+      "steps_since_start": 300000
+    },
+    {
+      "checkpoint_steps": 1970000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        15060,
+        15130,
+        15092,
+        16454
+      ],
+      "hard_spot_reached": 3,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 332,
+        "coins_gained": 8,
+        "min_dist": 22661.9
+      },
+      "steps_since_start": 400000
+    },
+    {
+      "checkpoint_steps": 2070000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        15391,
+        15391,
+        16080,
+        17082
+      ],
+      "hard_spot_reached": 2,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 166,
+        "coins_gained": 0,
+        "min_dist": 22723.4
+      },
+      "steps_since_start": 500000
+    },
+    {
+      "checkpoint_steps": 2170000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        15378,
+        15378,
+        15366,
+        17070
+      ],
+      "hard_spot_reached": 2,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 314,
+        "coins_gained": 0,
+        "min_dist": 23035.2
+      },
+      "steps_since_start": 600000
+    },
+    {
+      "checkpoint_steps": 2270000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        15407,
+        15407,
+        15493,
+        17090
+      ],
+      "hard_spot_reached": 1,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 205,
+        "coins_gained": 0,
+        "min_dist": 23032.6
+      },
+      "steps_since_start": 700000
+    },
+    {
+      "checkpoint_steps": 2370000,
+      "arrow_died": 4,
+      "arrow_min_dist": [
+        15407,
+        15407,
+        15062,
+        17208
+      ],
+      "hard_spot_reached": 2,
+      "hard_spot_states": 4,
+      "from_start": {
+        "end": "died",
+        "decisions": 210,
+        "coins_gained": 5,
+        "min_dist": 23028.0
+      },
+      "steps_since_start": 800000
+    }
+  ]
+}

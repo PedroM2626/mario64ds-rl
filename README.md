@@ -275,6 +275,25 @@ which is no better than the collection reward itself. The coins of the plank pat
 the red arrow are small and olive-coloured on the sand and are mostly missed by it.
 A colour detector is therefore not a reliable long-range "coin ahead" signal here.
 
+**Template matching instead of colour**
+(`scripts/probe_coin_template.py`, [`results/ds3_coin_template.json`](results/ds3_coin_template.json),
+[`results/ds3_coin_template_game.json`](results/ds3_coin_template_game.json)) on the same
+2,868 frames. With the coin picture of `images/coins.png` at eight scales, the score
+threshold trades recall for noise: at 0.6 it is positive in 97.6% of frames, at 0.7 in 60.7%
+with a median lead of 6 frames, at 0.8 it finds 2 of 28 collections. With templates cropped from the game itself
+(training on 14 collection events, scoring the other 14) all 14 are found at 0.6, 0.7 and 0.8,
+but the detector is positive in 100.0%, 96.4% and 56.2% of frames, and at 0.8 the median lead
+is 4 frames. The image detectors find the coins but do not say which one to go for, so no
+image-based coin signal was usable on `ds3`.
+
+**PPO fine-tune of the clone** (`scripts/run_ds3_finetune.sh`,
+[`results/ds3_finetune.json`](results/ds3_finetune.json)): value-head warm-up for 100k steps
+with the policy frozen, then 700k steps at learning rate 1e-5, `target_kl` 0.02, clip 0.1, no
+entropy bonus, resets on route and arrow savestates. After the warm-up the agent is the clone (dies at decision 671,
+0 of 4 arrow states reach the goal). Once the policy updates it gets worse: at 800k steps it
+dies after 210 decisions from the real start with 5 coins, 0 of 4 arrow states reach the goal
+and 2 of 4 hard-spot states do. PPO did not improve the clone.
+
 A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
 accepts the slide finish as a completed run), then
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
