@@ -145,11 +145,17 @@ The runs differ in the number of steps they reach in 60 minutes, not in a fixed 
 
 What this shows and does not show:
 
-- None of the three finished `ds1` or `ds3` in one hour, and all three finished `ds2`. The final agent
-  needed about 5.5 hours, so these runs are far shorter than it, and this ablation **does not separate
-  the algorithm from the action set**: all three look the same where it matters.
+- None of the three finished `ds1` or `ds3` in one hour, and all three finished `ds2`. This ablation
+  **does not separate the algorithm from the action set**: all three look the same where it matters.
 - It therefore does not support "the reward mattered most" either. The runs share the reward and the
-  episode rules, so nothing here varies them, and a longer run might separate the algorithms.
+  episode rules, so nothing here varies them.
+- **The control did not reproduce the original run at the same time.** The first coin-only run
+  (`btr_ref10`, same algorithm and actions, no finish reward) averaged 65.3, 41.2 and 40.0 coins per
+  training episode on ds1, ds2 and ds3 after 59.7 minutes (640,005 steps); the control averaged
+  13.8, 54.9 and 12.7 after 58.3 minutes (420,000 steps). So "one hour is too short" is not the whole
+  explanation. The control differs from that run in the finish reward (+20 from scratch), in the number
+  of steps reached in the hour (420,000 against 640,005) and in the schedule length (`--steps` 20M
+  against 30M); whether any of these, or a single seed, explains the gap was **not tested**.
 - The control reached a smaller closest distance on `ds1` than the other two (a median of 4063 against 8594 and
   9388). With one seed per run and 20 episodes this is a hint, not a result.
 - PPO's hyper-parameters are common Atari defaults and were not tuned, which counts against it.
