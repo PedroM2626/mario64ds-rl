@@ -295,14 +295,13 @@ def ablation_checks(readme):
     def _row(run, steps):
         with open(os.path.join(ROOT, "results", f"{run}_train.csv"), newline="", encoding="utf-8") as fh:
             return next(r for r in _csv.DictReader(fh) if int(r["steps"]) == steps)
-    o, k, q = _row("btr_ref10", 640005), _row("abl_control", 420000), _row("abl_orig", 580005)
     flat = " ".join(readme.split())
-    want = [f"{float(o['ds1_coins']):.1f}, {float(o['ds2_coins']):.1f} and {float(o['ds3_coins']):.1f} coins",
-            f"after {float(o['minutes']):.1f} minutes (640,005 steps)",
-            f"{float(k['ds1_coins']):.1f}, {float(k['ds2_coins']):.1f} and {float(k['ds3_coins']):.1f} after {float(k['minutes']):.1f} minutes (420,000 steps)",
-            f"{float(q['ds1_coins']):.1f}, {float(q['ds2_coins']):.1f} and {float(q['ds3_coins']):.1f} after {float(q['minutes']):.1f} minutes (580,005 steps)"]
-    check("ablation control vs the original run at one hour", "; ".join(want), "quoted" if all(w in flat for w in want) else "absent",
-          ok=all(w in flat for w in want))
+    def _cells(run, steps):
+        r = _row(run, steps)
+        return f"{float(r['ds1_coins']):.1f} / {float(r['ds2_coins']):.1f} / {float(r['ds3_coins']):.1f}"
+    for steps, runs in ((420000, ("btr_ref10", "abl_orig", "abl_control")), (580005, ("btr_ref10", "abl_orig"))):
+        want = f"| {steps:,} | " + " | ".join(_cells(r, steps) for r in runs)
+        check(f"ablation coins at {steps:,} steps", want, "quoted" if want in flat else "absent", ok=want in flat)
 
 
 def rust_checks(readme):

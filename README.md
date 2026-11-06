@@ -150,15 +150,20 @@ What this shows and does not show:
   **does not separate the algorithm from the action set**: all three look the same where it matters.
 - It therefore does not support "the reward mattered most" either. The runs share the reward and the
   episode rules, so nothing here varies them.
-- **Neither the control nor a rerun of the original recipe reproduced the original run at one hour.** The
-  first coin-only run (`btr_ref10`) averaged 65.3, 41.2 and 40.0 coins per training episode on ds1, ds2
-  and ds3 after 59.7 minutes (640,005 steps); the control averaged 13.8, 54.9 and 12.7 after 58.3 minutes
-  (420,000 steps). The `orig` row reruns the original recipe (coin reward only, `--steps` 30M, same seed
-  argument, same code for the environment): it averaged 15.0, 39.1 and 23.6 after 58.2 minutes
-  (580,005 steps), again far from 65 on ds1. The simplest reading is that one-hour outcomes differ a lot
-  from run to run (the emulator is not deterministic, so the same seed argument does not give the same
-  run), which makes single runs a poor basis for comparing algorithms; this was not tested with
-  repeated seeds, and a change in the machine's load between the runs cannot be ruled out.
+- **The runs differ in speed, so they are compared at equal numbers of steps** (mean coins per training
+  episode on ds1 / ds2 / ds3; `orig` is a rerun of the first coin-only run `btr_ref10`: coin reward only,
+  `--steps` 30M, same seed argument, same environment code):
+
+  | Steps | `btr_ref10` (first run) | `orig` (rerun) | control (+20 at the finish) |
+  |---|---|---|---|
+  | 420,000 | 19.3 / 38.2 / 23.6 | 14.0 / 34.5 / 13.7 | 13.8 / 54.9 / 12.7 |
+  | 580,005 | 54.6 / 41.7 / 34.4 | 15.0 / 39.1 / 23.6 | not reached in 60 minutes |
+
+  At 420,000 steps the runs are close. By 580,005 steps the first run has jumped on ds1 (from 19.3 to
+  54.6 coins) and the rerun has not (15.0). Whether the rerun would jump with more steps was not
+  tested; the emulator is not deterministic, so the same seed argument does not give the same run, and
+  one run per setting says little about the setting. A difference in machine load between the runs
+  cannot be ruled out.
 - The control reached a smaller closest distance on `ds1` than the other two (a median of 4063 against 8594 and
   9388). With one seed per run and 20 episodes this is a hint, not a result.
 - PPO's hyper-parameters are common Atari defaults and were not tuned, which counts against it.
