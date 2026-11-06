@@ -33,6 +33,8 @@ def main():
                     help="perturbed starts: each episode first plays a random number (0..N) of random actions, one "
                          "decision each; a perturbation that ends the episode is redrawn (up to 5 times)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--action-set", default="ref10", choices=["ref10", "legacy6", "compound12"])
+    ap.add_argument("--algo", default="btr", choices=["btr", "ppo"], help="btr: scripts/train_btr.py checkpoint; ppo: scripts/train_ppo_ref.py")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     tracks = [t.strip() for t in args.tracks.split(",") if t.strip()]
@@ -47,7 +49,8 @@ def main():
             os.close(fd)
             subprocess.run([sys.executable, os.path.abspath(__file__), "--model", args.model, "--tracks", t,
                             "--max-steps", str(args.max_steps), "--episodes", str(args.episodes),
-                            "--device", args.device, "--start-random", str(args.start_random), "--out", tmp],
+                            "--device", args.device, "--start-random", str(args.start_random), "--action-set", args.action_set,
+                            "--algo", args.algo, "--out", tmp],
                            capture_output=True, text=True, cwd=ROOT_DIR)
             with open(tmp, encoding="utf-8") as fh:
                 child = json.load(fh)["rows"]
@@ -59,7 +62,8 @@ def main():
                 print(f"WARNING: {t}: {len(child)} of {args.episodes} episodes", flush=True)
         if args.out:
             with open(os.path.join(ROOT_DIR, args.out), "w", encoding="utf-8") as fh:
-                json.dump({"model": args.model, "start_random": args.start_random, "rows": rows}, fh, indent=1)
+                json.dump({"model": args.model, "start_random": args.start_random, "action_set": args.action_set,
+                       "algo": args.algo, "rows": rows}, fh, indent=1)
         return
 
     from scripts.train_btr import ref_env_kwargs
@@ -67,12 +71,23 @@ def main():
     from src.env import Mario64DSEnv
     from src.envs import rom_path, savestate_path
 
-    agent = BTRAgent(10, device=args.device)
-    agent.load(os.path.join(ROOT_DIR, args.model))
+    from src.env import ACTION_SETS
+    n_actions = len(ACTION_SETS[args.action_set][0])
+    if args.algo == "ppo":
+        from stable_baselines3 import PPO
+        ppo = PPO.load(os.path.join(ROOT_DIR, args.model), device="cpu")
+
+        class _Agent:
+            def act(self, stacks, noisy=False):
+                return ppo.predict(stacks, deterministic=True)[0]
+        agent = _Agent()
+    else:
+        agent = BTRAgent(n_actions, device=args.device)
+        agent.load(os.path.join(ROOT_DIR, args.model))
     rows = []
     for track in tracks:
         env = Mario64DSEnv(rom_path=rom_path(), state_path=savestate_path(track), max_steps=args.max_steps,
-                           track_id=track, **ref_env_kwargs(track))
+                           track_id=track, **ref_env_kwargs(track, action_set=args.action_set))
         for ep in range(args.episodes):
             rng = np.random.RandomState(args.seed * 100003 + ep)
             k = 0
@@ -81,7 +96,7 @@ def main():
                 dq = deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[:, :, 0]], maxlen=4)
                 k, ended = (int(rng.randint(0, args.start_random + 1)) if args.start_random else 0), False
                 for _ in range(k):
-                    obs, _, term, trunc, _ = env.step(int(rng.randint(10)))
+                    obs, _, term, trunc, _ = env.step(int(rng.randint(n_actions)))
                     dq.append(obs[:, :, 0])
                     if term or trunc:
                         ended = True
@@ -104,7 +119,8 @@ def main():
         env.close()
     if args.out:
         with open(os.path.join(ROOT_DIR, args.out), "w", encoding="utf-8") as fh:
-            json.dump({"model": args.model, "start_random": args.start_random, "rows": rows}, fh, indent=1)
+            json.dump({"model": args.model, "start_random": args.start_random, "action_set": args.action_set,
+                       "algo": args.algo, "rows": rows}, fh, indent=1)
 
 
 if __name__ == "__main__":

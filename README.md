@@ -121,8 +121,8 @@ measured in the end rooms.
 - Three things changed between the earlier PPO work in this file and this agent at the same time:
   the algorithm (value-based BTR-style instead of PPO), the reward (coins instead of optical flow
   and distance) and the episode rules (black-screen death off, game respawn and long free fall
-  counted as death, finish region), plus the action set. No controlled ablation separates their
-  effects, so this README does not say which of them mattered most.
+  counted as death, finish region), plus the action set. The only ablation run (below) was too short
+  to separate any of them, so this README does not say which of them mattered most.
 - Apart from the perturbed-start run above, all evaluations start from the training savestates, and no
   other start positions were tested. The checkpoint was picked after looking at the 500k, 750k and 1M
   evaluations (three looks, one chosen).
@@ -130,6 +130,29 @@ measured in the end rooms.
 - The statements about `ds3` further down in this file (the open problem, the dead-end route, the
   PPO, QR-DQN, behaviour-cloning and search experiments) describe those experiments at the time
   and are kept as the record of what did not work; `ds3` is finished by the agent above.
+
+**Ablation attempt: algorithm and action set, 1 hour each.** Three runs from scratch, one at a time, each
+trained for 60 minutes of wall-clock time with the same environment, episode rules and reward as the
+final agent (+1 per coin, +20 at the finish), then evaluated greedily for 20 episodes per slide
+(`scripts/run_ablation.sh`; results in `results/abl_*_eval_x20.json`, training logs in `results/abl_*_train.csv`).
+The runs differ in the number of steps they reach in 60 minutes, not in a fixed step budget.
+
+| Run | Algorithm, actions | Steps in 60 min (last logged) | ds1 | ds2 | ds3 | Median closest distance to the finish, ds1 / ds3 |
+|---|---|---|---|---|---|---|
+| control | BTR-style, 10 actions | 420,000 | 0 of 20 | 20 of 20 | 0 of 20 | 4063 / 12007 |
+| ppo | PPO, 10 actions | 920,010 | 0 of 20 | 20 of 20 | 0 of 20 | 8594 / 14855 |
+| legacy6 | BTR-style, 6 actions | 500,010 | 0 of 20 | 20 of 20 | 0 of 20 | 9388 / 12137 |
+
+What this shows and does not show:
+
+- None of the three finished `ds1` or `ds3` in one hour, and all three finished `ds2`. The final agent
+  needed about 5.5 hours, so these runs are far shorter than it, and this ablation **does not separate
+  the algorithm from the action set**: all three look the same where it matters.
+- It therefore does not support "the reward mattered most" either. The runs share the reward and the
+  episode rules, so nothing here varies them, and a longer run might separate the algorithms.
+- The control reached a smaller closest distance on `ds1` than the other two (a median of 4063 against 8594 and
+  9388). With one seed per run and 20 episodes this is a hint, not a result.
+- PPO's hyper-parameters are common Atari defaults and were not tuned, which counts against it.
 
 Reproduce:
 

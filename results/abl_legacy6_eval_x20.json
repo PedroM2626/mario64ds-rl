@@ -1,0 +1,548 @@
+{
+ "model": "models/abl_legacy6/final.pt",
+ "start_random": 0,
+ "action_set": "legacy6",
+ "algo": "btr",
+ "rows": [
+  {
+   "track": "ds1",
+   "episode": 0,
+   "end": "died",
+   "decisions": 399,
+   "coins_gained": 14,
+   "min_dist": 9330.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 1,
+   "end": "died",
+   "decisions": 400,
+   "coins_gained": 14,
+   "min_dist": 9409.2,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 2,
+   "end": "died",
+   "decisions": 374,
+   "coins_gained": 14,
+   "min_dist": 9446.4,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 3,
+   "end": "died",
+   "decisions": 389,
+   "coins_gained": 14,
+   "min_dist": 9424.5,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 4,
+   "end": "died",
+   "decisions": 399,
+   "coins_gained": 12,
+   "min_dist": 9388.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 5,
+   "end": "died",
+   "decisions": 302,
+   "coins_gained": 13,
+   "min_dist": 7575.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 6,
+   "end": "died",
+   "decisions": 397,
+   "coins_gained": 14,
+   "min_dist": 9396.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 7,
+   "end": "died",
+   "decisions": 307,
+   "coins_gained": 13,
+   "min_dist": 7830.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 8,
+   "end": "died",
+   "decisions": 394,
+   "coins_gained": 15,
+   "min_dist": 9414.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 9,
+   "end": "died",
+   "decisions": 313,
+   "coins_gained": 13,
+   "min_dist": 6860.1,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 10,
+   "end": "died",
+   "decisions": 396,
+   "coins_gained": 14,
+   "min_dist": 9459.5,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 11,
+   "end": "died",
+   "decisions": 397,
+   "coins_gained": 14,
+   "min_dist": 9346.1,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 12,
+   "end": "died",
+   "decisions": 305,
+   "coins_gained": 13,
+   "min_dist": 7595.4,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 13,
+   "end": "died",
+   "decisions": 299,
+   "coins_gained": 13,
+   "min_dist": 6390.2,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 14,
+   "end": "died",
+   "decisions": 402,
+   "coins_gained": 14,
+   "min_dist": 9387.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 15,
+   "end": "died",
+   "decisions": 305,
+   "coins_gained": 13,
+   "min_dist": 7096.9,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 16,
+   "end": "died",
+   "decisions": 305,
+   "coins_gained": 13,
+   "min_dist": 7019.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 17,
+   "end": "died",
+   "decisions": 395,
+   "coins_gained": 15,
+   "min_dist": 9389.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 18,
+   "end": "died",
+   "decisions": 397,
+   "coins_gained": 14,
+   "min_dist": 9459.7,
+   "random_actions": 0
+  },
+  {
+   "track": "ds1",
+   "episode": 19,
+   "end": "died",
+   "decisions": 395,
+   "coins_gained": 15,
+   "min_dist": 9857.2,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 0,
+   "end": "finish",
+   "decisions": 424,
+   "coins_gained": 37,
+   "min_dist": 839.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 1,
+   "end": "finish",
+   "decisions": 391,
+   "coins_gained": 37,
+   "min_dist": 863.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 2,
+   "end": "finish",
+   "decisions": 405,
+   "coins_gained": 35,
+   "min_dist": 812.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 3,
+   "end": "finish",
+   "decisions": 401,
+   "coins_gained": 36,
+   "min_dist": 831.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 4,
+   "end": "finish",
+   "decisions": 413,
+   "coins_gained": 37,
+   "min_dist": 911.4,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 5,
+   "end": "finish",
+   "decisions": 417,
+   "coins_gained": 36,
+   "min_dist": 811.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 6,
+   "end": "finish",
+   "decisions": 422,
+   "coins_gained": 37,
+   "min_dist": 794.4,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 7,
+   "end": "finish",
+   "decisions": 415,
+   "coins_gained": 35,
+   "min_dist": 780.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 8,
+   "end": "finish",
+   "decisions": 396,
+   "coins_gained": 38,
+   "min_dist": 805.7,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 9,
+   "end": "finish",
+   "decisions": 424,
+   "coins_gained": 38,
+   "min_dist": 825.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 10,
+   "end": "finish",
+   "decisions": 415,
+   "coins_gained": 40,
+   "min_dist": 853.2,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 11,
+   "end": "finish",
+   "decisions": 406,
+   "coins_gained": 35,
+   "min_dist": 796.9,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 12,
+   "end": "finish",
+   "decisions": 396,
+   "coins_gained": 37,
+   "min_dist": 849.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 13,
+   "end": "finish",
+   "decisions": 406,
+   "coins_gained": 34,
+   "min_dist": 832.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 14,
+   "end": "finish",
+   "decisions": 412,
+   "coins_gained": 36,
+   "min_dist": 843.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 15,
+   "end": "finish",
+   "decisions": 421,
+   "coins_gained": 36,
+   "min_dist": 838.9,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 16,
+   "end": "finish",
+   "decisions": 425,
+   "coins_gained": 34,
+   "min_dist": 805.1,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 17,
+   "end": "finish",
+   "decisions": 423,
+   "coins_gained": 35,
+   "min_dist": 806.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 18,
+   "end": "finish",
+   "decisions": 414,
+   "coins_gained": 38,
+   "min_dist": 798.2,
+   "random_actions": 0
+  },
+  {
+   "track": "ds2",
+   "episode": 19,
+   "end": "finish",
+   "decisions": 417,
+   "coins_gained": 33,
+   "min_dist": 846.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 0,
+   "end": "died",
+   "decisions": 342,
+   "coins_gained": 13,
+   "min_dist": 12192.4,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 1,
+   "end": "died",
+   "decisions": 335,
+   "coins_gained": 13,
+   "min_dist": 11872.7,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 2,
+   "end": "died",
+   "decisions": 335,
+   "coins_gained": 13,
+   "min_dist": 12116.5,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 3,
+   "end": "died",
+   "decisions": 335,
+   "coins_gained": 13,
+   "min_dist": 12051.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 4,
+   "end": "died",
+   "decisions": 336,
+   "coins_gained": 13,
+   "min_dist": 11950.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 5,
+   "end": "died",
+   "decisions": 333,
+   "coins_gained": 13,
+   "min_dist": 12152.1,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 6,
+   "end": "died",
+   "decisions": 334,
+   "coins_gained": 13,
+   "min_dist": 12005.7,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 7,
+   "end": "died",
+   "decisions": 331,
+   "coins_gained": 13,
+   "min_dist": 12373.7,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 8,
+   "end": "died",
+   "decisions": 339,
+   "coins_gained": 13,
+   "min_dist": 12530.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 9,
+   "end": "died",
+   "decisions": 343,
+   "coins_gained": 13,
+   "min_dist": 12122.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 10,
+   "end": "died",
+   "decisions": 343,
+   "coins_gained": 13,
+   "min_dist": 12612.0,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 11,
+   "end": "died",
+   "decisions": 336,
+   "coins_gained": 13,
+   "min_dist": 12168.1,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 12,
+   "end": "died",
+   "decisions": 334,
+   "coins_gained": 13,
+   "min_dist": 11857.9,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 13,
+   "end": "died",
+   "decisions": 333,
+   "coins_gained": 13,
+   "min_dist": 12174.4,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 14,
+   "end": "died",
+   "decisions": 334,
+   "coins_gained": 13,
+   "min_dist": 12542.8,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 15,
+   "end": "died",
+   "decisions": 330,
+   "coins_gained": 13,
+   "min_dist": 12107.8,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 16,
+   "end": "died",
+   "decisions": 334,
+   "coins_gained": 13,
+   "min_dist": 12008.6,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 17,
+   "end": "died",
+   "decisions": 344,
+   "coins_gained": 13,
+   "min_dist": 11707.3,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 18,
+   "end": "died",
+   "decisions": 335,
+   "coins_gained": 13,
+   "min_dist": 12570.2,
+   "random_actions": 0
+  },
+  {
+   "track": "ds3",
+   "episode": 19,
+   "end": "died",
+   "decisions": 330,
+   "coins_gained": 13,
+   "min_dist": 12433.2,
+   "random_actions": 0
+  }
+ ]
+}

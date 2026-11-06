@@ -269,6 +269,29 @@ def btr_checks(readme):
     check("after-finish probe numbers", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
+def ablation_checks(readme):
+    """The ablation table must equal the evaluation files and the last logged training step."""
+    import csv
+    import statistics
+    for run, label, steps_col in (("control", "| control |", None), ("ppo", "| ppo |", None), ("legacy6", "| legacy6 |", None)):
+        ev = os.path.join(ROOT, "results", f"abl_{run}_eval_x20.json")
+        if not os.path.exists(ev):
+            check(f"ablation {run} evaluation json", "present", "missing")
+            continue
+        rows = load(ev)["rows"]
+        line = next((ln for ln in readme.splitlines() if ln.startswith(label)), "")
+        with open(os.path.join(ROOT, "results", f"abl_{run}_train.csv"), newline="", encoding="utf-8") as fh:
+            last = list(csv.DictReader(fh))[-1]
+        cells = []
+        for t in ("ds1", "ds2", "ds3"):
+            rs = [r for r in rows if r["track"] == t]
+            cells.append(f"{sum(r['end'] == 'finish' for r in rs)} of {len(rs)}")
+        dist = " / ".join(str(round(statistics.median(r["min_dist"] for r in rows if r["track"] == t))) for t in ("ds1", "ds3"))
+        want = f"| {int(last['steps']):,} | " + " | ".join(cells) + f" | {dist} |"
+        check(f"ablation {run}: steps / finishes / median closest distance", want,
+              "quoted" if want in line else "absent", ok=want in line)
+
+
 def rust_checks(readme):
     main_rs = os.path.join(ROOT, "rust", "src", "main.rs")
     if not os.path.exists(main_rs):
@@ -649,6 +672,7 @@ def main():
     ds3_detector_checks(readme)
     ds3_template_checks(readme)
     btr_checks(readme)
+    ablation_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")
