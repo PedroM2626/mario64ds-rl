@@ -15,5 +15,4 @@ tensorboard_logs
 logs
 out
 results
-_ref_smw_pinn
 *.log

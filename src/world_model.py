@@ -1,8 +1,8 @@
 """Latent World Model for Super Mario 64 DS (Dreamer / PlaNet-style RSSM).
 
 This module adapts the model-based RL recipe of the reference repository
-``smw-pinn`` (see ``_ref_smw_pinn/src/environment/pinn_sim_env.py`` and
-``_ref_smw_pinn/src/training/dyna_ppo.py``) to the *pixel-only* observation
+``smw-pinn`` (https://github.com/PedroM2626/smw-pinn: ``src/environment/pinn_sim_env.py``
+and ``src/training/dyna_ppo.py``, no longer vendored in this repository) to the *pixel-only* observation
 space of ``src/env.py``.
 
 The reference learns a low-dimensional state dynamics model ``f(s, a) -> s'``

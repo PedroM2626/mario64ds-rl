@@ -3,9 +3,9 @@
  "episodes": {
   "ds1": {
    "end": "finish",
-   "decisions": 520,
-   "coins": 68,
-   "closest": 1095.5,
+   "decisions": 522,
+   "coins": 71,
+   "closest": 1038.4,
    "attempt": 1,
    "attempts_allowed": 10,
    "gif": "videos/btr/btr_ds1.gif",
@@ -13,9 +13,9 @@
   },
   "ds2": {
    "end": "finish",
-   "decisions": 379,
+   "decisions": 378,
    "coins": 44,
-   "closest": 788.7,
+   "closest": 793.1,
    "attempt": 1,
    "attempts_allowed": 10,
    "gif": "videos/btr/btr_ds2.gif",
@@ -23,10 +23,10 @@
   },
   "ds3": {
    "end": "finish",
-   "decisions": 592,
+   "decisions": 604,
    "coins": 45,
-   "closest": 1409.7,
-   "attempt": 1,
+   "closest": 1426.9,
+   "attempt": 2,
    "attempts_allowed": 10,
    "gif": "videos/btr/btr_ds3.gif",
    "mp4": "videos/btr/btr_ds3.mp4"

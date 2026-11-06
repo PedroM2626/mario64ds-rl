@@ -15,15 +15,19 @@ This project is a Deep Reinforcement Learning implementation that trains autonom
 
 One network, trained on all three slides at once with a coin reward, no human demonstrations
 and no distance, optical-flow, step or death terms. Each clip below is one greedy episode that
-ends in the slide's finish region (`scripts/record_btr.py`; ds1 and ds2 and ds3 each finished
-on the first attempt, [`results/btr_goal20_gifs.json`](results/btr_goal20_gifs.json)). The HUD text
-shows the decision, the action, the coins gained, the distance to the finish and the position.
+ends in the slide's finish region (`scripts/record_btr.py`; ds1 and ds2 finished on the first
+attempt and ds3 on the second, [`results/btr_goal20_gifs.json`](results/btr_goal20_gifs.json)).
+Left: the game, with the decision, the coins gained, the distance to the finish and the position.
+Right: what the agent receives at that decision (its four 84x84 grayscale frames, oldest first, the
+newest framed in yellow) and its ten actions with the chosen one lit. The GIFs are shown at 8
+frames per second and 460 px wide to stay under GitHub's 10 MB inline limit; the mp4 files are the
+full-size recordings.
 
-![The final agent finishing ds1, Cool, Cool Mountain: 520 decisions, 68 coins gained.](videos/btr/btr_ds1.gif)
+![The final agent finishing ds1, Cool, Cool Mountain: 522 decisions, 71 coins gained.](videos/btr/btr_ds1.gif)
 
-![The final agent finishing ds2, The Princess's Secret Slide: 379 decisions, 44 coins gained.](videos/btr/btr_ds2.gif)
+![The final agent finishing ds2, The Princess's Secret Slide: 378 decisions, 44 coins gained.](videos/btr/btr_ds2.gif)
 
-![The final agent finishing ds3, Tall, Tall Mountain slide: 592 decisions, 45 coins gained.](videos/btr/btr_ds3.gif)
+![The final agent finishing ds3, Tall, Tall Mountain slide: 604 decisions, 45 coins gained.](videos/btr/btr_ds3.gif)
 
 Full-size mp4 files: [ds1](videos/btr/btr_ds1.mp4), [ds2](videos/btr/btr_ds2.mp4), [ds3](videos/btr/btr_ds3.mp4).
 The checkpoints `models/btr_ref10/` and `models/btr_goal20/` (15 MB each) are not committed and are not listed in `models/ASSETS.json`.
