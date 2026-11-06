@@ -11,11 +11,142 @@ This project is a Deep Reinforcement Learning implementation that trains autonom
 
 ---
 
-## 🎥 Watch a decision being made
+## 🏁 Final agent: one value-based agent that finishes ds1, ds2 and ds3
 
-![The PPO agent descending the ds1 Cool, Cool Mountain slide in Super Mario 64 DS: gameplay at the emulator's true 60 Hz, the 84x84 grayscale CNN input, the 32x32 window the optical-flow reward is measured on, the policy's real action probabilities, the critic's value, the RAM physics struct and the reward instrument.](videos/dashboard/m64_dashboard_preview.gif)
+One network, trained on all three slides at once with a coin reward, no human demonstrations
+and no distance, optical-flow, step or death terms. Each clip below is one greedy episode that
+ends in the slide's finish region (`scripts/record_btr.py`; ds1 and ds2 and ds3 each finished
+on the first attempt, [`results/btr_goal20_gifs.json`](results/btr_goal20_gifs.json)). The HUD text
+shows the decision, the action, the coins gained, the distance to the finish and the position.
 
-One deterministic 1350-decision episode per track, recorded by
+![The final agent finishing ds1, Cool, Cool Mountain: 520 decisions, 68 coins gained.](videos/btr/btr_ds1.gif)
+
+![The final agent finishing ds2, The Princess's Secret Slide: 379 decisions, 44 coins gained.](videos/btr/btr_ds2.gif)
+
+![The final agent finishing ds3, Tall, Tall Mountain slide: 592 decisions, 45 coins gained.](videos/btr/btr_ds3.gif)
+
+Full-size mp4 files: [ds1](videos/btr/btr_ds1.mp4), [ds2](videos/btr/btr_ds2.mp4), [ds3](videos/btr/btr_ds3.mp4).
+The checkpoints `models/btr_ref10/` and `models/btr_goal20/` (15 MB each) are not committed and are not listed in `models/ASSETS.json`.
+
+**Result** (checkpoint `models/btr_goal20/step_1000005.pt`; greedy policy with the noisy layers
+off, from each slide's start savestate, [`scripts/eval_btr.py`](scripts/eval_btr.py),
+[`results/btr_goal20_eval_1M_x20.json`](results/btr_goal20_eval_1M_x20.json)), 20 episodes per slide:
+
+| Slide | Episodes that finish | Median decisions (finishing episodes) | Median coins gained (finishing episodes) |
+|---|---|---|---|
+| ds1 (Cool, Cool Mountain) | 20 of 20 | 523 | 71 |
+| ds2 (The Princess's Secret Slide) | 20 of 20 | 375.5 | 44 |
+| ds3 (Tall, Tall Mountain slide) | 18 of 20 | 601 | 45 |
+
+With 20 episodes per cell the uncertainty on a rate is large (18 of 20 is consistent with true
+rates from roughly 70% to 97%, a 95% Wilson interval), and the same checkpoint gives different
+outcomes from run to run because the game is not deterministic.
+
+**Perturbed starts** (same checkpoint and procedure, `--start-random 15`:
+[`results/btr_goal20_eval_1M_perturbed15_x20.json`](results/btr_goal20_eval_1M_perturbed15_x20.json)). Before the agent
+takes over, each episode plays a random number of random actions, from 0 to 15 (9.35 on average), one decision each;
+a perturbation that already ends the episode is drawn again. The decisions below count from the moment the agent takes over.
+
+| Slide | Episodes that finish | Median decisions (finishing episodes) | Median coins gained (finishing episodes) |
+|---|---|---|---|
+| ds1 perturbed | 20 of 20 | 516 | 66 |
+| ds2 perturbed | 20 of 20 | 376 | 44 |
+| ds3 perturbed | 17 of 20 | 594 | 44 |
+
+The agent therefore does not depend on one exact trajectory from the savestate: after up to 15 random
+decisions it still finishes ds1 and ds2 every time and ds3 in 17 of 20 episodes. This tests small
+displacements of the start only, not other start positions on the slide.
+
+**What the agent is.** An own implementation of the Beyond-the-Rainbow-style recipe
+([`src/btr.py`](src/btr.py), not the authors' code): IMPALA CNN on 84x84 grayscale frames
+(4-frame stack), IQN quantile head, dueling noisy layers, 3-step returns, Munchausen term,
+prioritised replay, soft target updates, discount 0.99. It acts with the ten buttons of the
+reference setup (`ref10`: none, up, up-right, right, down-right, down, down-left, left, up-left,
+jump). Training: [`scripts/train_btr.py`](scripts/train_btr.py), 5 environments per slide, 15
+in parallel.
+
+**Reward and episode rules.** +1 for every coin (the RAM coin counter, `0x02098998`) and **+20
+once when the episode ends in the finish region**. The +20 is the one deviation from the
+reference's coin-only reward; everything else pays 0 (no death penalty, no step cost, no
+distance, flow, star or demonstration term). Episodes end on the finish region (a position test
+against the measured end area of each slide, `TRACK_GOALS` in `src/ram_state.py`), on a fall
+below the course's `kill_y`, on the game's own respawn (a displacement above 2,000 units in one
+decision, which the game does after a fall, with the coin counter reset), on `ds3` only on a long
+free fall (more than 140 units per decision for 15 decisions), and at 1,500 decisions. The
+black-screen death rule is off: the `ds3` route runs through a dark shaft where 60-90% of the pixels
+are already dark ([`docs/HUMAN_RECORDING.md`](docs/HUMAN_RECORDING.md)), which that rule read as a death.
+
+**How it was trained.** In two stages, 3.5M environment steps and about 5.5 hours of wall clock
+in total (228.3 min + 102.8 min from
+[`results/btr_ref10_train.csv`](results/btr_ref10_train.csv) and
+[`results/btr_goal20_train.csv`](results/btr_goal20_train.csv); the machine also ran evaluations
+and recordings during that time). Stage 1 (`btr_ref10`) used the coin reward only, 2.5M steps.
+Stage 2 (`btr_goal20`, `--goal-reward 20`) started from the weights of the stage-1 checkpoint at
+2.5M steps (the optimiser state and the replay buffer were not carried over) and trained 1M steps
+more. Nothing was trained with human demonstrations in either stage.
+
+**The finish test is a region, not the last tile.** In an episode of the 2.5M coin-only
+checkpoint that ended in the `ds3` region, the game was kept running for 150 more decisions
+([`results/ds3_after_finish_probe.json`](results/ds3_after_finish_probe.json)): the agent was 1,402.5
+from the target when the test fired, 252.5 ten decisions later, on the flat floor of the end room
+($Y = -13{,}646$), and gained no coin in any of those 150 decisions (the counter stayed at 44). So
+the region fires about 10 decisions before the end room. For `ds1` and `ds2` the regions were
+measured in the end rooms.
+
+**Checkpoints compared** (same procedure, 20 episodes per cell; results in `results/btr_*_eval_*_x20.json`):
+
+| Checkpoint | ds1 | ds2 | ds3 |
+|---|---|---|---|
+| coin-only, 2.5M steps (`btr_ref10`) | 19 of 20 | 20 of 20 | 17 of 20 |
+| coin-only, 4.5M steps (`btr_ref10`) | 18 of 20 | 20 of 20 | 6 of 20 |
+| coin + finish reward, 500k steps (`btr_goal20`) | 18 of 20 | 20 of 20 | 11 of 20 |
+| coin + finish reward, 750k steps (`btr_goal20`) | 19 of 20 | 20 of 20 | 17 of 20 |
+| coin + finish reward, 1M steps (`btr_goal20`, the clips above) | 20 of 20 | 20 of 20 | 18 of 20 |
+
+**What this does and does not show.**
+
+- The coin-only agent also finishes `ds3` at some checkpoints (17 of 20 at 2.5M), so the finish
+  reward is not shown to be necessary. It is also not shown to be what made the difference: with 20
+  episodes per cell, 18 of 20 against 17 of 20 is within noise.
+- The coin-only agent's `ds3` rate is not stable across checkpoints (17 of 20 at 2.5M, 6 of 20 at
+  4.5M). With the finish reward the three checkpoints evaluated went 11, 17 and 18 of 20, which
+  could be early training or noise; no later checkpoints were evaluated. A hypothesis that fits this, and that was **not tested**: on the route these agents take
+  there are no coins between the jump onto the last ramp and the end room (the probe above is one
+  episode), so for a coin-only agent landing on the ramp and falling pay the same, and the policy at
+  that jump drifts. The finish reward was added to break that tie.
+- Three things changed between the earlier PPO work in this file and this agent at the same time:
+  the algorithm (value-based BTR-style instead of PPO), the reward (coins instead of optical flow
+  and distance) and the episode rules (black-screen death off, game respawn and long free fall
+  counted as death, finish region), plus the action set. No controlled ablation separates their
+  effects, so this README does not say which of them mattered most.
+- Apart from the perturbed-start run above, all evaluations start from the training savestates, and no
+  other start positions were tested. The checkpoint was picked after looking at the 500k, 750k and 1M
+  evaluations (three looks, one chosen).
+- The clips are single episodes that finished, not averages.
+- The statements about `ds3` further down in this file (the open problem, the dead-end route, the
+  PPO, QR-DQN, behaviour-cloning and search experiments) describe those experiments at the time
+  and are kept as the record of what did not work; `ds3` is finished by the agent above.
+
+Reproduce:
+
+```bash
+python scripts/train_btr.py --run btr_ref10 --steps 30000000 --envs-per-track 5    # stage 1, coin reward only
+python scripts/train_btr.py --run btr_goal20 --goal-reward 20 --steps 6000000 --envs-per-track 5 \
+    --resume models/btr_ref10/step_2500005.pt                                     # stage 2
+python scripts/eval_btr.py --model models/btr_goal20/step_1000005.pt --tracks ds1,ds2,ds3 --episodes 20
+python scripts/record_btr.py --model models/btr_goal20/step_1000005.pt --track ds3 --attempts 10 --out videos/btr/btr_ds3.mp4
+```
+
+(Both runs were stopped by hand: stage 1 after about 5.5M steps, of which only the 2.5M-step checkpoint
+feeds the final agent, and stage 2 after about 1.06M of its 6M steps, keeping the 1M-step checkpoint. The
+`--steps` value also sets the schedule of the prioritised-replay exponent, so a shorter `--steps` is not the same run.)
+
+---
+
+## 🎥 Historical dashboard of the PPO agent (optical-flow reward)
+
+This section and the next one describe the earlier PPO agent `curriculum_flow25_r3_best`, not the
+final agent above. One deterministic 1350-decision episode per track, recorded by
 `scripts/record_dashboard.py` under the [`rust/`](rust/README.md) supervisor
 (`--supervisor rust --parallel 3`). Every figure below is what the clip itself
 displayed, and `tools/check_readme_numbers.py` re-derives each cell from
@@ -31,10 +162,10 @@ recomputed from the logged weight-free flow sum rather than copied.
 **Where the video is.** All three full clips live in
 [`videos/dashboard/`](videos/dashboard) next to the JSON each run wrote about
 itself (`dashboard_<track>.json`) and its per-decision trace
-(`dashboard_<track>_trace.json`). The animation at the top is the closing 10 s
-of `ds1` as an inline GIF, because GitHub strips `<video>` from README markdown
-and serves repository `.mp4` as a download rather than a stream — the links above
-open the real 90-second, 60 fps files.
+(`dashboard_<track>_trace.json`). The inline GIFs at the top of this file are of the final agent;
+the GIF that used to show this PPO agent was replaced by them. GitHub strips `<video>`
+from README markdown and serves repository `.mp4` as a download rather than a stream, which
+is why the clips are inline GIFs; the links above open the real 90-second, 60 fps files.
 
 **What "1350 / 1350" does and does not mean in the historical baseline.** In the original visual-only baseline environment, there was no finish-line detector: an episode ended either on the black-screen death or on the horizon, so surviving all 1350 decisions was the repo's original completion criterion, not a verified traversal. (The modern environment architecture now implements full 3D finish-line and star completion detection via RAM coordinates; see §"3D Proximity & RAM State Architecture"). The per-decision traces (`videos/dashboard/dashboard_*_trace.json`) make the difference visible — on `ds1` the agent is nearly stationary (speed below 0.5 track units in magnitude) for **695** of the 1350 decisions and gets zero forward flow for 585 of them, yet still scores +131.77, because the flow reward pays for sliding and the step cost is only 0.02. Most of those stationary decisions come after the finish: Mario drops into the end room at decision 605 and stands there until the horizon (see *Measured against the RAM finish line* below). The "fast-fall clamps" column counts entries of the RAM word `0x0217F760` into its $-75$ clamp, which happens on any long drop: on `ds1` the second one is the drop through the exit hole into the end room. They are not falls into the void; none of these runs falls below its course's `kill_y`.
 
@@ -76,10 +207,15 @@ python tools/check_readme_numbers.py        # gate: prose must equal the artifac
 
 ## 🎯 Objective
 The agent's primary objective is to **complete each stage** — traversing the full descent in the slide courses and ascending the vertical clock tower in Tick Tock Clock to collect the Power Star (not merely survive by idling) — navigating forward and upward using raw visual observations alongside 3D spatial progression rewards. Slide episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track. Tick Tock Clock `v4` uses `3000` steps (200 s), because the recorded human ascent took 2,674 decisions.
+The final agent at the top of this file uses 1,500-decision episodes, a finish-region test and no progression reward.
 
 ---
 
-## 🏆 Current Benchmark State: `ds1` and `ds2` finished, `ds3` not
+## 🏆 Earlier benchmark (PPO, optical-flow reward): `ds1` and `ds2` finished, `ds3` not
+
+> Historical. This is the state of the PPO agent before the final agent at the top of this file;
+> the statements about `ds3` here and below were true of the methods they describe, and `ds3` was
+> later finished by a different agent.
 
 **`curriculum_flow25_r3_best.zip`** (PPO + NatureCNN, optical flow weight $\times 2.5$) — the first agent checkpoint in the project's history to survive the full 1350-decision horizon on all 3 slide tracks, corroborated by independent deterministic evaluation (9/9 full 90-second episodes). "Completed Steps" below means surviving the horizon; the finish-line check that follows shows that it reaches the end of `ds1` and `ds2` but not of `ds3`:
 
@@ -129,7 +265,7 @@ python scripts/record_phases.py --model models/curriculum_flow25_r3_best.zip
 python scripts/record_dashboard.py --supervisor rust --parallel 3   # annotated 60 Hz
 ```
 
-### 🏁 What the corrected finish line changed, and the remaining track
+### 🏁 What the corrected finish line changed, and the `ds3` experiments that followed
 
 | Controller | `ds1` | `ds2` | `ds3` |
 |---|---|---|---|
@@ -146,7 +282,7 @@ environment (black-screen death only) gives the same outcomes, except that it
 detects r4's `ds1` fall 12 decisions later (386); see
 [`results/finish_line_*.json`](results).
 
-**`ds3` is the open problem**, and it is not about falling: every controller
+**`ds3` was the open problem for these methods**, and it was not about falling: every controller
 reaches the same broad, nearly flat sandy section ($Y = 7{,}179$, from decision
 ~140) and wanders there, 20,000 units above the finish, without finding the way
 on; braking before it ends there too. An automatic search without a human
@@ -189,7 +325,7 @@ there the coin search and two more sweeps followed the coins to 36 and to
 attempt survives it (0 of 2,160, 0 of 1,728 and 0 of 2,160), nor any of 90 long
 jumps (R+B while running, which the action sets lack). The falls there are real:
 Mario drops below $Y = -18{,}000$ and the game respawns him with the coin count
-reset. `ds3` is therefore still not finished, and the remaining obstacle is
+reset. For these methods `ds3` was therefore still not finished, and the remaining obstacle was
 this one gap.
 
 **Is the gap just a matter of training?** Frames show the sandy path ending at
@@ -306,8 +442,10 @@ track. Refining that dive (480 rollouts per stage) stops at 3,412.1: Mario is pu
 the start of the slide once he falls below $Y pprox -11{,}000$ there, above the finish height ($Y = -13{,}646$),
 so the finish cannot be reached by diving from that side. No finish was found by search.
 
-A single human run would provide the route (as for Tick Tock Clock): double-click `record-ds3.bat` (the recorder now also
-accepts the slide finish as a completed run), then
+A human run of `ds3` was later recorded (`record-ds3.bat`, [`docs/HUMAN_RECORDING.md`](docs/HUMAN_RECORDING.md); the
+recorder also accepts the slide finish as a completed run) and turned into the route
+[`config/routes/ds3_human_v1.json`](config/routes/ds3_human_v1.json) (690 waypoints, 103,168.5 units long, a height
+change of $-26{,}234.0$), with
 `python scripts/prepare_human_route.py <attempt> --out config/routes/ds3_human_v1.json --checkpoint-dir data/curriculum/ds3_human_v1`.
 
 ```bash

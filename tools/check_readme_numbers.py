@@ -156,23 +156,117 @@ def parallel_checks(readme):
 
 
 def gif_check(readme):
-    m = re.search(r"!\[[^\]]*\]\((videos/dashboard/[A-Za-z0-9_.]+\.gif)\)", readme)
-    if not m:
-        check("README inline gif referenced", "videos/dashboard/*.gif", "none")
+    """The three inline GIFs are the final agent's clips; each must exist, fit GitHub's inline limit
+    and be captioned with the decisions and coins the recording script logged for it."""
+    meta_path = os.path.join(ROOT, "results", "btr_goal20_gifs.json")
+    meta = load(meta_path)["episodes"] if os.path.exists(meta_path) else {}
+    check("results/btr_goal20_gifs.json", "present", "present" if meta else "MISSING", ok=bool(meta))
+    for t in ("ds1", "ds2", "ds3"):
+        m = re.search(r"!\[([^\]]*)\]\((videos/btr/btr_%s\.gif)\)" % t, readme)
+        if not m:
+            check(f"README inline gif for {t}", "videos/btr/btr_%s.gif" % t, "none")
+            continue
+        path = os.path.join(ROOT, m.group(2))
+        ok = os.path.exists(path)
+        mb = os.path.getsize(path) / 1e6 if ok else 0.0
+        check(f"{t}: inline gif exists on disk", "present", m.group(2), ok=ok)
+        check(f"{t}: gif under GitHub's 10 MB inline limit", "<10 MB", f"{mb:.1f} MB", ok=ok and mb < 10.0)
+        e = meta.get(t)
+        if e:
+            want = f"{e['decisions']} decisions, {e['coins']} coins gained"
+            check(f"{t}: gif caption equals the recorded episode", want, "quoted" if want in m.group(1) else "absent",
+                  ok=want in m.group(1) and e["end"] == "finish")
+    old = "videos/dashboard/m64_dashboard_preview.gif"
+    check("old PPO preview gif no longer referenced", "absent", "present" if old in readme else "absent",
+          ok=old not in readme)
+
+
+def _eval_stats(name):
+    import statistics
+    rows = load(os.path.join(ROOT, "results", name))["rows"]
+    out = {}
+    for t in ("ds1", "ds2", "ds3"):
+        rs = [r for r in rows if r["track"] == t]
+        fin = [r for r in rs if r["end"] == "finish"]
+        out[t] = {"n": len(rs), "fin": len(fin),
+                  "dec": statistics.median(r["decisions"] for r in fin) if fin else None,
+                  "coins": statistics.median(r["coins_gained"] for r in fin) if fin else None}
+    return out
+
+
+def _wilson(k, n, z=1.96):
+    c = (k / n + z * z / (2 * n)) / (1 + z * z / n)
+    h = z * (k / n * (1 - k / n) / n + z * z / (4 * n * n)) ** 0.5 / (1 + z * z / n)
+    return c - h, c + h
+
+
+def rows_names():
+    return ("btr_goal20_eval_1M_x20.json", "btr_goal20_eval_1M_perturbed15_x20.json", "btr_goal20_eval_750k_x20.json",
+            "btr_goal20_eval_500k_x20.json", "btr_ref10_eval_2500005_x20.json", "btr_ref10_eval_4500000_x20.json")
+
+
+def btr_checks(readme):
+    """The final-agent block must equal the evaluation files, the training logs and the probe."""
+    flat = " ".join(readme.split())
+    final = "btr_goal20_eval_1M_x20.json"
+    if not os.path.exists(os.path.join(ROOT, "results", final)):
+        check("final agent evaluation json", "present", "missing")
         return
-    path = os.path.join(ROOT, m.group(1))
-    ok = os.path.exists(path)
-    mb = os.path.getsize(path) / 1e6 if ok else 0.0
-    check("README inline gif exists on disk", "present", m.group(1), ok=ok)
-    check("gif under GitHub's 10 MB inline limit", "<10 MB", f"{mb:.1f} MB",
-          ok=ok and mb < 10.0)
-    alt = m.group(0)
-    feat = next((t for t in ("ds1", "ds2", "ds3") if t in alt), None)
-    if feat:
-        summary = os.path.join(DASH_DIR, "dashboard_summary.json")
-        want = load(summary).get("gif", {}).get("track") if os.path.exists(summary) else None
-        check("gif alt-text track matches the recorded preview track", want, feat,
-              ok=want == feat)
+    check("final eval was run on the checkpoint the README names", "models/btr_goal20/step_1000005.pt",
+          load(os.path.join(ROOT, "results", final))["model"],
+          ok=load(os.path.join(ROOT, "results", final))["model"] == "models/btr_goal20/step_1000005.pt")
+    st = _eval_stats(final)
+    for t, label in (("ds1", "| ds1 (Cool"), ("ds2", "| ds2 (The Princess"), ("ds3", "| ds3 (Tall")):
+        row = next((ln for ln in readme.splitlines() if ln.startswith(label)), "")
+        r = st[t]
+        want = f"| {r['fin']} of {r['n']} | {r['dec']:g} | {r['coins']:g} |"
+        check(f"final agent {t}: finishes / median decisions / median coins", want, "quoted" if want in row else "absent",
+              ok=want in row)
+    ps = _eval_stats("btr_goal20_eval_1M_perturbed15_x20.json")
+    pd = load(os.path.join(ROOT, "results", "btr_goal20_eval_1M_perturbed15_x20.json"))
+    check("perturbed eval used --start-random 15 on the same checkpoint", "15; same model",
+          f"{pd['start_random']}; {pd['model']}", ok=pd["start_random"] == 15 and pd["model"] == load(
+              os.path.join(ROOT, "results", final))["model"])
+    ks = [r["random_actions"] for r in pd["rows"]]
+    check("perturbed eval: random actions within 0..15, mean quoted", f"{sum(ks) / len(ks):.2f}",
+          f"{max(ks)}", ok=0 <= min(ks) and max(ks) <= 15 and f"({sum(ks) / len(ks):.2f} on average)" in flat)
+    for t, label in (("ds1", "| ds1 perturbed"), ("ds2", "| ds2 perturbed"), ("ds3", "| ds3 perturbed")):
+        row = next((ln for ln in readme.splitlines() if ln.startswith(label)), "")
+        r = ps[t]
+        want = f"| {r['fin']} of {r['n']} | {r['dec']:g} | {r['coins']:g} |"
+        check(f"perturbed {t}: finishes / median decisions / median coins", want,
+              "quoted" if want in row else "absent", ok=want in row)
+    check("every evaluation file has 20 episodes in every cell", "20", "ok", ok=all(
+        _eval_stats(n)[t]["n"] == 20 for n in list(rows_names()) for t in ("ds1", "ds2", "ds3")))
+    lo, hi = _wilson(st["ds3"]["fin"], st["ds3"]["n"])
+    want = f"from roughly {lo * 100:.0f}% to {hi * 100:.0f}%"
+    check("ds3 Wilson interval quoted", want, "quoted" if want in flat else "absent", ok=want in flat)
+    rows = {"| coin-only, 2.5M steps": "btr_ref10_eval_2500005_x20.json",
+            "| coin-only, 4.5M steps": "btr_ref10_eval_4500000_x20.json",
+            "| coin + finish reward, 500k steps": "btr_goal20_eval_500k_x20.json",
+            "| coin + finish reward, 750k steps": "btr_goal20_eval_750k_x20.json",
+            "| coin + finish reward, 1M steps": final}
+    for label, name in rows.items():
+        line = next((ln for ln in readme.splitlines() if ln.startswith(label)), "")
+        s = _eval_stats(name)
+        want = " | ".join(f"{s[t]['fin']} of {s[t]['n']}" for t in ("ds1", "ds2", "ds3"))
+        check(f"checkpoint comparison: {label[2:]}", want, "quoted" if want in line else "absent", ok=want in line)
+    import csv
+    mins = {}
+    for run, steps in (("btr_ref10", 2_500_000), ("btr_goal20", 1_000_000)):
+        with open(os.path.join(ROOT, "results", f"{run}_train.csv"), newline="", encoding="utf-8") as fh:
+            rr = list(csv.DictReader(fh))
+        mins[run] = float(next(r for r in rr if int(r["steps"]) >= steps)["minutes"])
+    want = [f"{mins['btr_ref10']:.1f} min", f"{mins['btr_goal20']:.1f} min",
+            f"about {(mins['btr_ref10'] + mins['btr_goal20']) / 60:.1f} hours"]
+    check("training minutes and total hours", "; ".join(want), "quoted" if all(w in flat for w in want) else "absent",
+          ok=all(w in flat for w in want))
+    pr = load(os.path.join(ROOT, "results", "ds3_after_finish_probe.json"))
+    tr = pr["trace"]
+    want = [f"{tr[0]['dist']:,.1f}", f"{tr[10]['dist']:,.1f}", f"stayed at {tr[0]['coins']}", f"{len(tr) - 1} more decisions"]
+    ok = (all(w in flat for w in want) and len({r["coins"] for r in tr}) == 1 and tr[10]["after_finish"] == 10
+          and tr[-1]["after_finish"] == 150)
+    check("after-finish probe numbers", "; ".join(want), "quoted" if ok else "absent", ok=ok)
 
 
 def rust_checks(readme):
@@ -554,6 +648,7 @@ def main():
     ds3_clone_checks(readme)
     ds3_detector_checks(readme)
     ds3_template_checks(readme)
+    btr_checks(readme)
 
     bad = [c for c in CHECKS if not c[3]]
     print(f"{'status':7} {'check':62} {'expected':22} {'found':22}")

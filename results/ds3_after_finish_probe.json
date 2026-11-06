@@ -1,0 +1,1668 @@
+{
+ "model": "models/btr_ref10/step_2500005.pt",
+ "attempt": 1,
+ "finish_decision": 605,
+ "trace": [
+  {
+   "decision": 605,
+   "after_finish": 0,
+   "pos": [
+    860.4,
+    -13536.2,
+    -11950.6
+   ],
+   "coins": 44,
+   "dist": 1402.5
+  },
+  {
+   "decision": 606,
+   "after_finish": 1,
+   "pos": [
+    673.6,
+    -13570.1,
+    -11939.5
+   ],
+   "coins": 44,
+   "dist": 1215.1
+  },
+  {
+   "decision": 607,
+   "after_finish": 2,
+   "pos": [
+    488.1,
+    -13604.0,
+    -11910.1
+   ],
+   "coins": 44,
+   "dist": 1025.9
+  },
+  {
+   "decision": 608,
+   "after_finish": 3,
+   "pos": [
+    305.3,
+    -13637.3,
+    -11863.4
+   ],
+   "coins": 44,
+   "dist": 836.6
+  },
+  {
+   "decision": 609,
+   "after_finish": 4,
+   "pos": [
+    127.8,
+    -13646.0,
+    -11802.9
+   ],
+   "coins": 44,
+   "dist": 651.1
+  },
+  {
+   "decision": 610,
+   "after_finish": 5,
+   "pos": [
+    -35.8,
+    -13646.0,
+    -11738.5
+   ],
+   "coins": 44,
+   "dist": 480.6
+  },
+  {
+   "decision": 611,
+   "after_finish": 6,
+   "pos": [
+    -187.7,
+    -13646.0,
+    -11683.3
+   ],
+   "coins": 44,
+   "dist": 327.4
+  },
+  {
+   "decision": 612,
+   "after_finish": 7,
+   "pos": [
+    -326.7,
+    -13646.0,
+    -11629.3
+   ],
+   "coins": 44,
+   "dist": 200.2
+  },
+  {
+   "decision": 613,
+   "after_finish": 8,
+   "pos": [
+    -455.8,
+    -13646.0,
+    -11583.2
+   ],
+   "coins": 44,
+   "dist": 128.9
+  },
+  {
+   "decision": 614,
+   "after_finish": 9,
+   "pos": [
+    -576.6,
+    -13636.8,
+    -11546.9
+   ],
+   "coins": 44,
+   "dist": 163.3
+  },
+  {
+   "decision": 615,
+   "after_finish": 10,
+   "pos": [
+    -689.4,
+    -13608.9,
+    -11519.2
+   ],
+   "coins": 44,
+   "dist": 252.5
+  },
+  {
+   "decision": 616,
+   "after_finish": 11,
+   "pos": [
+    -786.1,
+    -13584.1,
+    -11499.5
+   ],
+   "coins": 44,
+   "dist": 341.8
+  },
+  {
+   "decision": 617,
+   "after_finish": 12,
+   "pos": [
+    -869.3,
+    -13563.2,
+    -11485.5
+   ],
+   "coins": 44,
+   "dist": 421.5
+  },
+  {
+   "decision": 618,
+   "after_finish": 13,
+   "pos": [
+    -939.6,
+    -13545.5,
+    -11476.2
+   ],
+   "coins": 44,
+   "dist": 489.6
+  },
+  {
+   "decision": 619,
+   "after_finish": 14,
+   "pos": [
+    -997.9,
+    -13530.9,
+    -11470.7
+   ],
+   "coins": 44,
+   "dist": 546.1
+  },
+  {
+   "decision": 620,
+   "after_finish": 15,
+   "pos": [
+    -1045.0,
+    -13519.1,
+    -11468.1
+   ],
+   "coins": 44,
+   "dist": 591.6
+  },
+  {
+   "decision": 621,
+   "after_finish": 16,
+   "pos": [
+    -1081.6,
+    -13510.0,
+    -11467.7
+   ],
+   "coins": 44,
+   "dist": 626.7
+  },
+  {
+   "decision": 622,
+   "after_finish": 17,
+   "pos": [
+    -1108.4,
+    -13503.3,
+    -11468.7
+   ],
+   "coins": 44,
+   "dist": 652.1
+  },
+  {
+   "decision": 623,
+   "after_finish": 18,
+   "pos": [
+    -1126.1,
+    -13498.9,
+    -11470.6
+   ],
+   "coins": 44,
+   "dist": 668.6
+  },
+  {
+   "decision": 624,
+   "after_finish": 19,
+   "pos": [
+    -1135.3,
+    -13496.6,
+    -11472.9
+   ],
+   "coins": 44,
+   "dist": 676.7
+  },
+  {
+   "decision": 625,
+   "after_finish": 20,
+   "pos": [
+    -1136.6,
+    -13496.3,
+    -11475.3
+   ],
+   "coins": 44,
+   "dist": 677.3
+  },
+  {
+   "decision": 626,
+   "after_finish": 21,
+   "pos": [
+    -1130.7,
+    -13497.8,
+    -11477.6
+   ],
+   "coins": 44,
+   "dist": 670.7
+  },
+  {
+   "decision": 627,
+   "after_finish": 22,
+   "pos": [
+    -1117.9,
+    -13500.9,
+    -11480.1
+   ],
+   "coins": 44,
+   "dist": 657.5
+  },
+  {
+   "decision": 628,
+   "after_finish": 23,
+   "pos": [
+    -1098.7,
+    -13505.8,
+    -11483.1
+   ],
+   "coins": 44,
+   "dist": 637.7
+  },
+  {
+   "decision": 629,
+   "after_finish": 24,
+   "pos": [
+    -1074.3,
+    -13511.8,
+    -11485.5
+   ],
+   "coins": 44,
+   "dist": 613.3
+  },
+  {
+   "decision": 630,
+   "after_finish": 25,
+   "pos": [
+    -1045.8,
+    -13519.0,
+    -11487.1
+   ],
+   "coins": 44,
+   "dist": 585.3
+  },
+  {
+   "decision": 631,
+   "after_finish": 26,
+   "pos": [
+    -1013.8,
+    -13527.0,
+    -11488.2
+   ],
+   "coins": 44,
+   "dist": 554.2
+  },
+  {
+   "decision": 632,
+   "after_finish": 27,
+   "pos": [
+    -978.6,
+    -13535.8,
+    -11489.1
+   ],
+   "coins": 44,
+   "dist": 520.5
+  },
+  {
+   "decision": 633,
+   "after_finish": 28,
+   "pos": [
+    -938.4,
+    -13545.8,
+    -11489.6
+   ],
+   "coins": 44,
+   "dist": 482.6
+  },
+  {
+   "decision": 634,
+   "after_finish": 29,
+   "pos": [
+    -892.6,
+    -13557.2,
+    -11489.1
+   ],
+   "coins": 44,
+   "dist": 440.7
+  },
+  {
+   "decision": 635,
+   "after_finish": 30,
+   "pos": [
+    -844.2,
+    -13569.3,
+    -11489.3
+   ],
+   "coins": 44,
+   "dist": 397.3
+  },
+  {
+   "decision": 636,
+   "after_finish": 31,
+   "pos": [
+    -791.7,
+    -13582.4,
+    -11488.4
+   ],
+   "coins": 44,
+   "dist": 353.0
+  },
+  {
+   "decision": 637,
+   "after_finish": 32,
+   "pos": [
+    -735.0,
+    -13596.6,
+    -11485.4
+   ],
+   "coins": 44,
+   "dist": 309.9
+  },
+  {
+   "decision": 638,
+   "after_finish": 33,
+   "pos": [
+    -676.2,
+    -13611.3,
+    -11483.8
+   ],
+   "coins": 44,
+   "dist": 270.3
+  },
+  {
+   "decision": 639,
+   "after_finish": 34,
+   "pos": [
+    -616.1,
+    -13626.3,
+    -11484.9
+   ],
+   "coins": 44,
+   "dist": 236.6
+  },
+  {
+   "decision": 640,
+   "after_finish": 35,
+   "pos": [
+    -554.5,
+    -13641.7,
+    -11488.6
+   ],
+   "coins": 44,
+   "dist": 213.1
+  },
+  {
+   "decision": 641,
+   "after_finish": 36,
+   "pos": [
+    -495.1,
+    -13646.0,
+    -11494.7
+   ],
+   "coins": 44,
+   "dist": 204.1
+  },
+  {
+   "decision": 642,
+   "after_finish": 37,
+   "pos": [
+    -441.0,
+    -13646.0,
+    -11502.8
+   ],
+   "coins": 44,
+   "dist": 208.5
+  },
+  {
+   "decision": 643,
+   "after_finish": 38,
+   "pos": [
+    -391.7,
+    -13646.0,
+    -11512.6
+   ],
+   "coins": 44,
+   "dist": 222.4
+  },
+  {
+   "decision": 644,
+   "after_finish": 39,
+   "pos": [
+    -346.8,
+    -13646.0,
+    -11523.6
+   ],
+   "coins": 44,
+   "dist": 241.9
+  },
+  {
+   "decision": 645,
+   "after_finish": 40,
+   "pos": [
+    -306.0,
+    -13646.0,
+    -11535.8
+   ],
+   "coins": 44,
+   "dist": 264.2
+  },
+  {
+   "decision": 646,
+   "after_finish": 41,
+   "pos": [
+    -268.8,
+    -13646.0,
+    -11548.8
+   ],
+   "coins": 44,
+   "dist": 287.6
+  },
+  {
+   "decision": 647,
+   "after_finish": 42,
+   "pos": [
+    -235.0,
+    -13646.0,
+    -11562.4
+   ],
+   "coins": 44,
+   "dist": 310.8
+  },
+  {
+   "decision": 648,
+   "after_finish": 43,
+   "pos": [
+    -204.3,
+    -13646.0,
+    -11576.5
+   ],
+   "coins": 44,
+   "dist": 333.4
+  },
+  {
+   "decision": 649,
+   "after_finish": 44,
+   "pos": [
+    -175.7,
+    -13646.0,
+    -11588.7
+   ],
+   "coins": 44,
+   "dist": 356.2
+  },
+  {
+   "decision": 650,
+   "after_finish": 45,
+   "pos": [
+    -149.6,
+    -13646.0,
+    -11600.5
+   ],
+   "coins": 44,
+   "dist": 377.9
+  },
+  {
+   "decision": 651,
+   "after_finish": 46,
+   "pos": [
+    -125.4,
+    -13646.0,
+    -11610.7
+   ],
+   "coins": 44,
+   "dist": 399.0
+  },
+  {
+   "decision": 652,
+   "after_finish": 47,
+   "pos": [
+    -103.2,
+    -13646.0,
+    -11620.6
+   ],
+   "coins": 44,
+   "dist": 418.8
+  },
+  {
+   "decision": 653,
+   "after_finish": 48,
+   "pos": [
+    -82.5,
+    -13646.0,
+    -11629.2
+   ],
+   "coins": 44,
+   "dist": 437.6
+  },
+  {
+   "decision": 654,
+   "after_finish": 49,
+   "pos": [
+    -63.2,
+    -13646.0,
+    -11636.1
+   ],
+   "coins": 44,
+   "dist": 455.8
+  },
+  {
+   "decision": 655,
+   "after_finish": 50,
+   "pos": [
+    -45.0,
+    -13646.0,
+    -11641.6
+   ],
+   "coins": 44,
+   "dist": 473.1
+  },
+  {
+   "decision": 656,
+   "after_finish": 51,
+   "pos": [
+    -28.1,
+    -13646.0,
+    -11645.7
+   ],
+   "coins": 44,
+   "dist": 489.5
+  },
+  {
+   "decision": 657,
+   "after_finish": 52,
+   "pos": [
+    -12.2,
+    -13646.0,
+    -11648.8
+   ],
+   "coins": 44,
+   "dist": 505.0
+  },
+  {
+   "decision": 658,
+   "after_finish": 53,
+   "pos": [
+    2.6,
+    -13646.0,
+    -11650.8
+   ],
+   "coins": 44,
+   "dist": 519.5
+  },
+  {
+   "decision": 659,
+   "after_finish": 54,
+   "pos": [
+    16.5,
+    -13646.0,
+    -11652.1
+   ],
+   "coins": 44,
+   "dist": 533.2
+  },
+  {
+   "decision": 660,
+   "after_finish": 55,
+   "pos": [
+    29.4,
+    -13646.0,
+    -11652.6
+   ],
+   "coins": 44,
+   "dist": 546.0
+  },
+  {
+   "decision": 661,
+   "after_finish": 56,
+   "pos": [
+    41.4,
+    -13646.0,
+    -11652.4
+   ],
+   "coins": 44,
+   "dist": 558.0
+  },
+  {
+   "decision": 662,
+   "after_finish": 57,
+   "pos": [
+    52.3,
+    -13646.0,
+    -11652.5
+   ],
+   "coins": 44,
+   "dist": 568.9
+  },
+  {
+   "decision": 663,
+   "after_finish": 58,
+   "pos": [
+    62.4,
+    -13646.0,
+    -11653.1
+   ],
+   "coins": 44,
+   "dist": 578.9
+  },
+  {
+   "decision": 664,
+   "after_finish": 59,
+   "pos": [
+    71.6,
+    -13646.0,
+    -11654.1
+   ],
+   "coins": 44,
+   "dist": 588.0
+  },
+  {
+   "decision": 665,
+   "after_finish": 60,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 666,
+   "after_finish": 61,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 667,
+   "after_finish": 62,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 668,
+   "after_finish": 63,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 669,
+   "after_finish": 64,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 670,
+   "after_finish": 65,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 671,
+   "after_finish": 66,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 672,
+   "after_finish": 67,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 673,
+   "after_finish": 68,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 674,
+   "after_finish": 69,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 675,
+   "after_finish": 70,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 676,
+   "after_finish": 71,
+   "pos": [
+    80.0,
+    -13646.0,
+    -11655.3
+   ],
+   "coins": 44,
+   "dist": 596.2
+  },
+  {
+   "decision": 677,
+   "after_finish": 72,
+   "pos": [
+    77.0,
+    -13646.0,
+    -11654.9
+   ],
+   "coins": 44,
+   "dist": 593.3
+  },
+  {
+   "decision": 678,
+   "after_finish": 73,
+   "pos": [
+    70.1,
+    -13646.0,
+    -11653.9
+   ],
+   "coins": 44,
+   "dist": 586.5
+  },
+  {
+   "decision": 679,
+   "after_finish": 74,
+   "pos": [
+    59.2,
+    -13646.0,
+    -11652.1
+   ],
+   "coins": 44,
+   "dist": 575.8
+  },
+  {
+   "decision": 680,
+   "after_finish": 75,
+   "pos": [
+    44.5,
+    -13646.0,
+    -11649.3
+   ],
+   "coins": 44,
+   "dist": 561.3
+  },
+  {
+   "decision": 681,
+   "after_finish": 76,
+   "pos": [
+    26.9,
+    -13646.0,
+    -11645.6
+   ],
+   "coins": 44,
+   "dist": 544.1
+  },
+  {
+   "decision": 682,
+   "after_finish": 77,
+   "pos": [
+    9.3,
+    -13646.0,
+    -11641.6
+   ],
+   "coins": 44,
+   "dist": 527.1
+  },
+  {
+   "decision": 683,
+   "after_finish": 78,
+   "pos": [
+    -8.1,
+    -13646.0,
+    -11637.2
+   ],
+   "coins": 44,
+   "dist": 510.3
+  },
+  {
+   "decision": 684,
+   "after_finish": 79,
+   "pos": [
+    -25.5,
+    -13646.0,
+    -11632.4
+   ],
+   "coins": 44,
+   "dist": 493.7
+  },
+  {
+   "decision": 685,
+   "after_finish": 80,
+   "pos": [
+    -42.7,
+    -13646.0,
+    -11627.1
+   ],
+   "coins": 44,
+   "dist": 477.3
+  },
+  {
+   "decision": 686,
+   "after_finish": 81,
+   "pos": [
+    -59.7,
+    -13646.0,
+    -11621.4
+   ],
+   "coins": 44,
+   "dist": 461.4
+  },
+  {
+   "decision": 687,
+   "after_finish": 82,
+   "pos": [
+    -76.7,
+    -13646.0,
+    -11615.3
+   ],
+   "coins": 44,
+   "dist": 445.8
+  },
+  {
+   "decision": 688,
+   "after_finish": 83,
+   "pos": [
+    -93.4,
+    -13646.0,
+    -11608.7
+   ],
+   "coins": 44,
+   "dist": 430.6
+  },
+  {
+   "decision": 689,
+   "after_finish": 84,
+   "pos": [
+    -109.8,
+    -13646.0,
+    -11616.0
+   ],
+   "coins": 44,
+   "dist": 413.1
+  },
+  {
+   "decision": 690,
+   "after_finish": 85,
+   "pos": [
+    -123.7,
+    -13646.0,
+    -11627.4
+   ],
+   "coins": 44,
+   "dist": 397.3
+  },
+  {
+   "decision": 691,
+   "after_finish": 86,
+   "pos": [
+    -134.4,
+    -13646.0,
+    -11641.9
+   ],
+   "coins": 44,
+   "dist": 384.4
+  },
+  {
+   "decision": 692,
+   "after_finish": 87,
+   "pos": [
+    -141.5,
+    -13646.0,
+    -11658.4
+   ],
+   "coins": 44,
+   "dist": 375.4
+  },
+  {
+   "decision": 693,
+   "after_finish": 88,
+   "pos": [
+    -151.1,
+    -13646.0,
+    -11673.5
+   ],
+   "coins": 44,
+   "dist": 364.4
+  },
+  {
+   "decision": 694,
+   "after_finish": 89,
+   "pos": [
+    -164.5,
+    -13646.0,
+    -11685.5
+   ],
+   "coins": 44,
+   "dist": 350.5
+  },
+  {
+   "decision": 695,
+   "after_finish": 90,
+   "pos": [
+    -180.4,
+    -13646.0,
+    -11693.9
+   ],
+   "coins": 44,
+   "dist": 334.4
+  },
+  {
+   "decision": 696,
+   "after_finish": 91,
+   "pos": [
+    -197.7,
+    -13646.0,
+    -11698.6
+   ],
+   "coins": 44,
+   "dist": 317.0
+  },
+  {
+   "decision": 697,
+   "after_finish": 92,
+   "pos": [
+    -215.7,
+    -13646.0,
+    -11699.8
+   ],
+   "coins": 44,
+   "dist": 299.1
+  },
+  {
+   "decision": 698,
+   "after_finish": 93,
+   "pos": [
+    -233.5,
+    -13646.0,
+    -11697.7
+   ],
+   "coins": 44,
+   "dist": 281.2
+  },
+  {
+   "decision": 699,
+   "after_finish": 94,
+   "pos": [
+    -250.9,
+    -13646.0,
+    -11692.8
+   ],
+   "coins": 44,
+   "dist": 263.9
+  },
+  {
+   "decision": 700,
+   "after_finish": 95,
+   "pos": [
+    -267.8,
+    -13646.0,
+    -11686.7
+   ],
+   "coins": 44,
+   "dist": 247.2
+  },
+  {
+   "decision": 701,
+   "after_finish": 96,
+   "pos": [
+    -284.4,
+    -13646.0,
+    -11679.9
+   ],
+   "coins": 44,
+   "dist": 231.0
+  },
+  {
+   "decision": 702,
+   "after_finish": 97,
+   "pos": [
+    -300.8,
+    -13646.0,
+    -11672.3
+   ],
+   "coins": 44,
+   "dist": 215.5
+  },
+  {
+   "decision": 703,
+   "after_finish": 98,
+   "pos": [
+    -317.5,
+    -13646.0,
+    -11678.6
+   ],
+   "coins": 44,
+   "dist": 198.1
+  },
+  {
+   "decision": 704,
+   "after_finish": 99,
+   "pos": [
+    -331.1,
+    -13646.0,
+    -11690.4
+   ],
+   "coins": 44,
+   "dist": 183.8
+  },
+  {
+   "decision": 705,
+   "after_finish": 100,
+   "pos": [
+    -346.2,
+    -13646.0,
+    -11700.1
+   ],
+   "coins": 44,
+   "dist": 168.6
+  },
+  {
+   "decision": 706,
+   "after_finish": 101,
+   "pos": [
+    -364.4,
+    -13646.0,
+    -11705.2
+   ],
+   "coins": 44,
+   "dist": 150.5
+  },
+  {
+   "decision": 707,
+   "after_finish": 102,
+   "pos": [
+    -387.4,
+    -13646.0,
+    -11705.7
+   ],
+   "coins": 44,
+   "dist": 127.6
+  },
+  {
+   "decision": 708,
+   "after_finish": 103,
+   "pos": [
+    -408.1,
+    -13646.0,
+    -11722.7
+   ],
+   "coins": 44,
+   "dist": 109.5
+  },
+  {
+   "decision": 709,
+   "after_finish": 104,
+   "pos": [
+    -420.0,
+    -13646.0,
+    -11751.1
+   ],
+   "coins": 44,
+   "dist": 108.7
+  },
+  {
+   "decision": 710,
+   "after_finish": 105,
+   "pos": [
+    -446.4,
+    -13646.0,
+    -11773.3
+   ],
+   "coins": 44,
+   "dist": 101.8
+  },
+  {
+   "decision": 711,
+   "after_finish": 106,
+   "pos": [
+    -482.0,
+    -13646.0,
+    -11776.2
+   ],
+   "coins": 44,
+   "dist": 84.9
+  },
+  {
+   "decision": 712,
+   "after_finish": 107,
+   "pos": [
+    -507.2,
+    -13646.0,
+    -11800.7
+   ],
+   "coins": 44,
+   "dist": 103.2
+  },
+  {
+   "decision": 713,
+   "after_finish": 108,
+   "pos": [
+    -511.2,
+    -13646.0,
+    -11836.2
+   ],
+   "coins": 44,
+   "dist": 138.4
+  },
+  {
+   "decision": 714,
+   "after_finish": 109,
+   "pos": [
+    -501.0,
+    -13646.0,
+    -11870.6
+   ],
+   "coins": 44,
+   "dist": 173.3
+  },
+  {
+   "decision": 715,
+   "after_finish": 110,
+   "pos": [
+    -483.8,
+    -13646.0,
+    -11902.3
+   ],
+   "coins": 44,
+   "dist": 206.7
+  },
+  {
+   "decision": 716,
+   "after_finish": 111,
+   "pos": [
+    -497.0,
+    -13646.0,
+    -11934.9
+   ],
+   "coins": 44,
+   "dist": 237.7
+  },
+  {
+   "decision": 717,
+   "after_finish": 112,
+   "pos": [
+    -529.5,
+    -13646.0,
+    -11949.4
+   ],
+   "coins": 44,
+   "dist": 252.0
+  },
+  {
+   "decision": 718,
+   "after_finish": 113,
+   "pos": [
+    -565.3,
+    -13646.0,
+    -11947.4
+   ],
+   "coins": 44,
+   "dist": 254.7
+  },
+  {
+   "decision": 719,
+   "after_finish": 114,
+   "pos": [
+    -599.2,
+    -13646.0,
+    -11935.4
+   ],
+   "coins": 44,
+   "dist": 252.2
+  },
+  {
+   "decision": 720,
+   "after_finish": 115,
+   "pos": [
+    -631.9,
+    -13646.0,
+    -11920.4
+   ],
+   "coins": 44,
+   "dist": 251.6
+  },
+  {
+   "decision": 721,
+   "after_finish": 116,
+   "pos": [
+    -663.9,
+    -13646.0,
+    -11906.7
+   ],
+   "coins": 44,
+   "dist": 256.7
+  },
+  {
+   "decision": 722,
+   "after_finish": 117,
+   "pos": [
+    -695.2,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 276.4
+  },
+  {
+   "decision": 723,
+   "after_finish": 118,
+   "pos": [
+    -729.7,
+    -13646.0,
+    -11916.7
+   ],
+   "coins": 44,
+   "dist": 306.8
+  },
+  {
+   "decision": 724,
+   "after_finish": 119,
+   "pos": [
+    -765.1,
+    -13646.0,
+    -11922.7
+   ],
+   "coins": 44,
+   "dist": 336.5
+  },
+  {
+   "decision": 725,
+   "after_finish": 120,
+   "pos": [
+    -796.8,
+    -13646.0,
+    -11939.3
+   ],
+   "coins": 44,
+   "dist": 371.3
+  },
+  {
+   "decision": 726,
+   "after_finish": 121,
+   "pos": [
+    -818.3,
+    -13646.0,
+    -11968.0
+   ],
+   "coins": 44,
+   "dist": 406.3
+  },
+  {
+   "decision": 727,
+   "after_finish": 122,
+   "pos": [
+    -827.6,
+    -13646.0,
+    -12002.6
+   ],
+   "coins": 44,
+   "dist": 436.8
+  },
+  {
+   "decision": 728,
+   "after_finish": 123,
+   "pos": [
+    -853.3,
+    -13646.0,
+    -12026.9
+   ],
+   "coins": 44,
+   "dist": 472.2
+  },
+  {
+   "decision": 729,
+   "after_finish": 124,
+   "pos": [
+    -888.9,
+    -13646.0,
+    -12029.6
+   ],
+   "coins": 44,
+   "dist": 500.0
+  },
+  {
+   "decision": 730,
+   "after_finish": 125,
+   "pos": [
+    -915.1,
+    -13646.0,
+    -12053.0
+   ],
+   "coins": 44,
+   "dist": 535.2
+  },
+  {
+   "decision": 731,
+   "after_finish": 126,
+   "pos": [
+    -948.9,
+    -13646.0,
+    -12063.9
+   ],
+   "coins": 44,
+   "dist": 567.8
+  },
+  {
+   "decision": 732,
+   "after_finish": 127,
+   "pos": [
+    -983.8,
+    -13646.0,
+    -12055.9
+   ],
+   "coins": 44,
+   "dist": 590.0
+  },
+  {
+   "decision": 733,
+   "after_finish": 128,
+   "pos": [
+    -1014.5,
+    -13646.0,
+    -12037.2
+   ],
+   "coins": 44,
+   "dist": 604.1
+  },
+  {
+   "decision": 734,
+   "after_finish": 129,
+   "pos": [
+    -1041.7,
+    -13646.0,
+    -12013.7
+   ],
+   "coins": 44,
+   "dist": 614.3
+  },
+  {
+   "decision": 735,
+   "after_finish": 130,
+   "pos": [
+    -1067.9,
+    -13646.0,
+    -11989.0
+   ],
+   "coins": 44,
+   "dist": 625.1
+  },
+  {
+   "decision": 736,
+   "after_finish": 131,
+   "pos": [
+    -1093.1,
+    -13646.0,
+    -11963.3
+   ],
+   "coins": 44,
+   "dist": 636.3
+  },
+  {
+   "decision": 737,
+   "after_finish": 132,
+   "pos": [
+    -1117.1,
+    -13646.0,
+    -11936.5
+   ],
+   "coins": 44,
+   "dist": 647.9
+  },
+  {
+   "decision": 738,
+   "after_finish": 133,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 739,
+   "after_finish": 134,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 740,
+   "after_finish": 135,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 741,
+   "after_finish": 136,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 742,
+   "after_finish": 137,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 743,
+   "after_finish": 138,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 744,
+   "after_finish": 139,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 745,
+   "after_finish": 140,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 746,
+   "after_finish": 141,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 747,
+   "after_finish": 142,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 748,
+   "after_finish": 143,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 749,
+   "after_finish": 144,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 750,
+   "after_finish": 145,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 751,
+   "after_finish": 146,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 752,
+   "after_finish": 147,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 753,
+   "after_finish": 148,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 754,
+   "after_finish": 149,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  },
+  {
+   "decision": 755,
+   "after_finish": 150,
+   "pos": [
+    -1140.0,
+    -13646.0,
+    -11907.2
+   ],
+   "coins": 44,
+   "dist": 659.3
+  }
+ ]
+}
