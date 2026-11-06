@@ -142,6 +142,14 @@ def main():
                              "ratcheted progress along it (dist_reward_mode='route')")
     parser.add_argument("--route-reward", type=float, default=500.0,
                         help="Total reward for covering the whole --route")
+    parser.add_argument("--fall-speed", type=float, default=0.0,
+                        help="Descending faster than this for --fall-steps decisions in a row is a death (0 = off)")
+    parser.add_argument("--fall-steps", type=int, default=15)
+    parser.add_argument("--bc-anchor", type=str, default=None,
+                        help="npz from scripts/build_bc_set.py: cross-entropy steps on the human run after "
+                             "every rollout (src.ppo_extras.BCAnchor), so PPO does not undo the clone")
+    parser.add_argument("--bc-steps", type=int, default=20, help="BC gradient steps per rollout")
+    parser.add_argument("--bc-lr", type=float, default=1e-5)
     parser.add_argument("--respawn-jump", type=float, default=0.0,
                         help="A displacement larger than this in one decision is the game's own respawn after a "
                              "fall (ds3: above kill_y) and counts as a death; 0 = off")
@@ -154,7 +162,7 @@ def main():
                       dist_weight=args.dist_weight, goal_reward=args.goal_reward,
                       death_rule=args.death_rule, ram_coin_reward=args.coin_reward,
                       action_set=args.action_set, black_screen_death=args.black_screen_death,
-                      respawn_jump=args.respawn_jump,
+                      respawn_jump=args.respawn_jump, fall_speed=args.fall_speed, fall_steps=args.fall_steps,
                       goal_override=None if not args.goal_pos else
                       {"pos": [float(v) for v in args.goal_pos.split(",")], "radius": args.goal_radius})
     if args.route:
@@ -259,6 +267,10 @@ def main():
             if args.value_warmup_steps > 0 and i == 1:
                 from src.ppo_extras import ValueWarmup
                 callbacks.append(ValueWarmup(args.value_warmup_steps))
+            if args.bc_anchor:
+                from src.ppo_extras import BCAnchor
+                callbacks.append(BCAnchor(os.path.join(base_dir, args.bc_anchor), steps=args.bc_steps,
+                                          lr=args.bc_lr))
             if args.checkpoint_every > 0:
                 callbacks.append(CheckpointCallback(
                     save_freq=max(1, args.checkpoint_every // args.n_envs),

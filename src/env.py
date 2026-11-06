@@ -26,6 +26,13 @@ ACTION_SETS = {
         ACTION_BUTTONS + (("up", "left"), ("up", "right"), ("up", "B"), ("up", "left", "B"),
                           ("up", "right", "B"), ("up", "Y")),
     ),
+    # The ten actions of the coin-only agent that finished three slides in a video (None, Up, Up-R, R,
+    # Down-R, Down, Down-L, L, Up-L, A). The DS jump button is B, so "A" is "B (jump)" here.
+    "ref10": (
+        ("none", "up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left", "jump"),
+        ((), ("up",), ("up", "right"), ("right",), ("down", "right"), ("down",), ("down", "left"),
+         ("left",), ("up", "left"), ("B",)),
+    ),
 }
 
 try:
@@ -74,7 +81,7 @@ class Mario64DSEnv(gym.Env):
                  route_total_reward=500.0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
                  ram_coin_reward=0.0, black_screen_death=True, goal_override=None,
-                 respawn_jump=0.0):
+                 respawn_jump=0.0, fall_speed=0.0, fall_steps=15):
         super(Mario64DSEnv, self).__init__()
         if action_set not in ACTION_SETS:
             raise ValueError(f"unknown action_set {action_set!r}; choose from {sorted(ACTION_SETS)}")
@@ -135,6 +142,11 @@ class Mario64DSEnv(gym.Env):
         # resets) well above kill_y: a displacement larger than this in one decision is such a respawn
         # and counts as a death (0 = off; free fall moves ~150 units per decision).
         self.respawn_jump = float(respawn_jump)
+        # Off the slide Mario falls ~150 units per decision for ~100 decisions before the respawn. This
+        # ends the episode once he has descended faster than fall_speed for fall_steps decisions in a row
+        # (the ds3 human run never does it for more than 9 at 140; 0 = off).
+        self.fall_speed, self.fall_steps = float(fall_speed), int(fall_steps)
+        self._fall_run = 0
         self._last_pos = None
         # Optional intermediate goal {"pos": [x, y, z], "radius": r}: entering
         # that sphere ends the episode as reached_goal with goal_reward (e.g. a
@@ -407,12 +419,18 @@ class Mario64DSEnv(gym.Env):
                     raise
                 logger.debug("RAM death check failed: %s", exc)
 
-        if self.respawn_jump > 0 and self.has_emulator:
+        if (self.respawn_jump > 0 or self.fall_speed > 0) and self.has_emulator:
             pos_now = self.ram.get_pos_3d()
-            if (not is_dead and self._last_pos is not None and pos_now is not None
-                    and float(np.linalg.norm(pos_now - self._last_pos)) > self.respawn_jump):
-                is_dead = True
-                death_source = "respawn"
+            if self._last_pos is not None and pos_now is not None:
+                if self.fall_speed > 0:
+                    self._fall_run = self._fall_run + 1 if self._last_pos[1] - pos_now[1] > self.fall_speed else 0
+                    if not is_dead and self._fall_run >= self.fall_steps:
+                        is_dead = True
+                        death_source = "fall"
+                if (self.respawn_jump > 0 and not is_dead
+                        and float(np.linalg.norm(pos_now - self._last_pos)) > self.respawn_jump):
+                    is_dead = True
+                    death_source = "respawn"
             self._last_pos = None if pos_now is None else np.array(pos_now, dtype=np.float64)
 
         obs_2d = np.squeeze(obs)
@@ -598,6 +616,7 @@ class Mario64DSEnv(gym.Env):
         self.star_collected = False
         self.died = False
         self._last_pos = None
+        self._fall_run = 0
 
         if self.has_emulator and self.goal_spec is not None:
             try:

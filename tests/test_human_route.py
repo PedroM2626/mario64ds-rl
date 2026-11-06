@@ -319,3 +319,18 @@ def test_respawn_jump_counts_the_games_own_respawn_as_death():
         env.ram.get_pos_3d.return_value = mid + np.array([9000.0, 4000.0, 0.0])   # put back at the start
         _, _, done, _, info = env.step(0)
         assert done is dies and bool(info["died"]) is dies
+
+
+def test_fall_speed_ends_a_long_free_fall_but_not_a_short_chute():
+    from src.ram_state import TRACK_GOALS
+    mid = TRACK_GOALS["ds1"]["target_pos"] + np.array([3000.0, 6000.0, 0.0])
+    for drop, steps, dies in ((150.0, 15, True), (150.0, 8, False), (90.0, 40, False)):
+        env = _slide_env(fall_speed=140.0, fall_steps=15)
+        env.ram.poll.return_value = np.zeros(6)
+        env.ram.get_pos_3d.return_value = mid
+        env.reset()
+        done = False
+        for k in range(1, steps + 1):
+            env.ram.get_pos_3d.return_value = mid - np.array([0.0, drop * k, 0.0])
+            done = bool(env.step(0)[2])
+        assert done is dies, (drop, steps)

@@ -50,3 +50,30 @@ def test_zero_warmup_trains_everything():
     before = _snapshot(m)
     m.learn(128, callback=ValueWarmup(0))
     assert _changed(before, _snapshot(m), "action_net")
+
+
+def test_bc_anchor_pulls_the_policy_towards_the_demonstrated_action(tmp_path):
+    from src.ppo_extras import BCAnchor
+    rng = np.random.default_rng(0)
+    X = rng.uniform(-1, 1, (64, 4)).astype(np.float32)
+    path = tmp_path / "bc.npz"
+    np.savez(path, X=X, Y=np.full(64, 2))
+    m = _model()
+
+    def p_demo():
+        obs = torch.as_tensor(X)
+        return float(m.policy.get_distribution(obs).distribution.probs[:, 2].mean())
+
+    before = p_demo()
+    m.learn(512, callback=BCAnchor(str(path), steps=30, batch=32, lr=1e-3))
+    assert p_demo() > before + 0.2
+
+
+def test_bc_anchor_skips_while_the_policy_is_frozen(tmp_path):
+    from src.ppo_extras import BCAnchor
+    path = tmp_path / "bc.npz"
+    np.savez(path, X=np.zeros((8, 4), np.float32), Y=np.zeros(8, int))
+    m = _model()
+    before = _snapshot(m)
+    m.learn(128, callback=[ValueWarmup(10_000), BCAnchor(str(path), steps=5, batch=8, lr=1e-2)])
+    assert not _changed(before, _snapshot(m), "action_net")

@@ -34,6 +34,8 @@ def main():
     ap.add_argument("--goal-pos", default=None, help="x,y,z of an intermediate goal (as in train_curriculum)")
     ap.add_argument("--goal-radius", type=float, default=600.0)
     ap.add_argument("--no-black-screen-death", action="store_true", help="a black screen is not a death")
+    ap.add_argument("--fall-speed", type=float, default=0.0)
+    ap.add_argument("--fall-steps", type=int, default=15)
     ap.add_argument("--respawn-jump", type=float, default=0.0,
                     help="one-decision displacement above this is the game's respawn after a fall: a death")
     ap.add_argument("--out", default=None)
@@ -54,6 +56,7 @@ def main():
     env = Mario64DSEnv(rom_path=rom_path(), state_path=paths[0], max_steps=args.max_steps, flow_weight=0.0,
                        dist_reward_enabled=False, track_id=args.track,
                        black_screen_death=not args.no_black_screen_death, respawn_jump=args.respawn_jump,
+                       fall_speed=args.fall_speed, fall_steps=args.fall_steps,
                        action_set={6: "legacy6", 12: "compound12"}[n_actions],
                        goal_override=None if not args.goal_pos else
                        {"pos": target.tolist(), "radius": args.goal_radius})
