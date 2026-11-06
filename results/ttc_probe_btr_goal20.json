@@ -1,0 +1,96 @@
+{
+ "model": "models/btr_goal20/step_1000005.pt",
+ "track": "ds8",
+ "rows": [
+  {
+   "episode": 0,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -5632.0,
+   "coins": 0,
+   "decisions": 1568,
+   "end": "died"
+  },
+  {
+   "episode": 1,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -5632.0,
+   "coins": 0,
+   "decisions": 569,
+   "end": "died"
+  },
+  {
+   "episode": 2,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -5557.0,
+   "coins": 0,
+   "decisions": 514,
+   "end": "died"
+  },
+  {
+   "episode": 3,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -4900.0,
+   "coins": 0,
+   "decisions": 3000,
+   "end": "horizon"
+  },
+  {
+   "episode": 4,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -4900.0,
+   "coins": 0,
+   "decisions": 3000,
+   "end": "horizon"
+  },
+  {
+   "episode": 5,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -4900.0,
+   "coins": 0,
+   "decisions": 3000,
+   "end": "horizon"
+  },
+  {
+   "episode": 6,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -5557.0,
+   "coins": 0,
+   "decisions": 740,
+   "end": "died"
+  },
+  {
+   "episode": 7,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -5557.0,
+   "coins": 0,
+   "decisions": 489,
+   "end": "died"
+  },
+  {
+   "episode": 8,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -5632.0,
+   "coins": 0,
+   "decisions": 1154,
+   "end": "died"
+  },
+  {
+   "episode": 9,
+   "start_y": -4710.0,
+   "max_y": -4710.0,
+   "final_y": -4710.0,
+   "coins": 0,
+   "decisions": 3000,
+   "end": "horizon"
+  }
+ ]
+}
