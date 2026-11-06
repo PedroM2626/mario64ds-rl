@@ -29,23 +29,37 @@ def main():
     ap.add_argument("--max-steps", type=int, default=1500)
     ap.add_argument("--episodes", type=int, default=1)
     ap.add_argument("--device", default="cpu")
+    ap.add_argument("--start-random", type=int, default=0,
+                    help="perturbed starts: each episode first plays a random number (0..N) of random actions, one "
+                         "decision each; a perturbation that ends the episode is redrawn (up to 5 times)")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     tracks = [t.strip() for t in args.tracks.split(",") if t.strip()]
     if len(tracks) > 1:   # DeSmuME cannot host a second emulator in the same process: one process per track
         import subprocess
+        import tempfile
         rows = []
         for t in tracks:
-            r = subprocess.run([sys.executable, os.path.abspath(__file__), "--model", args.model, "--tracks", t,
-                                "--max-steps", str(args.max_steps), "--episodes", str(args.episodes),
-                                "--device", args.device], capture_output=True, text=True, cwd=ROOT_DIR)
-            for line in r.stdout.splitlines():
-                if line.startswith("{"):
-                    rows.append(json.loads(line))
-                    print(line, flush=True)
+            # The child writes its rows to a file: the emulator's own text on stdout (written without a
+            # newline) can end up in the same line as a result and used to hide one episode per slide.
+            fd, tmp = tempfile.mkstemp(suffix=".json")
+            os.close(fd)
+            subprocess.run([sys.executable, os.path.abspath(__file__), "--model", args.model, "--tracks", t,
+                            "--max-steps", str(args.max_steps), "--episodes", str(args.episodes),
+                            "--device", args.device, "--start-random", str(args.start_random), "--out", tmp],
+                           capture_output=True, text=True, cwd=ROOT_DIR)
+            with open(tmp, encoding="utf-8") as fh:
+                child = json.load(fh)["rows"]
+            os.remove(tmp)
+            for r in child:
+                rows.append(r)
+                print(json.dumps(r), flush=True)
+            if len(child) != args.episodes:
+                print(f"WARNING: {t}: {len(child)} of {args.episodes} episodes", flush=True)
         if args.out:
             with open(os.path.join(ROOT_DIR, args.out), "w", encoding="utf-8") as fh:
-                json.dump({"model": args.model, "rows": rows}, fh, indent=1)
+                json.dump({"model": args.model, "start_random": args.start_random, "rows": rows}, fh, indent=1)
         return
 
     from scripts.train_btr import ref_env_kwargs
@@ -60,8 +74,20 @@ def main():
         env = Mario64DSEnv(rom_path=rom_path(), state_path=savestate_path(track), max_steps=args.max_steps,
                            track_id=track, **ref_env_kwargs(track))
         for ep in range(args.episodes):
-            obs, _ = env.reset()
-            dq = deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[:, :, 0]], maxlen=4)
+            rng = np.random.RandomState(args.seed * 100003 + ep)
+            k = 0
+            for _try in range(5):
+                obs, _ = env.reset()
+                dq = deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[:, :, 0]], maxlen=4)
+                k, ended = (int(rng.randint(0, args.start_random + 1)) if args.start_random else 0), False
+                for _ in range(k):
+                    obs, _, term, trunc, _ = env.step(int(rng.randint(10)))
+                    dq.append(obs[:, :, 0])
+                    if term or trunc:
+                        ended = True
+                        break
+                if not ended:
+                    break
             c0, dmin, info, end, t = env.ram.get_coins(), 1e18, {}, "horizon", 0
             for t in range(args.max_steps):
                 a = int(agent.act(np.stack(list(dq))[None], noisy=False)[0])
@@ -72,12 +98,13 @@ def main():
                     end = "finish" if info.get("reached_goal") else "died"
                     break
             rows.append({"track": track, "episode": ep, "end": end, "decisions": t + 1,
-                         "coins_gained": int(env.ram.get_coins() - c0), "min_dist": round(dmin, 1)})
+                         "coins_gained": int(env.ram.get_coins() - c0), "min_dist": round(dmin, 1),
+                         "random_actions": k})
             print(json.dumps(rows[-1]), flush=True)
         env.close()
     if args.out:
         with open(os.path.join(ROOT_DIR, args.out), "w", encoding="utf-8") as fh:
-            json.dump({"model": args.model, "rows": rows}, fh, indent=1)
+            json.dump({"model": args.model, "start_random": args.start_random, "rows": rows}, fh, indent=1)
 
 
 if __name__ == "__main__":

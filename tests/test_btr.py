@@ -84,3 +84,10 @@ def test_ref10_action_set_matches_the_reference_buttons():
     assert buttons[0] == () and buttons[1] == ("up",) and buttons[2] == ("up", "right")
     assert buttons[9] == ("B",) and names[9] == "jump"          # the DS jump button
     assert set(map(frozenset, buttons)) == set(map(frozenset, buttons)) and len(set(map(frozenset, buttons))) == 10
+
+
+def test_goal_reward_is_off_by_default_and_passed_through():
+    from scripts.train_btr import ref_env_kwargs
+    assert ref_env_kwargs("ds3")["goal_reward"] == 0.0
+    assert ref_env_kwargs("ds3", goal_reward=20.0)["goal_reward"] == 20.0
+    assert ref_env_kwargs("ds1", goal_reward=20.0)["ram_coin_reward"] == 1.0
