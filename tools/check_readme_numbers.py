@@ -273,7 +273,7 @@ def ablation_checks(readme):
     """The ablation table must equal the evaluation files and the last logged training step."""
     import csv
     import statistics
-    for run, label, steps_col in (("control", "| control |", None), ("ppo", "| ppo |", None), ("legacy6", "| legacy6 |", None)):
+    for run, label, steps_col in (("control", "| control |", None), ("ppo", "| ppo |", None), ("legacy6", "| legacy6 |", None), ("orig", "| orig |", None)):
         ev = os.path.join(ROOT, "results", f"abl_{run}_eval_x20.json")
         if not os.path.exists(ev):
             check(f"ablation {run} evaluation json", "present", "missing")
@@ -295,11 +295,12 @@ def ablation_checks(readme):
     def _row(run, steps):
         with open(os.path.join(ROOT, "results", f"{run}_train.csv"), newline="", encoding="utf-8") as fh:
             return next(r for r in _csv.DictReader(fh) if int(r["steps"]) == steps)
-    o, k = _row("btr_ref10", 640005), _row("abl_control", 420000)
+    o, k, q = _row("btr_ref10", 640005), _row("abl_control", 420000), _row("abl_orig", 580005)
     flat = " ".join(readme.split())
     want = [f"{float(o['ds1_coins']):.1f}, {float(o['ds2_coins']):.1f} and {float(o['ds3_coins']):.1f} coins",
             f"after {float(o['minutes']):.1f} minutes (640,005 steps)",
-            f"{float(k['ds1_coins']):.1f}, {float(k['ds2_coins']):.1f} and {float(k['ds3_coins']):.1f} after {float(k['minutes']):.1f} minutes (420,000 steps)"]
+            f"{float(k['ds1_coins']):.1f}, {float(k['ds2_coins']):.1f} and {float(k['ds3_coins']):.1f} after {float(k['minutes']):.1f} minutes (420,000 steps)",
+            f"{float(q['ds1_coins']):.1f}, {float(q['ds2_coins']):.1f} and {float(q['ds3_coins']):.1f} after {float(q['minutes']):.1f} minutes (580,005 steps)"]
     check("ablation control vs the original run at one hour", "; ".join(want), "quoted" if all(w in flat for w in want) else "absent",
           ok=all(w in flat for w in want))
 
