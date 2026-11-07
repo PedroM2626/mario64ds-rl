@@ -78,7 +78,7 @@ class Mario64DSEnv(gym.Env):
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
-                 route_total_reward=500.0, start_states=None, full_start_prob=0.25,
+                 route_total_reward=500.0, waypoint_reward=1.0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
                  ram_coin_reward=0.0, black_screen_death=True, goal_override=None,
                  respawn_jump=0.0, fall_speed=0.0, fall_steps=15):
@@ -164,12 +164,13 @@ class Mario64DSEnv(gym.Env):
         # "route": ratcheted arc length along a recorded human path (src/route.py)
         # replaces the straight-line distance term; star/goal detection is unchanged.
         self.route = None
-        if self.dist_reward_mode == "route":
+        if self.dist_reward_mode in ("route", "waypoint"):
             if not route_path:
                 raise ValueError("dist_reward_mode='route' requires route_path")
             from src.route import Route
             self.route = Route.load(route_path)
         self.route_total_reward = float(route_total_reward)
+        self.waypoint_reward = float(waypoint_reward)
         self.route_best_s = None
 
         # Start-state curriculum: reset() loads the canonical state_path with
@@ -458,13 +459,17 @@ class Mario64DSEnv(gym.Env):
                 # 3D Distance Reward: High-Water Mark ("progress") vs Bidirectional ("potential")
                 # vs ratcheted arc length along a recorded route ("route")
                 if self.dist_reward_enabled:
-                    if self.dist_reward_mode == "route":
+                    if self.dist_reward_mode in ("route", "waypoint"):
                         s = (self.route.locate(curr_pos) if self.route_best_s is None
                              else self.route.progress(curr_pos, self.route_best_s))
                         if s is not None:
                             if self.route_best_s is not None and s > self.route_best_s:
-                                dist_reward = ((s - self.route_best_s) / self.route.length
-                                               * self.route_total_reward)
+                                if self.dist_reward_mode == "waypoint":
+                                    # a fixed reward per waypoint of the route newly passed (ratcheted)
+                                    dist_reward = self.route.passed(self.route_best_s, s) * self.waypoint_reward
+                                else:
+                                    dist_reward = ((s - self.route_best_s) / self.route.length
+                                                   * self.route_total_reward)
                                 self.last_dist_reward = float(dist_reward)
                                 reward += dist_reward
                             if self.route_best_s is None or s > self.route_best_s:

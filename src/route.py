@@ -84,6 +84,10 @@ class Route:
         return cls(spec["waypoints"], spec.get("corridor_radius", 250.0),
                    spec.get("lookahead", 600.0), spec.get("lookbehind", 300.0), meta=spec)
 
+    def passed(self, old_s: float, new_s: float) -> int:
+        """How many waypoints lie in the arc-length interval (old_s, new_s] (waypoint k sits at cum[k])."""
+        return int(np.searchsorted(self.cum, new_s, side="right") - np.searchsorted(self.cum, old_s, side="right"))
+
     def _project(self, pos, lo: int, hi: int):
         """(arc_length, distance) of the closest point on segments lo..hi-1."""
         a = self.waypoints[lo:hi]

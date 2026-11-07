@@ -33,7 +33,7 @@ TTC_ROUTE = "config/routes/ttc_human_v1.json"
 
 
 def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward=0.0, action_set="ref10",
-                   route_reward=20.0, star_reward=20.0):
+                   waypoint_reward=1.0, ttc_star_reward=100.0):
     """Mario64DSEnv settings of the coin-only agent (everything but the coin counter pays nothing, unless
     goal_reward > 0: a one-time reward when the episode ends in the finish region)."""
     kw = dict(action_set=action_set, death_penalty=0.0, step_penalty=0.0, flow_weight=0.0,
@@ -42,10 +42,10 @@ def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward
     if track == "ds3":
         kw.update(fall_speed=ds3_fall_speed, fall_steps=15)
     if track == "ds8":
-        # Tick Tock Clock: waypoint (route) reward along the recorded human ascent, `route_reward` in total for the
-        # whole route, plus `star_reward` once for the star; no coin reward (coins pay only on the descent slides). Episodes always start from the ds8 savestate.
-        kw.update(ram_coin_reward=0.0, dist_reward_enabled=True, dist_reward_mode="route", route_path=os.path.join(ROOT_DIR, TTC_ROUTE),
-                  route_total_reward=route_reward, star_reward=star_reward)
+        # Tick Tock Clock: +waypoint_reward for every waypoint of the recorded human ascent reached for the first time
+        # (the route progress only ratchets forward) and `ttc_star_reward` once for the star; no coins, no height term.
+        kw.update(ram_coin_reward=0.0, dist_reward_enabled=True, dist_reward_mode="waypoint",
+                  route_path=os.path.join(ROOT_DIR, TTC_ROUTE), waypoint_reward=waypoint_reward, star_reward=ttc_star_reward)
     return kw
 
 

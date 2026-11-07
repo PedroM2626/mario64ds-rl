@@ -93,8 +93,17 @@ def test_goal_reward_is_off_by_default_and_passed_through():
     assert ref_env_kwargs("ds1", goal_reward=20.0)["ram_coin_reward"] == 1.0
 
 
-def test_ttc_pays_only_for_the_route_and_the_star():
+def test_ttc_pays_for_waypoints_and_the_star():
     from scripts.train_btr import ref_env_kwargs
     k = ref_env_kwargs("ds8")
-    assert k["ram_coin_reward"] == 0.0 and k["dist_reward_mode"] == "route" and k["star_reward"] == 20.0
+    assert k["ram_coin_reward"] == 0.0 and k["dist_reward_mode"] == "waypoint" and k["star_reward"] == 100.0
+    assert k["waypoint_reward"] == 1.0
     assert ref_env_kwargs("ds3")["ram_coin_reward"] == 1.0
+
+
+def test_route_counts_waypoints_passed():
+    import numpy as np
+    from src.route import Route
+    r = Route(np.array([[0, 0, 0], [0, 100, 0], [0, 200, 0], [0, 300, 0]], float))   # waypoints at arc 0, 100, 200, 300
+    assert r.passed(0.0, 0.0) == 0 and r.passed(0.0, 99.0) == 0
+    assert r.passed(0.0, 100.0) == 1 and r.passed(0.0, 250.0) == 2 and r.passed(150.0, 300.0) == 2
