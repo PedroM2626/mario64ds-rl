@@ -43,8 +43,8 @@ def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward
         kw.update(fall_speed=ds3_fall_speed, fall_steps=15)
     if track == "ds8":
         # Tick Tock Clock: waypoint (route) reward along the recorded human ascent, `route_reward` in total for the
-        # whole route, plus `star_reward` once for the star. Episodes always start from the ds8 savestate.
-        kw.update(dist_reward_enabled=True, dist_reward_mode="route", route_path=os.path.join(ROOT_DIR, TTC_ROUTE),
+        # whole route, plus `star_reward` once for the star; no coin reward (coins pay only on the descent slides). Episodes always start from the ds8 savestate.
+        kw.update(ram_coin_reward=0.0, dist_reward_enabled=True, dist_reward_mode="route", route_path=os.path.join(ROOT_DIR, TTC_ROUTE),
                   route_total_reward=route_reward, star_reward=star_reward)
     return kw
 

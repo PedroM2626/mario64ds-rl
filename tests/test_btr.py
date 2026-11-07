@@ -91,3 +91,10 @@ def test_goal_reward_is_off_by_default_and_passed_through():
     assert ref_env_kwargs("ds3")["goal_reward"] == 0.0
     assert ref_env_kwargs("ds3", goal_reward=20.0)["goal_reward"] == 20.0
     assert ref_env_kwargs("ds1", goal_reward=20.0)["ram_coin_reward"] == 1.0
+
+
+def test_ttc_pays_only_for_the_route_and_the_star():
+    from scripts.train_btr import ref_env_kwargs
+    k = ref_env_kwargs("ds8")
+    assert k["ram_coin_reward"] == 0.0 and k["dist_reward_mode"] == "route" and k["star_reward"] == 20.0
+    assert ref_env_kwargs("ds3")["ram_coin_reward"] == 1.0
