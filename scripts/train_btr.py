@@ -29,7 +29,11 @@ if ROOT_DIR not in sys.path:
 import numpy as np  # noqa: E402
 
 
-def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward=0.0, action_set="ref10"):
+TTC_ROUTE = "config/routes/ttc_human_v1.json"
+
+
+def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward=0.0, action_set="ref10",
+                   route_reward=20.0, star_reward=20.0):
     """Mario64DSEnv settings of the coin-only agent (everything but the coin counter pays nothing, unless
     goal_reward > 0: a one-time reward when the episode ends in the finish region)."""
     kw = dict(action_set=action_set, death_penalty=0.0, step_penalty=0.0, flow_weight=0.0,
@@ -37,6 +41,11 @@ def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward
               use_ram_death=True, black_screen_death=False, respawn_jump=respawn_jump)
     if track == "ds3":
         kw.update(fall_speed=ds3_fall_speed, fall_steps=15)
+    if track == "ds8":
+        # Tick Tock Clock: waypoint (route) reward along the recorded human ascent, `route_reward` in total for the
+        # whole route, plus `star_reward` once for the star. Episodes always start from the ds8 savestate.
+        kw.update(dist_reward_enabled=True, dist_reward_mode="route", route_path=os.path.join(ROOT_DIR, TTC_ROUTE),
+                  route_total_reward=route_reward, star_reward=star_reward)
     return kw
 
 
@@ -97,13 +106,14 @@ def main():
     obs = vec.reset()                                         # (E, 84, 84, 1)
     stacks = [deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[i, :, :, 0]], maxlen=4) for i in range(E)]
     ep_ret, ep_len = np.zeros(E), np.zeros(E, int)
-    recent = {t: deque(maxlen=30) for t in tracks}            # (coins, decisions) of the last episodes
+    recent = {t: deque(maxlen=30) for t in tracks}            # (return, decisions, route arc length) of the last episodes
+    routed = [t for t in tracks if t == "ds8"]
     log_path = os.path.join(ROOT_DIR, "results", f"{args.run}_train.csv")
     log = open(log_path, "a", newline="", encoding="utf-8")
     writer = csv.writer(log)
     if os.path.getsize(log_path) == 0:
         writer.writerow(["steps", "minutes", "updates", "loss"] + [f"{t}_coins" for t in tracks] +
-                        [f"{t}_len" for t in tracks])
+                        [f"{t}_len" for t in tracks] + [f"{t}_route_s" for t in routed])
     t0, step, next_log, next_ckpt, loss = time.time(), 0, args.log_every, args.ckpt_every, float("nan")
     while step < args.steps:
         if args.max_minutes and time.time() - t0 > args.max_minutes * 60:
@@ -116,7 +126,7 @@ def main():
         ep_len += 1
         for i in range(E):
             if dones[i]:
-                recent[names[i]].append((ep_ret[i], ep_len[i]))
+                recent[names[i]].append((ep_ret[i], ep_len[i], infos[i].get("route_progress") or 0.0))
                 ep_ret[i], ep_len[i] = 0.0, 0
                 stacks[i] = deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[i, :, :, 0]], maxlen=4)
             else:
@@ -131,13 +141,15 @@ def main():
         if step >= next_log:
             next_log += args.log_every
             row = [step, round((time.time() - t0) / 60, 1), agent.updates, round(loss, 4)]
-            row += [round(float(np.mean([r for r, _ in recent[t]])), 2) if recent[t] else "" for t in tracks]
-            row += [round(float(np.mean([n for _, n in recent[t]]))) if recent[t] else "" for t in tracks]
+            row += [round(float(np.mean([r[0] for r in recent[t]])), 2) if recent[t] else "" for t in tracks]
+            row += [round(float(np.mean([r[1] for r in recent[t]]))) if recent[t] else "" for t in tracks]
+            row += [round(float(np.mean([r[2] for r in recent[t]]))) if recent[t] else "" for t in routed]
             writer.writerow(row)
             log.flush()
             print("steps {} | {} min | loss {} | coins {} | decisions {}".format(
                 row[0], row[1], row[3], dict(zip(tracks, row[4:4 + len(tracks)])),
-                dict(zip(tracks, row[4 + len(tracks):]))), flush=True)
+                dict(zip(tracks, row[4 + len(tracks):4 + 2 * len(tracks)]))) +
+                ("" if not routed else " | route arc length {}".format(row[4 + 2 * len(tracks):])), flush=True)
         if step >= next_ckpt:
             next_ckpt += args.ckpt_every
             agent.save(os.path.join(out, f"step_{step}.pt"))

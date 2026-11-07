@@ -54,6 +54,7 @@ def main():
                 end = "star" if info.get("success") else "died"
                 break
         rows.append({"episode": ep, "start_y": round(y0, 1), "max_y": round(ymax, 1), "final_y": round(float(env.ram.get_pos_3d()[1]), 1),
+                     "route_s": round(float(info.get("route_progress") or 0.0), 1),
                      "coins": int(env.ram.get_coins() - c0), "decisions": t + 1, "end": end})
         print(rows[-1], flush=True)
     env.close()
