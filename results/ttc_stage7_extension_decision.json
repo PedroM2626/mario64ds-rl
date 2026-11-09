@@ -1,0 +1,19 @@
+{
+  "validation_star_successes": 0,
+  "recording_star_success": false,
+  "full_route_validation_episodes": [],
+  "full_route_training_mean_at_steps": [],
+  "training_star_count": null,
+  "training_star_count_available": false,
+  "training_limitation": "The running trainer does not log per-episode stars; absence of recorded proof is not proof of zero training stars.",
+  "route_proxy_limitation": "Route completion is an authorized alternative stopping criterion, not proof of star collection.",
+  "criterion": "Extend if there is no proven star and no full-route progress recorded at the precision of the logs; explicitly authorized by the user on 2026-11-09.",
+  "route_length": 53245.76339151399,
+  "extend_until_22": true,
+  "decided_at": "2026-11-09T19:21:41.476652-03:00",
+  "video": "videos/ttc_wp7_19h_small.mp4",
+  "model": "models/btr_ttc_wp7/final.pt",
+  "checkpoint_sha256": "d9f70ba31e8ed706ba8747b2cddd41c711ae35515af04016b6af9884b4b2d91c",
+  "training_csv": "results/btr_ttc_wp7_train.csv",
+  "validation_json": "results/ttc_probe_btr_ttc_wp7.json"
+}

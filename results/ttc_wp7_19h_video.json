@@ -1,0 +1,23 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "codec_name": "h264",
+      "width": 776,
+      "height": 384,
+      "nb_frames": "5031"
+    }
+  ],
+  "format": {
+    "duration": "335.400000",
+    "size": "27485435"
+  },
+  "model": "models/btr_ttc_wp7/final.pt",
+  "checkpoint_sha256": "d9f70ba31e8ed706ba8747b2cddd41c711ae35515af04016b6af9884b4b2d91c",
+  "video": "videos/ttc_wp7_19h_small.mp4",
+  "recorded_at": "2026-11-09T19:02:51.364586-03:00",
+  "star_success": false,
+  "max_decisions": 5000,
+  "attempts": 1
+}

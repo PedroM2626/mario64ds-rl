@@ -190,7 +190,7 @@ feeds the final agent, and stage 2 after about 1.06M of its 6M steps, keeping th
 
 ## Tick Tock Clock: current BTR experiments
 
-**Status on 2026-11-09, after stage 6:** no star success in the evaluated episodes. The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
+**Status on 2026-11-09, after stage 7:** no star success in the evaluated episodes. The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
 
 ### Reward, observations and episode rules
 
@@ -206,7 +206,7 @@ The active recipe is in [`scripts/train_btr.py`](scripts/train_btr.py), `ref_env
 | Observation | Four 84x84 grayscale frames; older frames at reset are zero-filled |
 | Training starts | Full `ds8` savestate, 15 parallel emulator processes |
 | Demonstration replay / reverse curriculum | Neither is used by this BTR runner |
-| Horizon | 3,000 decisions in stages 1–3; 5,000 in stages 4–6 |
+| Horizon | 3,000 decisions in stages 1–3; 5,000 in stages 4–7; unchanged for the conditional stage 8 |
 
 Training defaults are learning rate `1e-4`, AdamW weight decay `0.01` and epsilon `1.5e-4`, discount `0.99`, 3-step returns, batch size `128`, replay capacity argument `400000` (integer division across workers), 20,000 warm-up decisions and one gradient update per 15-environment vector step after warm-up. The soft target coefficient is `0.005`; IQN uses 8 quantiles for each training head and 16 for action selection. Munchausen parameters are `(0.9, 0.03, -1.0)`. The requested seed defaults to zero for NumPy and environment initialization; the runner does not explicitly seed PyTorch, so that argument is not a complete reproducibility guarantee. The `--device` training default is CUDA (the agent falls back to CPU if CUDA is unavailable).
 
@@ -216,7 +216,7 @@ Route progress projects Mario's RAM position onto a bounded portion of the polyl
 
 Episodes end on the star-success detector, a fall below the course floor, a detected game respawn, or the horizon. Black-screen death is disabled. Star success uses the environment's RAM/geometry rule: within 80 units of the target, or an increased star counter while within 500 units. The probe's `end="star"` is success under this detector, not an independently audited gameplay event.
 
-### Six completed stages
+### Seven completed stages
 
 Each row evaluates its own final checkpoint on CPU for 10 episodes with `noisy=False`. IQN still samples 16 random quantile fractions for action selection, and the emulator varies between episodes: **greedy here does not mean an exactly deterministic replay**. A single training lineage and ten probe episodes cannot establish statistical superiority or isolate the cause of an improvement.
 
@@ -228,10 +228,23 @@ Each row evaluates its own final checkpoint on CPU for 10 episodes with `noisy=F
 | 4 / `btr_ttc_wp4` | 1,000,005 | 186.6 | 5,000 | 108–134 | 15,544.2–19,260.5 | 7/10 | 3/10 | 0/10 |
 | 5 / `btr_ttc_wp5` | 3,700,005 | 521.9 | 5,000 | 137–171 | 19,627.7–24,627.6 | 9/10 | 1/10 | 0/10 |
 | 6 / `btr_ttc_wp6` | 2,020,005 | 203.5 | 5,000 | 170–185 | 24,556.6–26,649.0 | 3/10 | 7/10 | 0/10 |
+| 7 / `btr_ttc_wp7` | 4,000,005 | 460.2 | 5,000 | 204–204 | 29,358.6–29,358.6 | 0/10 | 10/10 | 0/10 |
+
+| Stage | Mean route progress | Maximum route progress |
+|---|---:|---:|
+| 1 | 7.1% | 7.4% |
+| 2 | 16.8% | 17.4% |
+| 3 | 28.8% | 33.2% |
+| 4 | 30.6% | 36.2% |
+| 5 | 38.7% | 46.3% |
+| 6 | 48.5% | 50.0% |
+| 7 | 55.1% | 55.1% |
+
+Percentages above use each probe episode's maximum **arc length**, divided by the full route length, then averaged or maximized across ten episodes. They are not the fraction of waypoint positions, final position, a recent training mean, or a completion rate. This distinction is necessary when comparing the stage results with the live reports.
 
 Sources: each run's [`results/btr_ttc_wp*_train.csv`](results/) and [`results/ttc_probe_btr_ttc_wp*.json`](results/), consolidated with LF-normalized text-source hashes and raw binary checkpoint hashes in [`results/ttc_btr_stages.json`](results/ttc_btr_stages.json). Stage 1 uses the name `btr_ttc_wp` without a trailing 1. Step and minute columns are the **last periodic CSV sample**, not the exact final step count or complete process duration; recording every 20,000 aggregate decisions leaves an unlogged tail. The 15 workers' decisions are summed, not counted separately as emulator frames. Wall-clock time and steps differ between stages, so the stages are not equal-budget ablations.
 
-Stage 1 was trained from scratch. Stages 2–6 load the preceding stage's `final.pt`. Loading transfers policy weights and copies them into the target network; **optimizer state, replay, update counter and the replay-importance schedule restart**. The checkpoint contains the network weights and action count, not an uninterrupted training session. The maximum `--steps 30000000` also defines the importance-sampling schedule; replacing it with a smaller step target changes that schedule even when training stops on wall time.
+Stage 1 was trained from scratch. Stages 2–7 load the preceding stage's `final.pt`. Loading transfers policy weights and copies them into the target network; **optimizer state, replay, update counter and the replay-importance schedule restart**. The checkpoint contains the network weights and action count, not an uninterrupted training session. The maximum `--steps 30000000` also defines the importance-sampling schedule; replacing it with a smaller step target changes that schedule even when training stops on wall time.
 
 ### Stage 6: final evaluation and training curve
 
@@ -242,6 +255,16 @@ During stage 6, the peak logged recent mean return was 174.13, and the peak logg
 The training CSV's `ds8_coins` field is a historical name for **mean episode return over up to the last 30 completed episodes**, not coins collected. `ds8_route_s` is the mean route high-water mark over the same recent completed episodes, and `ds8_len` is mean episode length. These training statistics use exploration and are not a greedy success rate. Coins can still be picked up during TTC gameplay but contribute zero reward.
 
 **Observed obstacle:** the user identified a pillar that Mario needs to climb in the stage-5 recording. Eight of the ten stage-5 probe episodes stopped at `route_s=19627.7` (137 crossings), and two reached approximately 24.5k. The probe does not record action/position traces or obstacle labels, so mapping that repeated plateau to the pillar, or concluding that unfamiliarity causes the stall, remains a hypothesis. More training is not a guarantee that this maneuver will be learned. The evaluation shows how far the checkpoint gets, not which obstacle caused each death.
+
+### Stage 7: final evaluation and conditional continuation
+
+Training finished at 18:59:31 America/Sao_Paulo on 2026-11-09, and the ten-episode probe finished at 19:21:40. The final checkpoint reached **204–204 waypoint crossings**, with mean route progress **55.1%** and maximum **55.1%**. There were **0/10 deaths, 10/10 horizon endings and 0/10 star successes**. Raw evidence: [`results/ttc_probe_btr_ttc_wp7.json`](results/ttc_probe_btr_ttc_wp7.json).
+
+The peak logged recent training mean was 55.4%; it is not an individual-episode maximum. The final periodic sample recorded 202.13 return and 29,084 route units. Reaching the horizon after a fall or a long stationary period is not proof that more episode time would produce further ascent. No matched 5,000-versus-10,000-decision evaluation was performed.
+
+The final-checkpoint video is local at `videos/ttc_wp7_19h_small.mp4`: one 5,000-decision attempt, 335.4 seconds including the hold. Its metadata and checkpoint hash are in [`results/ttc_wp7_19h_video.json`](results/ttc_wp7_19h_video.json). It is separate from the ten-episode probe and from the earlier 3M-step clip.
+
+The authorized absence-of-proven-success condition triggered a continuation: stage 8 (`btr_ttc_wp8`) started at 19:21:45 from the stage-seven final weights, with unchanged rewards and a 5,000-decision horizon, targeting 22:00. Its results are pending. The recorded decision is [`results/ttc_stage7_extension_decision.json`](results/ttc_stage7_extension_decision.json); training-star count remains unknown because the running trainer did not record it. Full-route progress was accepted as an alternative stopping proxy, not as a collected-star claim.
 
 ### Reproduce training, evaluation and video
 
@@ -268,9 +291,9 @@ The already recorded stage-5 clip is local at `videos/ttc_wp5_small.mp4`: one 5,
 
 ### Continuation through 19:00 on 2026-11-09
 
-After the stage-6 evaluation and this documentation update, stage 7 (`btr_ttc_wp7`) resumes from `models/btr_ttc_wp6/final.pt` with the same recipe, one continuous invocation and a wall-time budget ending near 19:00 America/Sao_Paulo. Reports are requested for 13:00, 15:00, 17:00 and 19:00. Reports describe the current training window; they are not fresh ten-episode evaluations unless an evaluation file exists. A final ten-episode probe runs after training stops, so its results may become available after 19:00. Stage-7 outcomes are pending and are not included in the completed-stage table.
+After the stage-6 evaluation and this documentation update, stage 7 (`btr_ttc_wp7`) resumed from `models/btr_ttc_wp6/final.pt` with the same recipe, one continuous invocation and a wall-time budget ending near 19:00 America/Sao_Paulo. Reports are requested for 13:00, 15:00, 17:00 and 19:00. Reports describe the current training window; they are not fresh ten-episode evaluations unless an evaluation file exists. A final ten-episode probe runs after training stops, so its results may become available after 19:00. Stage 7 is now complete and included in the completed-stage tables above.
 
-The user subsequently authorized a conditional continuation through **22:00**: after the 19:00 checkpoint video and ten-episode validation, start stage 8 from stage 7 only if no star success or full-route progress is recorded. Full-route progress is an alternative stopping criterion, not proof of collecting the star; route projection and star success use different checks. The active stage-7 trainer has no per-episode star log, so absence of a recorded training success cannot certify zero training stars. The user explicitly accepted using absence of proven success, with the route proxy, for this decision. The local decision record will be `results/ttc_stage7_extension_decision.json`, and the single-attempt checkpoint video will be `videos/ttc_wp7_19h_small.mp4`. If extended, progress reporting continues at 21:00 with a closing report from 22:00, after the final probe when available. Recording and validation take time after 19:00; stage 8 starts only after the condition can be checked. Its optimizer and replay restart in the same way as the previous stage transfers.
+The user subsequently authorized a conditional continuation through **22:00**: after the 19:00 checkpoint video and ten-episode validation, start stage 8 from stage 7 only if no star success or full-route progress is recorded. Full-route progress is an alternative stopping criterion, not proof of collecting the star; route projection and star success use different checks. The stage-7 trainer did not record a per-episode star log, so absence of a recorded training success cannot certify zero training stars. The user explicitly accepted using absence of proven success, with the route proxy, for this decision. The local decision record is `results/ttc_stage7_extension_decision.json`, and the single-attempt checkpoint video is `videos/ttc_wp7_19h_small.mp4`. If extended, progress reporting continues at 21:00 with a closing report from 22:00, after the final probe when available. Recording and validation take time after 19:00; stage 8 starts only after the condition can be checked. Its optimizer and replay restart in the same way as the previous stage transfers.
 
 Scripts and status files for the local time-budget runner are operational artifacts under ignored `scratch/` and `logs/`; the public Python commands above describe how to reproduce the training mechanism.
 

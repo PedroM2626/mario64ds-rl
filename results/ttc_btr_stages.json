@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "hash_policy": "SHA256 of LF-normalized bytes for text sources; raw bytes for binary checkpoints",
-  "generated_at": "2026-11-09T11:16:56.693245-03:00",
-  "scope": "Completed stages 1-6; stage 7 is pending",
+  "generated_at": "2026-11-09T19:21:51.967280-03:00",
+  "scope": "Completed stages 1-7; conditional stage-eight continuation",
   "route": {
     "path": "config/routes/ttc_human_v1.json",
     "sha256": "24a14e1befc27bb29e66de3c1a1efa2b89198a5d56f79526d2a6310bab591ae9",
@@ -15,7 +15,8 @@
     "ds8_coins records recent mean episode return, not coin count.",
     "noisy=False still samples random IQN quantile fractions.",
     "One training lineage; ten episodes per final checkpoint; no equal-budget causal ablation.",
-    "Model hashes and runtime were measured when documenting stage six, not saved by earlier probes."
+    "Stage 1-6 model hashes and the observed runtime were measured when documenting stage six, not saved by earlier probes.",
+    "Stage-seven checkpoint hash was measured after its final evaluation; its recording metadata independently identifies the same bytes."
   ],
   "runtime_observed_at_stage6_documentation": {
     "python": "3.11.9",
@@ -133,7 +134,9 @@
           "episode": 9,
           "crossings": 25
         }
-      ]
+      ],
+      "route_mean_percent": 7.130989881920139,
+      "route_max_percent": 7.3705394570893965
     },
     {
       "stage": 2,
@@ -204,7 +207,9 @@
           "episode": 9,
           "crossings": 61
         }
-      ]
+      ],
+      "route_mean_percent": 16.81438940816627,
+      "route_max_percent": 17.35405675763617
     },
     {
       "stage": 3,
@@ -275,7 +280,9 @@
           "episode": 9,
           "crossings": 96
         }
-      ]
+      ],
+      "route_mean_percent": 28.783059954104317,
+      "route_max_percent": 33.150055282732815
     },
     {
       "stage": 4,
@@ -346,7 +353,9 @@
           "episode": 9,
           "crossings": 114
         }
-      ]
+      ],
+      "route_mean_percent": 30.605082849835057,
+      "route_max_percent": 36.17283098822024
     },
     {
       "stage": 5,
@@ -417,7 +426,9 @@
           "episode": 9,
           "crossings": 137
         }
-      ]
+      ],
+      "route_mean_percent": 38.7129579651875,
+      "route_max_percent": 46.25269398226904
     },
     {
       "stage": 6,
@@ -488,7 +499,127 @@
           "episode": 9,
           "crossings": 185
         }
-      ]
+      ],
+      "route_mean_percent": 48.48718161887529,
+      "route_max_percent": 50.04905236131363
+    },
+    {
+      "stage": 7,
+      "run": "btr_ttc_wp7",
+      "horizon": 5000,
+      "model": "models/btr_ttc_wp7/final.pt",
+      "checkpoint_sha256_at_documentation": "d9f70ba31e8ed706ba8747b2cddd41c711ae35515af04016b6af9884b4b2d91c",
+      "training_csv": "results/btr_ttc_wp7_train.csv",
+      "training_csv_sha256": "661b1fefb122d89b52953dad046bd12d06c66beddf35a40a7e3f392ee795419f",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp7.json",
+      "evaluation_json_sha256": "b3478ed03d9d0d387fb37cd1cc608da0ffadb18d3b77c25bc1fa35611aea020c",
+      "last_logged_steps": 4000005,
+      "last_logged_minutes": 460.2,
+      "last_logged_mean_return": 202.13,
+      "last_logged_mean_route_s": 29084.0,
+      "peak_logged_mean_return": 205.03,
+      "peak_logged_mean_route_s": 29493.0,
+      "episodes": 10,
+      "waypoints_min": 204,
+      "waypoints_max": 204,
+      "waypoints_median": 204.0,
+      "route_s_min": 29358.6,
+      "route_s_max": 29358.6,
+      "route_s_mean": 29358.6,
+      "height_gain_min": 7035.2,
+      "height_gain_max": 7035.2,
+      "deaths": 0,
+      "horizon_endings": 10,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 204
+        },
+        {
+          "episode": 1,
+          "crossings": 204
+        },
+        {
+          "episode": 2,
+          "crossings": 204
+        },
+        {
+          "episode": 3,
+          "crossings": 204
+        },
+        {
+          "episode": 4,
+          "crossings": 204
+        },
+        {
+          "episode": 5,
+          "crossings": 204
+        },
+        {
+          "episode": 6,
+          "crossings": 204
+        },
+        {
+          "episode": 7,
+          "crossings": 204
+        },
+        {
+          "episode": 8,
+          "crossings": 204
+        },
+        {
+          "episode": 9,
+          "crossings": 204
+        }
+      ],
+      "route_mean_percent": 55.137907938566634,
+      "route_max_percent": 55.137907938566634
     }
-  ]
+  ],
+  "stage7_run_status": {
+    "started_at": "2026-11-09T11:17:47.832550-03:00",
+    "training_deadline": "2026-11-09T19:00:00-03:00",
+    "command": [
+      "D:\\mario64ds-rl\\.venv\\Scripts\\python.exe",
+      "-u",
+      "scripts/train_btr.py",
+      "--run",
+      "btr_ttc_wp7",
+      "--tracks",
+      "ds8",
+      "--envs-per-track",
+      "15",
+      "--steps",
+      "30000000",
+      "--max-steps",
+      "5000",
+      "--max-minutes",
+      "461.45",
+      "--resume",
+      "models/btr_ttc_wp6/final.pt"
+    ],
+    "status": "complete",
+    "training_finished_at": "2026-11-09T18:59:31.923548-03:00",
+    "finished_at": "2026-11-09T19:21:40.649155-03:00"
+  },
+  "stage7_extension_decision": {
+    "validation_star_successes": 0,
+    "recording_star_success": false,
+    "full_route_validation_episodes": [],
+    "full_route_training_mean_at_steps": [],
+    "training_star_count": null,
+    "training_star_count_available": false,
+    "training_limitation": "The running trainer does not log per-episode stars; absence of recorded proof is not proof of zero training stars.",
+    "route_proxy_limitation": "Route completion is an authorized alternative stopping criterion, not proof of star collection.",
+    "criterion": "Extend if there is no proven star and no full-route progress recorded at the precision of the logs; explicitly authorized by the user on 2026-11-09.",
+    "route_length": 53245.76339151399,
+    "extend_until_22": true,
+    "decided_at": "2026-11-09T19:21:41.476652-03:00",
+    "video": "videos/ttc_wp7_19h_small.mp4",
+    "model": "models/btr_ttc_wp7/final.pt",
+    "checkpoint_sha256": "d9f70ba31e8ed706ba8747b2cddd41c711ae35515af04016b6af9884b4b2d91c",
+    "training_csv": "results/btr_ttc_wp7_train.csv",
+    "validation_json": "results/ttc_probe_btr_ttc_wp7.json"
+  }
 }
