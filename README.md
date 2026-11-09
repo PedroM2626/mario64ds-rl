@@ -1,8 +1,11 @@
 # Mario 64 DS - Reinforcement Learning (Slide Tracks & Vertical Clock Ascent)
 
-This project is a Deep Reinforcement Learning implementation that trains autonomous artificial agents to navigate Super Mario 64 DS — mastering both downhill slide courses and 3D vertical platforming stages (Tick Tock Clock) — operating natively through a Nintendo DS emulator.
+This project trains visual reinforcement-learning agents in Super Mario 64 DS through DeSmuME. One BTR-style agent finishes the three slide courses; ascending Tick Tock Clock to its star remains an open task. RAM supplies rewards and episode-end checks; the deployed BTR policy receives pixels, not coordinates or the route.
+
+**Current results and commands:** [slide agent](#slide-agent), [Tick Tock Clock BTR stages](#tick-tock-clock-current-btr-experiments), [setup and execution](#setup), [artifact provenance](results/MANIFEST.md). Older PPO, QR-DQN and world-model experiments are retained below as historical results; survival to a time limit is not proof of reaching a finish or collecting a star.
 
 **Tracks (savestates located in `data/`):**
+
 - `ds1` — Cool, Cool Mountain slide (penguin slide)
 - `ds2` — Princess Peach's Secret Slide (The Princess's Secret Slide)
 - `ds3` — Tall, Tall Mountain secret slide (Monkey slide)
@@ -11,9 +14,11 @@ This project is a Deep Reinforcement Learning implementation that trains autonom
 
 ---
 
+<a id="slide-agent"></a>
+
 ## 🏁 Final agent: one value-based agent that finishes ds1, ds2 and ds3
 
-One network, trained on all three slides at once with a coin reward, no human demonstrations
+One network, trained on all three slides at once with coin and finish rewards, no human demonstrations
 and no distance, optical-flow, step or death terms. Each clip below is one greedy episode that
 ends in the slide's finish region (`scripts/record_btr.py`; ds1 and ds2 finished on the first
 attempt and ds3 on the second, [`results/btr_goal20_gifs.json`](results/btr_goal20_gifs.json)).
@@ -44,7 +49,7 @@ off, from each slide's start savestate, [`scripts/eval_btr.py`](scripts/eval_btr
 
 With 20 episodes per cell the uncertainty on a rate is large (18 of 20 is consistent with true
 rates from roughly 70% to 97%, a 95% Wilson interval), and the same checkpoint gives different
-outcomes from run to run because the game is not deterministic.
+outcomes from run to run because the game varies and BTR still samples IQN quantile fractions even when noisy layers are off. These greedy episodes are not exact deterministic replays.
 
 **Perturbed starts** (same checkpoint and procedure, `--start-random 15`:
 [`results/btr_goal20_eval_1M_perturbed15_x20.json`](results/btr_goal20_eval_1M_perturbed15_x20.json)). Before the agent
@@ -118,7 +123,7 @@ measured in the end rooms.
   there are no coins between the jump onto the last ramp and the end room (the probe above is one
   episode), so for a coin-only agent landing on the ramp and falling pay the same, and the policy at
   that jump drifts. The finish reward was added to break that tie.
-- Three things changed between the earlier PPO work in this file and this agent at the same time:
+- Several things changed between the earlier PPO work in this file and this agent at the same time:
   the algorithm (value-based BTR-style instead of PPO), the reward (coins instead of optical flow
   and distance) and the episode rules (black-screen death off, game respawn and long free fall
   counted as death, finish region), plus the action set. The only ablation run (below) was too short
@@ -131,9 +136,9 @@ measured in the end rooms.
   PPO, QR-DQN, behaviour-cloning and search experiments) describe those experiments at the time
   and are kept as the record of what did not work; `ds3` is finished by the agent above.
 
-**Ablation attempt: algorithm and action set, 1 hour each.** Three runs from scratch, one at a time, each
-trained for 60 minutes of wall-clock time with the same environment, episode rules and reward as the
-final agent (+1 per coin, +20 at the finish), then evaluated greedily for 20 episodes per slide
+**Ablation attempt: algorithm and action set, 1 hour each.** Four runs from scratch, one at a time, each
+trained for 60 minutes of wall-clock time, then evaluated greedily for 20 episodes per slide. The
+`control`, `ppo` and `legacy6` runs share the final agent's environment, episode rules and reward (+1 per coin, +20 at the finish); `orig` is an additional coin-only rerun
 (`scripts/run_ablation.sh`; results in `results/abl_*_eval_x20.json`, training logs in `results/abl_*_train.csv`).
 The runs differ in the number of steps they reach in 60 minutes, not in a fixed step budget.
 
@@ -146,11 +151,10 @@ The runs differ in the number of steps they reach in 60 minutes, not in a fixed 
 
 What this shows and does not show:
 
-- None of the three finished `ds1` or `ds3` in one hour, and all three finished `ds2`. This ablation
-  **does not separate the algorithm from the action set**: all three look the same where it matters.
-- It therefore does not support "the reward mattered most" either. The runs share the reward and the
-  episode rules, so nothing here varies them.
-- **The runs differ in speed, so they are compared at equal numbers of steps** (mean coins per training
+- None of the four finished `ds1` or `ds3` in one hour, and all four finished `ds2`. This ablation
+  **does not separate the algorithm from the action set**: all four have the same finish counts.
+- It therefore does not support "the reward mattered most" either. The first three runs hold reward and episode rules constant. The additional `orig` run removes the finish bonus, but one short run per setting with the same finish counts does not identify a reward effect.
+- **The runs differ in speed, so they are compared at equal numbers of steps** (mean return per training
   episode on ds1 / ds2 / ds3; `orig` is a rerun of the first coin-only run `btr_ref10`: coin reward only,
   `--steps` 30M, same seed argument, same environment code):
 
@@ -160,11 +164,11 @@ What this shows and does not show:
   | 580,005 | 54.6 / 41.7 / 34.4 | 15.0 / 39.1 / 23.6 | not reached in 60 minutes |
 
   At 420,000 steps the runs are close. By 580,005 steps the first run has jumped on ds1 (from 19.3 to
-  54.6 coins) and the rerun has not (15.0). Whether the rerun would jump with more steps was not
+  54.6 return) and the rerun has not (15.0). Whether the rerun would jump with more steps was not
   tested; the emulator is not deterministic, so the same seed argument does not give the same run, and
   one run per setting says little about the setting. A difference in machine load between the runs
   cannot be ruled out.
-- The control reached a smaller closest distance on `ds1` than the other two (a median of 4063 against 8594 and
+- The control reached a smaller closest distance on `ds1` than PPO and `legacy6` (a median of 4063 against 8594 and
   9388). With one seed per run and 20 episodes this is a hint, not a result.
 - PPO's hyper-parameters are common Atari defaults and were not tuned, which counts against it.
 
@@ -181,6 +185,92 @@ python scripts/record_btr.py --model models/btr_goal20/step_1000005.pt --track d
 (Both runs were stopped by hand: stage 1 after about 5.5M steps, of which only the 2.5M-step checkpoint
 feeds the final agent, and stage 2 after about 1.06M of its 6M steps, keeping the 1M-step checkpoint. The
 `--steps` value also sets the schedule of the prioritised-replay exponent, so a shorter `--steps` is not the same run.)
+
+---
+
+## Tick Tock Clock: current BTR experiments
+
+**Status on 2026-11-09, after stage 6:** no star success in the evaluated episodes. The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
+
+### Reward, observations and episode rules
+
+The active recipe is in [`scripts/train_btr.py`](scripts/train_btr.py), `ref_env_kwargs("ds8")`:
+
+| Component | Current TTC setting |
+|---|---|
+| Newly passed route waypoint | +1, paid only for an increase of the route high-water mark |
+| Star success | +100 once; ends the episode |
+| Coins, vertical height, optical flow | 0 |
+| Step cost, death and timeout penalties | 0 |
+| Actions | `ref10`: no input, eight directions, jump (DS button B) |
+| Observation | Four 84x84 grayscale frames; older frames at reset are zero-filled |
+| Training starts | Full `ds8` savestate, 15 parallel emulator processes |
+| Demonstration replay / reverse curriculum | Neither is used by this BTR runner |
+| Horizon | 3,000 decisions in stages 1–3; 5,000 in stages 4–6 |
+
+Training defaults are learning rate `1e-4`, AdamW weight decay `0.01` and epsilon `1.5e-4`, discount `0.99`, 3-step returns, batch size `128`, replay capacity argument `400000` (integer division across workers), 20,000 warm-up decisions and one gradient update per 15-environment vector step after warm-up. The soft target coefficient is `0.005`; IQN uses 8 quantiles for each training head and 16 for action selection. Munchausen parameters are `(0.9, 0.03, -1.0)`. The requested seed defaults to zero for NumPy and environment initialization; the runner does not explicitly seed PyTorch, so that argument is not a complete reproducibility guarantee. The `--device` training default is CUDA (the agent falls back to CPU if CUDA is unavailable).
+
+The reward uses the human route [`config/routes/ttc_human_v1.json`](config/routes/ttc_human_v1.json): **371 waypoint positions over 53,245.8 units**. This is human-provided reward geometry, so the TTC experiment is not free of human guidance, even though it does not imitate human actions or prefill the replay with demonstrations. The route source is a 2,674-decision human ascent; its recording, checkpoints and replay data stay local.
+
+Route progress projects Mario's RAM position onto a bounded portion of the polyline, within a 250-unit corridor, at most 600 units ahead and 300 behind the current best arc length. Only increasing the high-water mark can pay. One action can pass several waypoints; going backwards does not pay again. Counts below are `Route.passed(0, route_s)`: the initial waypoint at arc zero is excluded, so there are at most **370 newly payable waypoint crossings**, not 371 rewards from the route. The displayed denominator 371 names the number of recorded route positions. Route percentage uses arc length, not waypoint count or vertical height.
+
+Episodes end on the star-success detector, a fall below the course floor, a detected game respawn, or the horizon. Black-screen death is disabled. Star success uses the environment's RAM/geometry rule: within 80 units of the target, or an increased star counter while within 500 units. The probe's `end="star"` is success under this detector, not an independently audited gameplay event.
+
+### Six completed stages
+
+Each row evaluates its own final checkpoint on CPU for 10 episodes with `noisy=False`. IQN still samples 16 random quantile fractions for action selection, and the emulator varies between episodes: **greedy here does not mean an exactly deterministic replay**. A single training lineage and ten probe episodes cannot establish statistical superiority or isolate the cause of an improvement.
+
+| Stage / run | Last logged steps | Last logged minutes | Horizon | Waypoints / 371 | Route arc range | Deaths | Horizon endings | Star successes |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 / `btr_ttc_wp` | 1,080,000 | 119.0 | 3,000 | 25–27 | 3,648.0–3,924.5 | 6/10 | 4/10 | 0/10 |
+| 2 / `btr_ttc_wp2` | 980,010 | 117.6 | 3,000 | 58–63 | 8,559.6–9,240.3 | 1/10 | 9/10 | 0/10 |
+| 3 / `btr_ttc_wp3` | 1,120,005 | 119.0 | 3,000 | 96–123 | 14,063.1–17,651.0 | 4/10 | 6/10 | 0/10 |
+| 4 / `btr_ttc_wp4` | 1,000,005 | 186.6 | 5,000 | 108–134 | 15,544.2–19,260.5 | 7/10 | 3/10 | 0/10 |
+| 5 / `btr_ttc_wp5` | 3,700,005 | 521.9 | 5,000 | 137–171 | 19,627.7–24,627.6 | 9/10 | 1/10 | 0/10 |
+| 6 / `btr_ttc_wp6` | 2,020,005 | 203.5 | 5,000 | 170–185 | 24,556.6–26,649.0 | 3/10 | 7/10 | 0/10 |
+
+Sources: each run's [`results/btr_ttc_wp*_train.csv`](results/) and [`results/ttc_probe_btr_ttc_wp*.json`](results/), consolidated with LF-normalized text-source hashes and raw binary checkpoint hashes in [`results/ttc_btr_stages.json`](results/ttc_btr_stages.json). Stage 1 uses the name `btr_ttc_wp` without a trailing 1. Step and minute columns are the **last periodic CSV sample**, not the exact final step count or complete process duration; recording every 20,000 aggregate decisions leaves an unlogged tail. The 15 workers' decisions are summed, not counted separately as emulator frames. Wall-clock time and steps differ between stages, so the stages are not equal-budget ablations.
+
+Stage 1 was trained from scratch. Stages 2–6 load the preceding stage's `final.pt`. Loading transfers policy weights and copies them into the target network; **optimizer state, replay, update counter and the replay-importance schedule restart**. The checkpoint contains the network weights and action count, not an uninterrupted training session. The maximum `--steps 30000000` also defines the importance-sampling schedule; replacing it with a smaller step target changes that schedule even when training stops on wall time.
+
+### Stage 6: final evaluation and training curve
+
+Stage 6 reached **170–185 crossings** (median 183.5), with a route high-water mark of **24,556.6–26,649.0 units**, or 46.1%–50.0% of the route length. Height gain above the initial position ranged from +4,351.2 to +6,202.0. There were **3 deaths, 7 horizon endings and 0 star successes**. Stage 5 reached 137–171 crossings with 9 deaths; this comparison describes the sampled outcomes, not a significance test.
+
+During stage 6, the peak logged recent mean return was 174.13, and the peak logged mean route progress was 25,143. The final periodic sample fell to 128.07 return and 18,484 route units. Learning was therefore **not monotonically improving**; intermediate training progress is not evidence that the final policy retained the same behavior. The runner started at 07:34:55 and training finished at 11:00:05 America/Sao_Paulo; the probe finished at 11:16:30. See [`results/ttc_probe_btr_ttc_wp6.json`](results/ttc_probe_btr_ttc_wp6.json) for every episode.
+
+The training CSV's `ds8_coins` field is a historical name for **mean episode return over up to the last 30 completed episodes**, not coins collected. `ds8_route_s` is the mean route high-water mark over the same recent completed episodes, and `ds8_len` is mean episode length. These training statistics use exploration and are not a greedy success rate. Coins can still be picked up during TTC gameplay but contribute zero reward.
+
+**Observed obstacle:** the user identified a pillar that Mario needs to climb in the stage-5 recording. Eight of the ten stage-5 probe episodes stopped at `route_s=19627.7` (137 crossings), and two reached approximately 24.5k. The probe does not record action/position traces or obstacle labels, so mapping that repeated plateau to the pillar, or concluding that unfamiliarity causes the stall, remains a hypothesis. More training is not a guarantee that this maneuver will be learned. The evaluation shows how far the checkpoint gets, not which obstacle caused each death.
+
+### Reproduce training, evaluation and video
+
+Use the repository `.venv` interpreter on this machine. The recorded runtime and hashes in the consolidated JSON describe the environment used when stage 6 was evaluated; `requirements.txt` is a different dependency snapshot and must not be described as the exact environment of these runs. In particular, the observed runtime is Python 3.11.9, PyTorch 2.5.1+cu121, CUDA 12.1, NumPy 2.4.6, OpenCV 5.0.0.93, Gymnasium 1.2.3, Stable-Baselines3 2.8.0 and py-desmume 0.0.9, with an RTX 4070 Laptop GPU for training. These are provenance observations, not changes to the training recipe. Earlier stages did not save their own full runtime manifests.
+
+```powershell
+# From scratch: use a NEW run name to avoid overwriting existing checkpoints.
+.venv\Scripts\python.exe scripts/train_btr.py --run ttc_reproduction --tracks ds8 --envs-per-track 15 --steps 30000000 --max-steps 5000 --max-minutes 120
+
+# Continue from stage 6 using the same loading mechanism; optimizer and replay restart.
+.venv\Scripts\python.exe scripts/train_btr.py --run ttc_continuation --tracks ds8 --envs-per-track 15 --steps 30000000 --max-steps 5000 --max-minutes 120 --resume models/btr_ttc_wp6/final.pt
+
+# Match the training horizon; the probe runs its policy on CPU.
+.venv\Scripts\python.exe scripts/probe_ttc.py --model models/btr_ttc_wp6/final.pt --episodes 10 --max-steps 5000 --out results/ttc_probe_reproduction.json
+
+# One complete attempt, including the agent's four input frames and chosen action.
+.venv\Scripts\python.exe scripts/record_btr.py --model models/btr_ttc_wp6/final.pt --track ds8 --max-steps 5000 --attempts 1 --out videos/ttc_wp6.mp4
+
+# Optional compact playback copy (requires FFmpeg).
+ffmpeg -i videos/ttc_wp6.mp4 -c:v libx264 -preset fast -crf 25 -pix_fmt yuv420p -movflags +faststart -an videos/ttc_wp6_small.mp4
+```
+
+The already recorded stage-5 clip is local at `videos/ttc_wp5_small.mp4`: one 5,000-decision attempt, 335.4 seconds including the final hold, about 20.5 MB. It survived to the horizon; it is not the ten-episode probe or a video of stage 6. Models, human recordings and these TTC videos are not uploaded by the result commits, and a clean clone cannot play a local-only video or load these checkpoints. Summary hashes identify local model bytes but do not distribute them.
+
+### Continuation through 19:00 on 2026-11-09
+
+After the stage-6 evaluation and this documentation update, stage 7 (`btr_ttc_wp7`) resumes from `models/btr_ttc_wp6/final.pt` with the same recipe, one continuous invocation and a wall-time budget ending near 19:00 America/Sao_Paulo. Reports are requested for 13:00, 15:00, 17:00 and 19:00. Reports describe the current training window; they are not fresh ten-episode evaluations unless an evaluation file exists. A final ten-episode probe runs after training stops, so its results may become available after 19:00. Stage-7 outcomes are pending and are not included in the completed-stage table. Scripts and status files for the local time-budget runner are operational artifacts under ignored `scratch/` and `logs/`; the public Python commands above describe how to reproduce the training mechanism.
+
+Earlier unsuccessful TTC attempts used length-scaled route rewards, initially with coins and then without them. Their evidence remains in `results/btr_ttc_route*_train.csv`, `results/btr_ttc_nocoin_train.csv` and the corresponding probe JSONs. Those rewards differ from the waypoint recipe, so their returns should not be compared directly. The QR-DQN route/curriculum/demonstration experiment is preserved in the historical section near the execution guide.
 
 ---
 
@@ -247,8 +337,7 @@ python tools/check_readme_numbers.py        # gate: prose must equal the artifac
 ---
 
 ## 🎯 Objective
-The agent's primary objective is to **complete each stage** — traversing the full descent in the slide courses and ascending the vertical clock tower in Tick Tock Clock to collect the Power Star (not merely survive by idling) — navigating forward and upward using raw visual observations alongside 3D spatial progression rewards. Slide episodes are configured for `1350` steps (90 seconds at emulator frameskip 4) — the previous 30s limit was insufficient to traverse the full geometry of any track. Tick Tock Clock `v4` uses `3000` steps (200 s), because the recorded human ascent took 2,674 decisions.
-The final agent at the top of this file uses 1,500-decision episodes, a finish-region test and no progression reward.
+The objective is to **complete each stage**: reach the slide finish regions and collect the Tick Tock Clock star. The current slide agent uses 1,500 decisions, coin and finish rewards, and no progression reward. The current TTC agent uses 5,000 decisions, newly passed waypoints and a star reward. With frameskip 4 at 60 emulated frames per second, these horizons represent 100 s and about 333 s of game time; wall-clock throughput varies. The historical PPO slide agent used 1,350 decisions, and QR-DQN TTC v4 used 3,000. These configurations should not be mixed when comparing returns or survival.
 
 ---
 
@@ -480,7 +569,7 @@ all), with no survival requirement, and records the closest approach to the fini
 region (0 of 7,350). The closest approach from the plank path (decisions 600-720) is
 4,264.8; from the decisions around the red arrow (285-345) it is 2,833.7, along a dive off the
 track. Refining that dive (480 rollouts per stage) stops at 3,412.1: Mario is put back at
-the start of the slide once he falls below $Y pprox -11{,}000$ there, above the finish height ($Y = -13{,}646$),
+the start of the slide once he falls below $Y \approx -11{,}000$ there, above the finish height ($Y = -13{,}646$),
 so the finish cannot be reached by diving from that side. No finish was found by search.
 
 A human run of `ds3` was later recorded (`record-ds3.bat`, [`docs/HUMAN_RECORDING.md`](docs/HUMAN_RECORDING.md); the
@@ -499,10 +588,9 @@ python scripts/record_dashboard.py --model models/curriculum_flow25_r3_best.zip 
 ### 📦 Model assets (a clean clone does not contain them)
 
 The checkpoints are large and are **not committed**; the commands above expect
-them under `models/`. The versioned contract for those bytes (role, size,
+them under `models/`. The versioned contract for the historical assets it enumerates (role, size,
 SHA256) is [models/ASSETS.json](models/ASSETS.json), documented in
-[docs/MODEL_ZOO.md](docs/MODEL_ZOO.md). Download the release/LFS assets, or
-train them with the commands below, then verify:
+[docs/MODEL_ZOO.md](docs/MODEL_ZOO.md). It does not enumerate the BTR slide or TTC checkpoints, and does not establish that those weights are publicly downloadable. Train missing models with the appropriate commands, or obtain matching bytes from their owner, then verify the assets covered by the manifest:
 
 ```bash
 python tools/verify_assets.py             # report present / missing / hash mismatch
@@ -515,15 +603,15 @@ experiment artifacts and their known provenance gaps are listed in
 
 ---
 
-## 🧭 Theoretical Analysis: The Complete Causal Chain
+## 🧭 Historical PPO analysis and hypotheses
 
-Achieving simultaneous convergence across all three tracks required resolving five interconnected failure modes, where each experimental discovery falsified earlier hypotheses:
+The earlier PPO development addressed the following failure modes. Its criterion was survival to the horizon, not verified completion of all three slides. These sequential changes were not a factorial ablation and do not establish a complete causal explanation for either the PPO or BTR results.
 
 **1. The coin tracking reward was structurally defective (legacy BGR bug).**
 The internal display buffer exported by `py-desmume` is structured as **BGR(X)**, rather than RGBX as initially assumed. Applying OpenCV's `COLOR_RGB2HSV` conversion directly to BGR data caused a phase rotation of the hue channel ($H \to 120 - H$). Consequently, the yellow color mask ($H \in [15, 40]$) filtered for **cyan** features ($H \approx 90 \to 30$), entirely missing actual gold coins ($H \approx 25 \to 95$). **All historical convergence was carried solely by optical flow** (see §"Color Representation Bug" below).
 
 **2. Naive coin reward correction triggered severe reward hacking.**
-Once the BGR ordering was corrected, the yellow HSV mask began registering high-confidence false positives on the **checkered floor** (bottom image slice) and the **flower-textured side walls** (which pulled the agent toward the outer left edge). The agent maximized return by centering noise features instead of navigating. Fix: **Coin reward disabled by default** (`coin_reward_enabled=False`).
+Once the BGR ordering was corrected, the yellow HSV mask began registering high-confidence false positives on the **checkered floor** (bottom image slice) and the **flower-textured side walls** (which pulled the agent toward the outer left edge). The agent maximized return by centering noise features instead of navigating. Fix: **image-based coin reward disabled by default** (`coin_reward_enabled=False`). This differs from the RAM coin reward used by the later BTR slide agent.
 
 **3. Low optical flow weighting ($\times 0.5$) failed to counteract terminal death penalties.**
 Without the accidental heuristic baseline of the legacy coin detector, **fresh policy initializations degraded rapidly** (mean episode reward shifted from $-73.9$ to $-89.3$, terminal death occurred within $\sim 55\text{--}119$ steps, with 0 timeouts). In stochastic rollouts where policy exploratory entropy leads to falls, dense forward momentum reward must dominate the $-100.0$ abyss penalty. Fix: **`flow_weight=2.5`** (shifting policies from collapsing at step $\sim 90$ to full survival on `ds1` at 1350/1350).
@@ -544,7 +632,7 @@ Simultaneous multi-task training across all three tracks at high learning rates 
 | r2 | `ds3`-heavy (`ds1`, `ds2`, `ds3`, `ds3`) | ✗ 455 | ✓ 1350 | **✓ 1350** | 2026-09-18 |
 | **r3** | **`ds1`-heavy** (`ds1`, `ds2`, `ds3`, `ds1`) | **✓ 1350** | **✓ 1350** | **✓ 1350** | **2026-09-18** |
 
-Each training round initially consolidated one track at the expense of another; round `r3` successfully balanced the representations across all three tracks simultaneously.
+Round `r3` reached the survival horizon on all three tracks. The later position-based finish check found that this checkpoint finishes `ds1` and `ds2` but stalls on `ds3`; see the corrected finish-line table above.
 
 ---
 
@@ -554,14 +642,15 @@ Each training round initially consolidated one track at the expense of another; 
 - **Environment Interface**: Custom `gymnasium.Env` (`src/env.py`).
 - **State Representation**: Grayscale frames resized to $84 \times 84$, stacked via `FrameStack` ($k=4$) to supply temporal velocity and acceleration dynamics to the neural networks.
 - **Reinforcement Learning Algorithms**:
+  - **BTR-style value learning** (`src/btr.py`, `scripts/train_btr.py`): the current slide and TTC agents; IQN, IMPALA, dueling noisy layers, Munchausen targets and prioritised replay.
   - **Rainbow DQN** (Tianshou framework, `src/train.py`) utilizing **IMPALA CNN** (`src/impala_cnn.py`) or **NatureCNN** (`--features nature`).
   - **PPO** (Stable-Baselines3, `src/train_ppo.py`) with standard **NatureCNN** or custom **IMPALA** (`src/sb3_impala.py`).
   - **QR-DQN** (sb3-contrib, `src/train_qrdqn.py`) supporting both NatureCNN and IMPALA feature extractors.
-- **Experiment Tracking**: `MLflow` (SQLite backend `mlflow.db`) + `TensorBoard` (`tensorboard_logs/<run-id>`).
-- **Evaluation Engine**: `src/eval.py` ($N$ deterministic/stochastic episodes, fixed seeds, CSV exports).
+- **Experiment Tracking**: the BTR runner writes CSVs under `results/` and checkpoints under `models/<run>/`; other training pipelines also support `MLflow` (SQLite backend `mlflow.db`) and `TensorBoard` (`tensorboard_logs/<run-id>`).
+- **Evaluation Engine**: BTR uses `scripts/eval_btr.py` for slides and `scripts/probe_ttc.py` for TTC. `src/eval.py` evaluates the SB3 baselines; its metadata and confidence intervals are not automatically present in BTR probe JSONs.
 - **Video Rendering**: `scripts/record_phases.py` (real-time RGB MP4 per track) and `scripts/record_dashboard.py` (annotated 60 Hz dashboard: gameplay, CNN input, flow window, $\pi(a|s)$, critic value, RAM struct, reward instrument; plus a per-decision trace JSON).
 - **Process Supervision**: `rust/sm64_sup.exe` (std-only Rust; one process per track because two DeSmuME cores in one process crash, with live streaming, per-run budget, kill on overrun and result collection — see [`rust/README.md`](rust/README.md)).
-- **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (where a step's milliseconds go), `tools/check_readme_numbers.py` (re-derives every figure quoted here).
+- **Evidence Tooling**: `tools/parity_supervisor.py` (Rust vs Python orchestration arms), `tools/probe_device_divergence.py` (cuda/cpu action-sequence study), `tools/profile_step.py` (step timing), `tools/check_readme_numbers.py` (checks the documented benchmark blocks; it does not verify every prose claim).
 - **3D Proximity & RAM State Architecture**: Exact spatial coordinates ($X$: `0x0217F714`, $Y$: `0x0217F718`, $Z$: `0x0217F71C`), death detection by position (Y below each course's `kill_y`; the `0x0217F760` fast-fall clamp is kept only as `death_rule="struct"`), course ID extraction (`0x02285238`), and star collection detected when Mario is within $80$ units of the star, or when the star counter (`0x0209FB64`) rises while he is within $500$ units (the counter alone fluctuates; see §10.6 of the reward doc). Detailed documentation in [`docs/REWARD_SYSTEM_AND_RAM.md`](docs/REWARD_SYSTEM_AND_RAM.md).
 - **Human Demonstrations**: `scripts/record_human.py` / `record-ttc.bat` (interactive 60 Hz recorder, any button combination, per-frame masks, checkpoint savestates) and `scripts/prepare_human_route.py` (frame-exact replay check, loop-erased route, curriculum checkpoints); consumed by `src/route.py` (route progress reward) and `src/demos.py` (replay-buffer prefill). See [`docs/HUMAN_RECORDING.md`](docs/HUMAN_RECORDING.md).
 - **Benchmark Grid Orchestration**: `scripts/run_grid_100k.py` (executes controlled 18-configuration algorithmic grids).
@@ -572,13 +661,15 @@ Each training round initially consolidated one track at the expense of another; 
 
 ## 🚀 Engineering Challenges & Solutions
 
+The items below describe the development history and generic environment options. The current BTR recipe explicitly disables optical flow, step/death penalties and black-screen death; its rewards are specified separately for slides and TTC above.
+
 ### 1. Emulator Memory Access Violations
 - **Issue**: Parallel vectorized rollout environments (such as PPO multi-env setups) caused segmentation faults (`Access Violation`) when instantiating multiple DeSmuME C++ instances within a single Python process.
 - **Solution**: Implemented process isolation via `SubprocVecEnv` (both in SB3 and Tianshou). Each emulator instance operates inside its own OS-level process, communicating observations and actions via inter-process pipes.
 
 ### 2. Prioritized Experience Replay Memory Exhaustion (OOM)
 - **Issue**: Standard 100k-capacity `PrioritizedVectorReplayBuffer` allocations with multi-frame image stacks ($4 \times 84 \times 84$ `uint8`) exceeded 26 GiB of RAM due to deepcopy semantics within Tianshou.
-- **Solution**: Bounded replay buffer capacity to `20,000` transitions and streamlined frame processing, stabilizing memory consumption at $\sim 1.5$ GB without compromising off-policy sample quality.
+- **Historical Tianshou solution**: bounded replay to `20,000` transitions and streamlined frame processing. The current BTR runner uses a separate frame-based buffer (`PrioritizedStepBuffer`), with `--capacity 400000` aggregate slots divided among the 15 workers; these are different memory layouts and configurations.
 
 ### 3. Optical Flow Computation Overhead
 - **Issue**: Computing Farneback optical flow (`cv2.calcOpticalFlowFarneback`) at full resolution severely degraded environment throughput.
@@ -603,7 +694,7 @@ Each training round initially consolidated one track at the expense of another; 
 ### 8. RAM-Based Death Detection
 - **Issue**: Visual death detection via black-screen thresholding has a long latency: in Tick Tock Clock the screen goes black 122 frames after Mario falls past the course floor (frame 290 vs 168).
 - **First solution, withdrawn 2026-11-04**: treat the `0x0217F760 <= -300000` clamp as death. That word clamps on any long drop, including the legitimate drop into the `ds1` end room and drops on the slides, so it produced false deaths (the `ds1`/`ds2`/`ds3` "deaths" at decisions 66, 836 and 38 of the earlier finish-line table).
-- **Current solution**: a fall below the course's lowest floor (`kill_y` in `TRACK_GOALS`), which in Tick Tock Clock fires on the same frame as the clamp; the black screen stays as a fallback.
+- **Position rule**: a fall below the course's lowest floor (`kill_y` in `TRACK_GOALS`), which in Tick Tock Clock fires on the same frame as the clamp. Black-screen detection is an optional fallback in the generic environment and is disabled by the BTR runner.
 
 ### 9. Savestate Management & External Asset Distribution
 - **Issue**: Cold-booting the ROM for each episode reset consumes $\approx 1700\text{--}2400\text{ frames}$ ($28\text{--}40\text{ seconds}$), making RL training intractable across $10^5$ episodes ($>40$ days of idle boot time). Savestates reduce reset latency to $<2\text{ ms}$, but cannot be committed to Git due to proprietary RAM dumps and repository bloat.
@@ -688,6 +779,8 @@ graph TD
 
 ### Full Descent Results Summary (`curriculum_flow25_r3_best.zip`)
 
+This historical table measures survival, not confirmed traversal. In particular, its `ds3` 1,350-step episode stalls before the finish. The current slide-completion evidence is the BTR table at the top.
+
 | Track | Independent Eval (flow $\times 1.0$) | Video Rollout (flow $\times 2.5$) | Descent Steps | Survival Rate |
 |---|---|---|---|---|
 | `ds1` (Cool, Cool Mountain) | +131.77 | +369.94 | **1350 / 1350** | **3 / 3 (100%)** |
@@ -697,6 +790,8 @@ graph TD
 ---
 
 ## 🌍 World Model (Model-Based RL) — fast training via a learned latent model
+
+**Historical scope:** the tables in this section use horizon survival and flow return. References to "clearing" or "completing" here mean that historical criterion; they do not establish slide finishes under the later RAM region test. The corrected finish-line table above reports the measured outcomes for `wm_mario64ds_mem`.
 
 Adapting the model-based recipe of the research repo
 [`smw-pinn`](https://github.com/PedroM2626/smw-pinn) (learn dynamics `f(s,a)→s'`,
@@ -840,9 +935,21 @@ python -m pytest tests/test_world_model.py -v   # offline unit tests (no emulato
 
 ---
 
+<a id="setup"></a>
+
 ## 🛠 Reproduction & Execution Guide
 
 ### Prerequisites
+
+Use Python 3.10–3.12 (the current local runs use the project's `.venv`), a working `py-desmume` installation and its native emulator dependencies. Install the project dependencies in an isolated environment:
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+The pinned requirements are a development dependency snapshot, including CUDA packages; they differ from the observed local BTR runtime documented above. The `pyproject.toml` dependency ranges also differ from that runtime (notably NumPy and OpenCV). These installation instructions set up a candidate environment, not a guarantee of identical historical checkpoints or rollouts. CPU-only experiments need a compatible CPU PyTorch installation; do not change the device and claim an identical evaluation. After activating the environment, `python` in the commands below refers to that interpreter. BTR requires PyTorch, NumPy, OpenCV, Gymnasium and Stable-Baselines3 for its vector environments. Bash reproduction scripts additionally need Bash; the equivalent Python commands work directly in PowerShell. FFmpeg is optional for compact H.264 video encoding. No ROM or trained BTR weights are included in a clean clone.
+
 Store your legally dumped Nintendo DS ROM and savestates under the `data/` directory (ignored by git):
 - `data/Super Mario 64 DS (USA) (Rev 1).nds`
 - `data/Super Mario 64 DS (USA) (Rev 1).ds1` (Savestate - Track 1)
@@ -851,7 +958,7 @@ Store your legally dumped Nintendo DS ROM and savestates under the `data/` direc
 - `data/Super Mario 64 DS (USA) (Rev 1).ds8` (Savestate - Tick Tock Clock Start)
 - `data/Super Mario 64 DS (USA) (Rev 1).ds9` (Savestate - TTC Star Jump Platform)
 
-### Reproducing the Winning Curriculum Pipeline
+### Reproducing the Historical PPO Curriculum Pipeline
 ```bash
 # Step 1: Base two-track pretraining (1M steps)
 python -m src.train_ppo --run-id ppo_flow25_ds13 --features nature --states ds1,ds3 --n-envs 2 --timesteps 1000000 --seed 0 --flow-weight 2.5
@@ -938,8 +1045,10 @@ python tools/verify_assets.py                         # model/data asset manifes
 python scripts/compare_rewards.py                     # writes docs/REWARD_COMPARISON_RESULTS.json
 ```
 
-### Tick Tock Clock: human route, curriculum and demonstrations
-**No agent has climbed Tick Tock Clock yet.** v1-v3 (QR-DQN + IMPALA) stay on
+### Tick Tock Clock: human route, curriculum and demonstrations (historical QR-DQN)
+
+This table concerns the earlier QR-DQN agents. The current BTR results, rewards and commands are in [Tick Tock Clock: current BTR experiments](#tick-tock-clock-current-btr-experiments).
+**None of the QR-DQN agents in this historical comparison climbed Tick Tock Clock.** v1-v3 (QR-DQN + IMPALA) stay on
 the start platform; the measured causes are in [section 10.8](docs/REWARD_SYSTEM_AND_RAM.md#108-why-v3-stays-on-the-base-platform-and-what-is-now-in-place).
 One human ascent to the star (2,674 decisions, recorded with `record-ttc.bat` /
 `scripts/record_human.py`, converted with `scripts/prepare_human_route.py`)

@@ -1,0 +1,494 @@
+{
+  "schema": 1,
+  "hash_policy": "SHA256 of LF-normalized bytes for text sources; raw bytes for binary checkpoints",
+  "generated_at": "2026-11-09T11:16:56.693245-03:00",
+  "scope": "Completed stages 1-6; stage 7 is pending",
+  "route": {
+    "path": "config/routes/ttc_human_v1.json",
+    "sha256": "24a14e1befc27bb29e66de3c1a1efa2b89198a5d56f79526d2a6310bab591ae9",
+    "positions": 371,
+    "length": 53245.76339151399,
+    "crossing_definition": "searchsorted(cumulative_arc, route_s, side=right) - 1; initial point at zero excluded"
+  },
+  "notes": [
+    "CSV steps and minutes are last periodic samples, not final counts.",
+    "ds8_coins records recent mean episode return, not coin count.",
+    "noisy=False still samples random IQN quantile fractions.",
+    "One training lineage; ten episodes per final checkpoint; no equal-budget causal ablation.",
+    "Model hashes and runtime were measured when documenting stage six, not saved by earlier probes."
+  ],
+  "runtime_observed_at_stage6_documentation": {
+    "python": "3.11.9",
+    "torch": "2.5.1+cu121",
+    "cuda": "12.1",
+    "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+    "packages": {
+      "numpy": "2.4.6",
+      "opencv-python": "5.0.0.93",
+      "gymnasium": "1.2.3",
+      "stable-baselines3": "2.8.0",
+      "py-desmume": "0.0.9"
+    }
+  },
+  "stage6_run_status": {
+    "started_at": "2026-11-09T07:34:55.041185-03:00",
+    "training_deadline": "2026-11-09T11:00:00-03:00",
+    "command": [
+      "D:\\mario64ds-rl\\.venv\\Scripts\\python.exe",
+      "-u",
+      "scripts/train_btr.py",
+      "--run",
+      "btr_ttc_wp6",
+      "--tracks",
+      "ds8",
+      "--envs-per-track",
+      "15",
+      "--steps",
+      "30000000",
+      "--max-steps",
+      "5000",
+      "--max-minutes",
+      "204.58",
+      "--resume",
+      "models/btr_ttc_wp5/final.pt"
+    ],
+    "status": "complete",
+    "training_finished_at": "2026-11-09T11:00:05.682419-03:00",
+    "finished_at": "2026-11-09T11:16:30.521697-03:00"
+  },
+  "source_code_sha256": {
+    "scripts/train_btr.py": "9b96d0c8de0db8de8f71e79fdb1d4dcef22e2cbb219ff9547393d16d41d1ee1a",
+    "scripts/probe_ttc.py": "f459e64843adc295011a0379adbf55bf108634462a33e348a147157bb5a343b8",
+    "src/btr.py": "191daefd8ca3fe23efc53d5a85674a397f7514cb6a11b319d8930ac932e31fe2",
+    "src/env.py": "5e9023601bd799d174fd97938cbbd4e07ea4510a33b428b3940d7ec37e14a75c",
+    "src/route.py": "1d306fe0ae2620c0431f7ec7b77b6c97c63f788206b380dcebfe517516f542f2"
+  },
+  "stages": [
+    {
+      "stage": 1,
+      "run": "btr_ttc_wp",
+      "horizon": 3000,
+      "model": "models/btr_ttc_wp/final.pt",
+      "checkpoint_sha256_at_documentation": "01002e506db052e1c322bbf66ee848ebb9d756af2d5d87ea8178636886e5adc7",
+      "training_csv": "results/btr_ttc_wp_train.csv",
+      "training_csv_sha256": "d1695837bc377c44f16e660bf8e2a5d7ae258183fc872ee8d8d2e537c91bf9d3",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp.json",
+      "evaluation_json_sha256": "4a4c5328a91972c07eaf6c4a9e26001ed5b0eaac51f2075dde701c737aea60d8",
+      "last_logged_steps": 1080000,
+      "last_logged_minutes": 119.0,
+      "last_logged_mean_return": 26.7,
+      "last_logged_mean_route_s": 3860.0,
+      "peak_logged_mean_return": 26.83,
+      "peak_logged_mean_route_s": 3882.0,
+      "episodes": 10,
+      "waypoints_min": 25,
+      "waypoints_max": 27,
+      "waypoints_median": 27.0,
+      "route_s_min": 3648.0,
+      "route_s_max": 3924.5,
+      "route_s_mean": 3796.95,
+      "height_gain_min": 984.1999999999998,
+      "height_gain_max": 1233.9,
+      "deaths": 6,
+      "horizon_endings": 4,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 27
+        },
+        {
+          "episode": 1,
+          "crossings": 27
+        },
+        {
+          "episode": 2,
+          "crossings": 27
+        },
+        {
+          "episode": 3,
+          "crossings": 27
+        },
+        {
+          "episode": 4,
+          "crossings": 25
+        },
+        {
+          "episode": 5,
+          "crossings": 27
+        },
+        {
+          "episode": 6,
+          "crossings": 25
+        },
+        {
+          "episode": 7,
+          "crossings": 25
+        },
+        {
+          "episode": 8,
+          "crossings": 27
+        },
+        {
+          "episode": 9,
+          "crossings": 25
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "run": "btr_ttc_wp2",
+      "horizon": 3000,
+      "model": "models/btr_ttc_wp2/final.pt",
+      "checkpoint_sha256_at_documentation": "517691039004bb48da69a736b2aca68c3a941f7cccd9681e18998091446ee6fa",
+      "training_csv": "results/btr_ttc_wp2_train.csv",
+      "training_csv_sha256": "8682d0c41178bf7532b05e7cd2c4d95c7793e736fd8406b5847401b1fac0d551",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp2.json",
+      "evaluation_json_sha256": "ab423ceedc72bfc6bef498af250f6122e53c2438608b1e9acf1ef8e4e488a2d7",
+      "last_logged_steps": 980010,
+      "last_logged_minutes": 117.6,
+      "last_logged_mean_return": 61.03,
+      "last_logged_mean_route_s": 8899.0,
+      "peak_logged_mean_return": 61.5,
+      "peak_logged_mean_route_s": 8944.0,
+      "episodes": 10,
+      "waypoints_min": 58,
+      "waypoints_max": 63,
+      "waypoints_median": 61.0,
+      "route_s_min": 8559.6,
+      "route_s_max": 9240.3,
+      "route_s_mean": 8952.95,
+      "height_gain_min": 1595.5,
+      "height_gain_max": 2334.3,
+      "deaths": 1,
+      "horizon_endings": 9,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 63
+        },
+        {
+          "episode": 1,
+          "crossings": 63
+        },
+        {
+          "episode": 2,
+          "crossings": 63
+        },
+        {
+          "episode": 3,
+          "crossings": 61
+        },
+        {
+          "episode": 4,
+          "crossings": 61
+        },
+        {
+          "episode": 5,
+          "crossings": 58
+        },
+        {
+          "episode": 6,
+          "crossings": 63
+        },
+        {
+          "episode": 7,
+          "crossings": 61
+        },
+        {
+          "episode": 8,
+          "crossings": 61
+        },
+        {
+          "episode": 9,
+          "crossings": 61
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "run": "btr_ttc_wp3",
+      "horizon": 3000,
+      "model": "models/btr_ttc_wp3/final.pt",
+      "checkpoint_sha256_at_documentation": "708a1ae432c0acf2db5d5f297c379af1a513bfabe4667c69b482d386c913de2a",
+      "training_csv": "results/btr_ttc_wp3_train.csv",
+      "training_csv_sha256": "da4ab9598cfe748e54ac778ca7d329f4d80fd4b9ac6c070414caf2806bc9f804",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp3.json",
+      "evaluation_json_sha256": "32d2dfb8c92006a8a314e2ccd8e03579fb2fc563476e0048ad4111c818513ced",
+      "last_logged_steps": 1120005,
+      "last_logged_minutes": 119.0,
+      "last_logged_mean_return": 91.3,
+      "last_logged_mean_route_s": 13253.0,
+      "peak_logged_mean_return": 97.83,
+      "peak_logged_mean_route_s": 14204.0,
+      "episodes": 10,
+      "waypoints_min": 96,
+      "waypoints_max": 123,
+      "waypoints_median": 102.0,
+      "route_s_min": 14063.1,
+      "route_s_max": 17651.0,
+      "route_s_mean": 15325.76,
+      "height_gain_min": 2548.5,
+      "height_gain_max": 3524.7,
+      "deaths": 4,
+      "horizon_endings": 6,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 101
+        },
+        {
+          "episode": 1,
+          "crossings": 108
+        },
+        {
+          "episode": 2,
+          "crossings": 101
+        },
+        {
+          "episode": 3,
+          "crossings": 103
+        },
+        {
+          "episode": 4,
+          "crossings": 123
+        },
+        {
+          "episode": 5,
+          "crossings": 118
+        },
+        {
+          "episode": 6,
+          "crossings": 101
+        },
+        {
+          "episode": 7,
+          "crossings": 100
+        },
+        {
+          "episode": 8,
+          "crossings": 105
+        },
+        {
+          "episode": 9,
+          "crossings": 96
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "run": "btr_ttc_wp4",
+      "horizon": 5000,
+      "model": "models/btr_ttc_wp4/final.pt",
+      "checkpoint_sha256_at_documentation": "25de728a05e7c138f1f95feeabaf546b698fd6bdc9f492bcb6b03f9df19ae379",
+      "training_csv": "results/btr_ttc_wp4_train.csv",
+      "training_csv_sha256": "61b095072ff6c37e6ad253566d93c3a59355d2686d2d2863244614c0fe3f7371",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp4.json",
+      "evaluation_json_sha256": "14be4d921a8d26fb947751b8777e1785b8003374c57c90fca42a86186cec8a49",
+      "last_logged_steps": 1000005,
+      "last_logged_minutes": 186.6,
+      "last_logged_mean_return": 103.53,
+      "last_logged_mean_route_s": 14953.0,
+      "peak_logged_mean_return": 115.83,
+      "peak_logged_mean_route_s": 16687.0,
+      "episodes": 10,
+      "waypoints_min": 108,
+      "waypoints_max": 134,
+      "waypoints_median": 108.0,
+      "route_s_min": 15544.2,
+      "route_s_max": 19260.5,
+      "route_s_mean": 16295.91,
+      "height_gain_min": 3137.5,
+      "height_gain_max": 3770.0,
+      "deaths": 7,
+      "horizon_endings": 3,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 108
+        },
+        {
+          "episode": 1,
+          "crossings": 108
+        },
+        {
+          "episode": 2,
+          "crossings": 127
+        },
+        {
+          "episode": 3,
+          "crossings": 108
+        },
+        {
+          "episode": 4,
+          "crossings": 134
+        },
+        {
+          "episode": 5,
+          "crossings": 108
+        },
+        {
+          "episode": 6,
+          "crossings": 108
+        },
+        {
+          "episode": 7,
+          "crossings": 108
+        },
+        {
+          "episode": 8,
+          "crossings": 108
+        },
+        {
+          "episode": 9,
+          "crossings": 114
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "run": "btr_ttc_wp5",
+      "horizon": 5000,
+      "model": "models/btr_ttc_wp5/final.pt",
+      "checkpoint_sha256_at_documentation": "1811689fb9410feaef25aa8582595c1e3d546c8f462785e9961ee4445b49c124",
+      "training_csv": "results/btr_ttc_wp5_train.csv",
+      "training_csv_sha256": "5eb29da7349e522cc7136ecea8505a74ec9b4f9e33940545558a2ef5fd272c9d",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp5.json",
+      "evaluation_json_sha256": "99ba02281b3ecce3b9dda9fe8907e1dc75328790b5132b1db9ef465700cb8b4f",
+      "last_logged_steps": 3700005,
+      "last_logged_minutes": 521.9,
+      "last_logged_mean_return": 141.5,
+      "last_logged_mean_route_s": 20434.0,
+      "peak_logged_mean_return": 160.87,
+      "peak_logged_mean_route_s": 23210.0,
+      "episodes": 10,
+      "waypoints_min": 137,
+      "waypoints_max": 171,
+      "waypoints_median": 137.0,
+      "route_s_min": 19627.7,
+      "route_s_max": 24627.6,
+      "route_s_mean": 20613.010000000002,
+      "height_gain_min": 4122.2,
+      "height_gain_max": 4526.8,
+      "deaths": 9,
+      "horizon_endings": 1,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 137
+        },
+        {
+          "episode": 1,
+          "crossings": 137
+        },
+        {
+          "episode": 2,
+          "crossings": 171
+        },
+        {
+          "episode": 3,
+          "crossings": 137
+        },
+        {
+          "episode": 4,
+          "crossings": 137
+        },
+        {
+          "episode": 5,
+          "crossings": 170
+        },
+        {
+          "episode": 6,
+          "crossings": 137
+        },
+        {
+          "episode": 7,
+          "crossings": 137
+        },
+        {
+          "episode": 8,
+          "crossings": 137
+        },
+        {
+          "episode": 9,
+          "crossings": 137
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "run": "btr_ttc_wp6",
+      "horizon": 5000,
+      "model": "models/btr_ttc_wp6/final.pt",
+      "checkpoint_sha256_at_documentation": "8f827679bf88e92775ad22508c08eeabd3a589072d7bf9b94cded303da2eae8b",
+      "training_csv": "results/btr_ttc_wp6_train.csv",
+      "training_csv_sha256": "056adbea50bcb86865c843cde7ca8b3f7c299920247819e62b77aca074aa9c31",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp6.json",
+      "evaluation_json_sha256": "8926cc56950d8bfa39f76c1b949ee766c7ba8e5b6519883a3ac646aeb0471173",
+      "last_logged_steps": 2020005,
+      "last_logged_minutes": 203.5,
+      "last_logged_mean_return": 128.07,
+      "last_logged_mean_route_s": 18484.0,
+      "peak_logged_mean_return": 174.13,
+      "peak_logged_mean_route_s": 25143.0,
+      "episodes": 10,
+      "waypoints_min": 170,
+      "waypoints_max": 185,
+      "waypoints_median": 183.5,
+      "route_s_min": 24556.6,
+      "route_s_max": 26649.0,
+      "route_s_mean": 25817.37,
+      "height_gain_min": 4351.2,
+      "height_gain_max": 6202.0,
+      "deaths": 3,
+      "horizon_endings": 7,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 170
+        },
+        {
+          "episode": 1,
+          "crossings": 185
+        },
+        {
+          "episode": 2,
+          "crossings": 182
+        },
+        {
+          "episode": 3,
+          "crossings": 185
+        },
+        {
+          "episode": 4,
+          "crossings": 171
+        },
+        {
+          "episode": 5,
+          "crossings": 173
+        },
+        {
+          "episode": 6,
+          "crossings": 170
+        },
+        {
+          "episode": 7,
+          "crossings": 185
+        },
+        {
+          "episode": 8,
+          "crossings": 185
+        },
+        {
+          "episode": 9,
+          "crossings": 185
+        }
+      ]
+    }
+  ]
+}
