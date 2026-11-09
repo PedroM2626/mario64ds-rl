@@ -101,10 +101,10 @@ def main():
             dist = float(info.get("dist_to_goal", float("nan")))
             dmin = min(dmin, dist)
             if term:
-                end = "finish" if info.get("reached_goal") else "died"
+                end = "star" if info.get("star_collected") else ("finish" if info.get("reached_goal") else "died")
                 break
         frames.append(render(t + 1, a, list(dq), c0, dist, dmin))      # the state after the last action
-        if end == "finish":
+        if end in ("finish", "star"):
             break
     coins = env.ram.get_coins() - c0
     env.close()
