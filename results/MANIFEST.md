@@ -60,6 +60,14 @@ is in `ttc_stage7_extension_decision.json`, and the final stage-seven video
 metadata is in `ttc_wp7_19h_video.json`. Stage-eight training and the final ten-episode probe are complete and included. No training beyond 22:00 was launched. TTC model files, videos, verbose logs and local
 time-budget wrappers are not part of these result commits.
 
+Stage eight is a regression (waypoints 18-24). `btr_ttc_fix` restarts from
+the stage-seven final weights with `--stall-steps 600` (episode truncated after
+600 decisions without a new waypoint, 120 min, horizon 5000). Training stayed
+stable (return 200-211, episodes ~1600 decisions instead of ~5000). Ten-episode
+probe (`ttc_probe_btr_ttc_fix.json`): 210-214 waypoints, route 30,184-30,588
+versus 204 / 29,359 for stage seven; no star. The probe does not use the stall
+cutoff. Single run, emulator non-deterministic.
+
 To re-derive the waypoint counts from a probe (with the project interpreter):
 
 ```python

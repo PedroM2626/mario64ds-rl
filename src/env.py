@@ -78,7 +78,7 @@ class Mario64DSEnv(gym.Env):
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
-                 route_total_reward=500.0, waypoint_reward=1.0, start_states=None, full_start_prob=0.25,
+                 route_total_reward=500.0, waypoint_reward=1.0, stall_steps=0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
                  ram_coin_reward=0.0, black_screen_death=True, goal_override=None,
                  respawn_jump=0.0, fall_speed=0.0, fall_steps=15):
@@ -171,6 +171,9 @@ class Mario64DSEnv(gym.Env):
             self.route = Route.load(route_path)
         self.route_total_reward = float(route_total_reward)
         self.waypoint_reward = float(waypoint_reward)
+        # end the episode (truncation) when the ratcheted route progress has not advanced for this many decisions
+        self.stall_steps = int(stall_steps)
+        self._last_progress_step = 0
         self.route_best_s = None
 
         # Start-state curriculum: reset() loads the canonical state_path with
@@ -400,6 +403,10 @@ class Mario64DSEnv(gym.Env):
             reward -= self.timeout_penalty
             if self.verbose:
                 logger.info("timeout at step %d", self.episode_steps)
+        elif self.stall_steps and self.episode_steps - self._last_progress_step >= self.stall_steps:
+            truncated = True
+            if self.verbose:
+                logger.info("no route progress for %d decisions, episode ends at step %d", self.stall_steps, self.episode_steps)
 
         # Death Check: RAM kill plane / kill_y first, fallback to black screen
         is_dead = False
@@ -474,6 +481,7 @@ class Mario64DSEnv(gym.Env):
                                 reward += dist_reward
                             if self.route_best_s is None or s > self.route_best_s:
                                 self.route_best_s = s
+                                self._last_progress_step = self.episode_steps
                     elif self.dist_reward_mode == "progress":
                         if self.best_dist is not None and curr_dist < self.best_dist:
                             progress = self.best_dist - curr_dist
@@ -615,6 +623,7 @@ class Mario64DSEnv(gym.Env):
         self.last_dist_reward = 0.0
         self.last_flow_reward = 0.0
         self.route_best_s = None
+        self._last_progress_step = 0
         self.coins = None  # re-read below: a new start may hold fewer coins than the last episode
         self.last_ram_coin_reward = 0.0
         self.reached_goal = False
