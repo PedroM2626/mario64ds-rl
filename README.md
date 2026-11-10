@@ -190,7 +190,7 @@ feeds the final agent, and stage 2 after about 1.06M of its 6M steps, keeping th
 
 ## Tick Tock Clock: current BTR experiments
 
-**Status on 2026-11-09, after stage 8:** no star success in the evaluated episodes. The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
+**Status on 2026-11-10, after the stall-truncation run (`btr_ttc_fix`):** no star success in the evaluated episodes; best validated checkpoint reaches 210–214 of 370 payable waypoints. Stage 8 was a regression and is superseded (see [Stage 4 redone](#stage-4-was-redone-with-a-5000-decision-horizon) and [Plateau diagnosis and stall truncation](#plateau-diagnosis-and-stall-truncation)). The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
 
 ### Reward, observations and episode rules
 
@@ -206,7 +206,8 @@ The active recipe is in [`scripts/train_btr.py`](scripts/train_btr.py), `ref_env
 | Observation | Four 84x84 grayscale frames; older frames at reset are zero-filled |
 | Training starts | Full `ds8` savestate, 15 parallel emulator processes |
 | Demonstration replay / reverse curriculum | Neither is used by this BTR runner |
-| Horizon | 3,000 decisions in stages 1–3; 5,000 in stages 4–8 |
+| Horizon | 3,000 decisions in stages 1–3; 5,000 in stages 4–8 and `btr_ttc_fix` (the first attempt at stage 4 used 3,000 and was discarded) |
+| Stall truncation | Optional `--stall-steps N` (default 0 = off): episode truncated after N decisions without a new waypoint; used only in `btr_ttc_fix` (N = 600) |
 
 Training defaults are learning rate `1e-4`, AdamW weight decay `0.01` and epsilon `1.5e-4`, discount `0.99`, 3-step returns, batch size `128`, replay capacity argument `400000` (integer division across workers), 20,000 warm-up decisions and one gradient update per 15-environment vector step after warm-up. The soft target coefficient is `0.005`; IQN uses 8 quantiles for each training head and 16 for action selection. Munchausen parameters are `(0.9, 0.03, -1.0)`. The requested seed defaults to zero for NumPy and environment initialization; the runner does not explicitly seed PyTorch, so that argument is not a complete reproducibility guarantee. The `--device` training default is CUDA (the agent falls back to CPU if CUDA is unavailable).
 
@@ -248,6 +249,12 @@ Sources: each run's [`results/btr_ttc_wp*_train.csv`](results/) and [`results/tt
 
 Stage 1 was trained from scratch. Stages 2–8 load the preceding stage's `final.pt`. Loading transfers policy weights and copies them into the target network; **optimizer state, replay, update counter and the replay-importance schedule restart**. The checkpoint contains the network weights and action count, not an uninterrupted training session. The maximum `--steps 30000000` also defines the importance-sampling schedule; replacing it with a smaller step target changes that schedule even when training stops on wall time.
 
+### Stage 4 was redone with a 5,000-decision horizon
+
+Stage 4 was run twice. The first run (`btr_ttc_wp4`, from `models/btr_ttc_wp3/final.pt`, 15 environments, **3,000-decision horizon**, 143.6-minute budget) peaked at 20,259 route arc length in the noisy training window, but its greedy ten-episode probe regressed to **50–64 waypoints (13.7% of arc length)**, below stage 3's 96–123, with episodes ending at the horizon. A forensic comparison of the commands found no code or hyperparameter change between stages 3 and 4 other than the time budget (`--max-minutes`); the probe discrepancy was attributed to the 3,000-decision limit being too short once the policy hesitated, but no matched experiment isolated that. The run was discarded: its commit was removed, and its checkpoint directory was deleted (the untracked `.pt` files could not be recovered).
+
+Stage 4 was then rerun from the unchanged stage-3 final weights with `--max-steps 5000` (and the probe also with 5,000), giving the stage-4 row above: **108–134 waypoints**. All later stages use 5,000. Stages 1–3 used 3,000, so the horizon is not constant across the table. The two stage-4 runs also differ in wall time (143.6 min vs 186.6 min) and random emulator trajectories, so the improvement cannot be attributed to the horizon alone. Only the redone stage 4 is in `results/btr_ttc_wp4_*`.
+
 ### Stage 6: final evaluation and training curve
 
 Stage 6 reached **170–185 crossings** (median 183.5), with a route high-water mark of **24,556.6–26,649.0 units**, or 46.1%–50.0% of the route length. Height gain above the initial position ranged from +4,351.2 to +6,202.0. There were **3 deaths, 7 horizon endings and 0 star successes**. Stage 5 reached 137–171 crossings with 9 deaths; this comparison describes the sampled outcomes, not a significance test.
@@ -276,6 +283,17 @@ The mean is lower than stage 7's 55.1% on the sampled final-checkpoint probes. S
 
 The stage-seven checkpoint remains separate at `models/btr_ttc_wp7/final.pt`; the stage-eight run did not overwrite it. No further training beyond 22:00 was authorized or launched. Training-star counts remain unavailable, so zero validation stars must not be described as proof of zero training stars. The 19:00 video documents stage 7, not this stage-eight checkpoint.
 
+### Plateau diagnosis and stall truncation
+
+Stage 7 stopped at exactly **204 waypoints (arc 29,358.6) in all ten probe episodes**, and stage 8, started from it with the same recipe, collapsed (18–24 waypoints). Analysis of the stage-7 video trace (`results/ttc_wp7_now_3M_video.json`), training CSVs and probes found:
+
+- At the plateau Mario climbs a pillar to height about +2,300, passes waypoint 204, does not find the next movement, drifts and falls to the starting floor.
+- After the fall, **4,054 of 4,999 decisions (81%) were no-input**: waypoint reward pays only for raising the route high-water mark, so redoing the climb pays zero and idling is as good as anything else. There is no step, fall or stall penalty.
+- Consequently most training episodes (4,800–5,000 decisions) and most replay contents were stationary, zero-reward frames; the difficult region received about 1,000 decisions per episode.
+- Stage 8 training was stable for about 650,000 steps, then episode return fell from about 206 to 50–78 and the loss rose from about 0.003 to 0.15–0.27. The replay-content explanation is a **hypothesis consistent with these data, not proven**; optimizer and replay were also reset at each stage.
+
+**Fix tested:** `--stall-steps 600` (`Mario64DSEnv(stall_steps=...)`) truncates the episode after 600 decisions without a new waypoint. The longest gap between progress increments in the successful climb was 89 decisions. Rewards and algorithm are unchanged. Run `btr_ttc_fix` restarted from `models/btr_ttc_wp7/final.pt` (not stage 8), 120 minutes, 5,000-decision horizon, 1.08M logged steps. Training did not collapse (return stayed 200–211, episodes about 1,600 decisions instead of about 5,000). The ten-episode probe, run **without** the stall cutoff (`results/ttc_probe_btr_ttc_fix.json`), reached **210–214 waypoints** (arc 30,183.9–30,588.4; maximum height about 2,600), versus 204 for stage 7; 8 episodes reached the horizon, 2 died at decision 1,124, **0 stars**. The gain is 6–10 waypoints, so the plateau persists: the fix removed the idling and the stage-8 instability, but the agent still does not learn the maneuver after the pillar. One run per setting and a non-deterministic emulator mean this is weak evidence. Further exploration (for example starting from intermediate route states) remains untested.
+
 ### Reproduce training, evaluation and video
 
 Use the repository `.venv` interpreter on this machine. The recorded runtime and hashes in the consolidated JSON describe the environment used when stage 6 was evaluated; `requirements.txt` is a different dependency snapshot and must not be described as the exact environment of these runs. In particular, the observed runtime is Python 3.11.9, PyTorch 2.5.1+cu121, CUDA 12.1, NumPy 2.4.6, OpenCV 5.0.0.93, Gymnasium 1.2.3, Stable-Baselines3 2.8.0 and py-desmume 0.0.9, with an RTX 4070 Laptop GPU for training. These are provenance observations, not changes to the training recipe. Earlier stages did not save their own full runtime manifests.
@@ -283,6 +301,9 @@ Use the repository `.venv` interpreter on this machine. The recorded runtime and
 ```powershell
 # From scratch: use a NEW run name to avoid overwriting existing checkpoints.
 .venv\Scripts\python.exe scripts/train_btr.py --run ttc_reproduction --tracks ds8 --envs-per-track 15 --steps 30000000 --max-steps 5000 --max-minutes 120
+
+# Stall-truncation continuation from the best stage (stage 7), as in btr_ttc_fix.
+.venv\Scripts\python.exe scripts/train_btr.py --run btr_ttc_fix --tracks ds8 --envs-per-track 15 --steps 30000000 --max-steps 5000 --stall-steps 600 --max-minutes 120 --resume models/btr_ttc_wp7/final.pt
 
 # Continue from stage 6 using the same loading mechanism; optimizer and replay restart.
 .venv\Scripts\python.exe scripts/train_btr.py --run ttc_continuation --tracks ds8 --envs-per-track 15 --steps 30000000 --max-steps 5000 --max-minutes 120 --resume models/btr_ttc_wp6/final.pt
