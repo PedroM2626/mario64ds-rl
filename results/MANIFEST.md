@@ -33,9 +33,9 @@ JSON, not a mean over three identical deterministic rows, when quoting a result.
 
 | Files | Meaning | Provenance and limitations |
 |---|---|---|
-| `btr_ttc_wp_train.csv`, `btr_ttc_wp2_train.csv` through `btr_ttc_wp7_train.csv` | Periodic training statistics for seven stages in one weight-transfer lineage | `steps` sums decisions over 15 environments; `minutes` and steps are the last periodic sample, not exact final counts. `ds8_coins` is mean episode return over up to 30 recent completed episodes, not a coin counter. |
-| `ttc_probe_btr_ttc_wp.json`, `ttc_probe_btr_ttc_wp2.json` through `ttc_probe_btr_ttc_wp7.json` | Ten CPU greedy episodes for each stage's final checkpoint | `noisy=False` disables noisy layers, but IQN still samples quantile fractions. Probe JSONs do not themselves record seed, horizon, device, model hash or runtime versions. The documented commands establish the CPU instrument and the 3,000 / 5,000-decision horizons. |
-| `ttc_btr_stages.json` | Consolidated, derived stage metrics, per-episode route-crossing counts, source hashes, checkpoint hashes and the observed stage-6 runtime | Text-source SHA256 values normalize line endings to LF; checkpoint SHA256 values use raw binary bytes. Not a new experiment. Stage 1-6 checkpoint hashes were measured when documenting stage 6; the stage-7 hash was measured after its final probe and matched the recording metadata. Hashes were not recorded by the historical probes. Earlier stages' complete runtimes were not preserved. The observed local runtime differs from `requirements.txt` and `pyproject.toml`. |
+| `btr_ttc_wp_train.csv`, `btr_ttc_wp2_train.csv` through `btr_ttc_wp8_train.csv` | Periodic training statistics for eight stages in one weight-transfer lineage | `steps` sums decisions over 15 environments; `minutes` and steps are the last periodic sample, not exact final counts. `ds8_coins` is mean episode return over up to 30 recent completed episodes, not a coin counter. |
+| `ttc_probe_btr_ttc_wp.json`, `ttc_probe_btr_ttc_wp2.json` through `ttc_probe_btr_ttc_wp8.json` | Ten CPU greedy episodes for each stage's final checkpoint | `noisy=False` disables noisy layers, but IQN still samples quantile fractions. Probe JSONs do not themselves record seed, horizon, device, model hash or runtime versions. The documented commands establish the CPU instrument and the 3,000 / 5,000-decision horizons. |
+| `ttc_btr_stages.json` | Consolidated, derived stage metrics, per-episode route-crossing counts, source hashes, checkpoint hashes and the observed stage-6 runtime | Text-source SHA256 values normalize line endings to LF; checkpoint SHA256 values use raw binary bytes. Not a new experiment. Stage 1-6 checkpoint hashes were measured when documenting stage 6; the stage-7 hash was measured after its final probe and matched the recording metadata. The stage-eight hash was measured after its final probe. Hashes were not recorded by the historical probes. Earlier stages' complete runtimes were not preserved. The observed local runtime differs from `requirements.txt` and `pyproject.toml`. |
 | `btr_ttc_route_train.csv`, `btr_ttc_route2_train.csv`, `btr_ttc_nocoin_train.csv` and corresponding probe JSONs | Earlier length-scaled route-reward experiments | Different reward recipes from the waypoint stages; returns cannot be compared directly. |
 
 The route is `config/routes/ttc_human_v1.json`: 371 positions, 53,245.7634
@@ -57,7 +57,7 @@ initialization, update counter and replay-importance progress. It is not an
 uninterrupted optimizer/replay continuation. Stage 7 finished near 19:00 America/Sao_Paulo on 2026-11-09; its full
 probe and training CSV are included. The conditional stage-eight decision
 is in `ttc_stage7_extension_decision.json`, and the final stage-seven video
-metadata is in `ttc_wp7_19h_video.json`. Stage-eight outcomes remain pending. TTC model files, videos, verbose logs and local
+metadata is in `ttc_wp7_19h_video.json`. Stage-eight training and the final ten-episode probe are complete and included. No training beyond 22:00 was launched. TTC model files, videos, verbose logs and local
 time-budget wrappers are not part of these result commits.
 
 To re-derive the waypoint counts from a probe (with the project interpreter):

@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "hash_policy": "SHA256 of LF-normalized bytes for text sources; raw bytes for binary checkpoints",
-  "generated_at": "2026-11-09T19:21:51.967280-03:00",
-  "scope": "Completed stages 1-7; conditional stage-eight continuation",
+  "generated_at": "2026-11-09T22:12:51.880917-03:00",
+  "scope": "Completed stages 1-8; authorized training finished near 22:00 on 2026-11-09",
   "route": {
     "path": "config/routes/ttc_human_v1.json",
     "sha256": "24a14e1befc27bb29e66de3c1a1efa2b89198a5d56f79526d2a6310bab591ae9",
@@ -16,7 +16,8 @@
     "noisy=False still samples random IQN quantile fractions.",
     "One training lineage; ten episodes per final checkpoint; no equal-budget causal ablation.",
     "Stage 1-6 model hashes and the observed runtime were measured when documenting stage six, not saved by earlier probes.",
-    "Stage-seven checkpoint hash was measured after its final evaluation; its recording metadata independently identifies the same bytes."
+    "Stage-seven checkpoint hash was measured after its final evaluation; its recording metadata independently identifies the same bytes.",
+    "Stage-eight checkpoint hash was measured after its final evaluation; no matched-seed or equal-budget causal comparison was performed."
   ],
   "runtime_observed_at_stage6_documentation": {
     "python": "3.11.9",
@@ -575,6 +576,79 @@
       ],
       "route_mean_percent": 55.137907938566634,
       "route_max_percent": 55.137907938566634
+    },
+    {
+      "stage": 8,
+      "run": "btr_ttc_wp8",
+      "horizon": 5000,
+      "model": "models/btr_ttc_wp8/final.pt",
+      "checkpoint_sha256_at_documentation": "449debb2f21fa89fd56e72e36998274c63d82f24e1b399ee015d6ae8e8b08119",
+      "training_csv": "results/btr_ttc_wp8_train.csv",
+      "training_csv_sha256": "01748c5f44077f349f43a956469070d60ce5eb398dc413f5938d75f21575de33",
+      "evaluation_json": "results/ttc_probe_btr_ttc_wp8.json",
+      "evaluation_json_sha256": "b28bb5b516e8dae9a1d0de51ec25d1b28c1395fb74467e2edbbd790bdcc8ced3",
+      "last_logged_steps": 1500000,
+      "last_logged_minutes": 156.8,
+      "last_logged_mean_return": 77.8,
+      "last_logged_mean_route_s": 11289.0,
+      "peak_logged_mean_return": 206.37,
+      "peak_logged_mean_route_s": 29660.0,
+      "episodes": 10,
+      "waypoints_min": 18,
+      "waypoints_max": 24,
+      "waypoints_median": 18.0,
+      "route_s_min": 2704.7,
+      "route_s_max": 3545.1,
+      "route_s_mean": 2789.0099999999998,
+      "height_gain_min": 405.0,
+      "height_gain_max": 1690.0,
+      "deaths": 5,
+      "horizon_endings": 5,
+      "star_successes": 0,
+      "episode_crossings": [
+        {
+          "episode": 0,
+          "crossings": 18
+        },
+        {
+          "episode": 1,
+          "crossings": 18
+        },
+        {
+          "episode": 2,
+          "crossings": 18
+        },
+        {
+          "episode": 3,
+          "crossings": 24
+        },
+        {
+          "episode": 4,
+          "crossings": 18
+        },
+        {
+          "episode": 5,
+          "crossings": 18
+        },
+        {
+          "episode": 6,
+          "crossings": 18
+        },
+        {
+          "episode": 7,
+          "crossings": 18
+        },
+        {
+          "episode": 8,
+          "crossings": 18
+        },
+        {
+          "episode": 9,
+          "crossings": 18
+        }
+      ],
+      "route_mean_percent": 5.2379942033932725,
+      "route_max_percent": 6.657994503587112
     }
   ],
   "stage7_run_status": {
@@ -621,5 +695,31 @@
     "checkpoint_sha256": "d9f70ba31e8ed706ba8747b2cddd41c711ae35515af04016b6af9884b4b2d91c",
     "training_csv": "results/btr_ttc_wp7_train.csv",
     "validation_json": "results/ttc_probe_btr_ttc_wp7.json"
+  },
+  "stage8_run_status": {
+    "started_at": "2026-11-09T19:21:45.121996-03:00",
+    "training_deadline": "2026-11-09T22:00:00-03:00",
+    "command": [
+      "D:\\mario64ds-rl\\.venv\\Scripts\\python.exe",
+      "-u",
+      "scripts/train_btr.py",
+      "--run",
+      "btr_ttc_wp8",
+      "--tracks",
+      "ds8",
+      "--envs-per-track",
+      "15",
+      "--steps",
+      "30000000",
+      "--max-steps",
+      "5000",
+      "--max-minutes",
+      "157.5",
+      "--resume",
+      "models/btr_ttc_wp7/final.pt"
+    ],
+    "status": "complete",
+    "training_finished_at": "2026-11-09T21:59:34.886778-03:00",
+    "finished_at": "2026-11-09T22:12:38.139686-03:00"
   }
 }
