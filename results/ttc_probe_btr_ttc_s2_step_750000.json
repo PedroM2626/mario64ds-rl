@@ -1,0 +1,56 @@
+{
+ "model": "models/btr_ttc_s2\\step_750000.pt",
+ "track": "ds8",
+ "rows": [
+  {
+   "episode": 0,
+   "start_y": -4710.0,
+   "max_y": 4077.2,
+   "final_y": -4710.0,
+   "route_s": 38123.1,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 1,
+   "start_y": -4710.0,
+   "max_y": 4415.6,
+   "final_y": -4710.0,
+   "route_s": 42957.0,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 2,
+   "start_y": -4710.0,
+   "max_y": 3812.4,
+   "final_y": -5519.6,
+   "route_s": 37734.8,
+   "coins": 1,
+   "decisions": 4306,
+   "end": "died"
+  },
+  {
+   "episode": 3,
+   "start_y": -4710.0,
+   "max_y": 4555.5,
+   "final_y": -20.0,
+   "route_s": 43346.5,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 4,
+   "start_y": -4710.0,
+   "max_y": 3753.9,
+   "final_y": -4710.0,
+   "route_s": 37570.8,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  }
+ ]
+}
