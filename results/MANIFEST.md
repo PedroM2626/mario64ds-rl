@@ -68,6 +68,14 @@ probe (`ttc_probe_btr_ttc_fix.json`): 210-214 waypoints, route 30,184-30,588
 versus 204 / 29,359 for stage seven; no star. The probe does not use the stall
 cutoff. Single run, emulator non-deterministic.
 
+Blocks `btr_ttc_fix2`, `btr_ttc_fall`, `btr_ttc_fall2`, `btr_ttc_fall3` and
+`btr_ttc_s1`-`btr_ttc_s3` add a fall truncation (`--fall-drop 1500`) and, from
+`s1`, a learning rate of 5e-5 and checkpoint selection by five-episode probes
+(`ttc_probe_btr_ttc_<run>_<checkpoint>.json`). They are documented, with their
+lineage, step counts and minutes, in the README section on blocks after the
+stall fix. They are not in `ttc_btr_stages.json`, and their model hashes were
+not recorded. No block reached a star.
+
 To re-derive the waypoint counts from a probe (with the project interpreter):
 
 ```python

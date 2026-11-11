@@ -190,7 +190,7 @@ feeds the final agent, and stage 2 after about 1.06M of its 6M steps, keeping th
 
 ## Tick Tock Clock: current BTR experiments
 
-**Status on 2026-11-10, after the stall-truncation run (`btr_ttc_fix`):** no star success in the evaluated episodes; best validated checkpoint reaches 210–214 of 370 payable waypoints. Stage 8 was a regression and is superseded (see [Stage 4 redone](#stage-4-was-redone-with-a-5000-decision-horizon) and [Plateau diagnosis and stall truncation](#plateau-diagnosis-and-stall-truncation)). The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
+**Status on 2026-11-11:** no star success in the evaluated episodes; the best probed checkpoints reach 334–338 of 370 payable waypoints (about 90% of the route by arc), see [the blocks after the stall fix](#blocks-after-the-stall-fix-fall-truncation-and-checkpoint-selection-2026-11-10-to-2026-11-11). Stage 8 was a regression and is superseded (see [Stage 4 redone](#stage-4-was-redone-with-a-5000-decision-horizon) and [Plateau diagnosis and stall truncation](#plateau-diagnosis-and-stall-truncation)). The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
 
 ### Reward, observations and episode rules
 
@@ -293,6 +293,31 @@ Stage 7 stopped at exactly **204 waypoints (arc 29,358.6) in all ten probe episo
 - Stage 8 training was stable for about 650,000 steps, then episode return fell from about 206 to 50–78 and the loss rose from about 0.003 to 0.15–0.27. The replay-content explanation is a **hypothesis consistent with these data, not proven**; optimizer and replay were also reset at each stage.
 
 **Fix tested:** `--stall-steps 600` (`Mario64DSEnv(stall_steps=...)`) truncates the episode after 600 decisions without a new waypoint. The longest gap between progress increments in the successful climb was 89 decisions. Rewards and algorithm are unchanged. Run `btr_ttc_fix` restarted from `models/btr_ttc_wp7/final.pt` (not stage 8), 120 minutes, 5,000-decision horizon, 1.08M logged steps. Training did not collapse (return stayed 200–211, episodes about 1,600 decisions instead of about 5,000). The ten-episode probe, run **without** the stall cutoff (`results/ttc_probe_btr_ttc_fix.json`), reached **210–214 waypoints** (arc 30,183.9–30,588.4; maximum height about 2,600), versus 204 for stage 7; 8 episodes reached the horizon, 2 died at decision 1,124, **0 stars**. The gain is 6–10 waypoints, so the plateau persists: the fix removed the idling and the stage-8 instability, but the agent still does not learn the maneuver after the pillar. One run per setting and a non-deterministic emulator mean this is weak evidence. Further exploration (for example starting from intermediate route states) remains untested.
+
+### Blocks after the stall fix: fall truncation and checkpoint selection (2026-11-10 to 2026-11-11)
+
+All blocks below load policy weights from a single parent (optimizer, replay and update counter restart), train on the full `ds8` start only (no intermediate start states), use the same reward (+1 per waypoint, +100 star, no coins), horizon 5,000 and `--stall-steps 600`. Step and minute columns are the last periodic CSV sample, not exact final values. Every block was capped at 120 minutes. Probes use 10 episodes for blocks `fix`-`fall3` and 5 episodes per checkpoint for `s1` onward; waypoint counts are `Route.passed(0, route_s)` out of 370.
+
+**Fall truncation** (`--fall-drop 1500`, added at `fall`): the episode ends when Mario drops more than 1,500 units below the highest point reached in that episode (the human route's own largest drop is about 516). Before it, the greedy policy fell and stayed idle until the horizon, because the ratcheted route progress pays nothing for redoing the climb. It is the only version of this rule that was implemented. It does not change where episodes start: the environment resets to the same full-start savestate.
+
+**Checkpoint selection** (from `s1`, `scratch/ttc_driver2.py`, a local driver that is not part of the training recipe): the trainer saves a checkpoint every 250k steps plus `final.pt`; after each block each one is probed for 5 episodes and the best (highest median waypoints, ties by the worst episode) is carried to the next block, only if it beats its starting checkpoint's own score. The learning rate was also lowered from `1e-4` to `5e-5` at `s1`; this was a guess to reduce instability, and its effect is **not isolated**: no control block with `1e-4` and the same selection was run. The five-episode selection probe can favour a lucky checkpoint, so these medians are not a validation.
+
+| Block / run | Parent weights | Last logged steps | Minutes | Waypoints / 370 (probe) | Deaths | Stars |
+|---|---|---:|---:|---|---|---|
+| `btr_ttc_fix` | stage 7 final | 1,080,000 | 119.6 | 210–214 (10 ep.) | 2/10 | 0 |
+| `btr_ttc_fix2` | `fix` final | 1,040,010 | 119.9 | 169–215 (10 ep.) | 4/10 | 0 |
+| `btr_ttc_fall` | `fix2` final | 980,010 | 119.1 | 227–228 (10 ep.) | 2/10 | 0 |
+| `btr_ttc_fall2` | `fall` final | 1,020,000 | 118.0 | 261–298 (10 ep.) | 1/10 | 0 |
+| `btr_ttc_fall3` | `fall2` final | 1,080,000 | 118.0 | 168, 204 (x9) (10 ep.) | 1/10 | 0 |
+| `btr_ttc_s1` | `fall2` final (`fall3` discarded) | 1,060,005 | 118.9 | best checkpoint: 297-302 | 1/5 | 0 |
+| `btr_ttc_s2` | `s1` step 1,000,005 | 1,140,000 | 118.1 | best checkpoint (250k): 330–337 | 0/5 | 0 |
+| `btr_ttc_s3` | `s2` step 250,005 | 1,140,000 | 119.6 | final: 334–336 | 0/5 | 0 |
+
+Per-checkpoint probes of `fall3`, `s1`, `s2` and `s3` are in `results/ttc_probe_btr_ttc_<run>_*.json`. Within a block checkpoints vary widely: in `fall3` the 500k checkpoint reached 59–64 waypoints, the 750k one 267–297 and the final one 204; in `s3` the 750k checkpoint reached 98–170 while the final reached 334–336. The cause of this instability is **not identified**, so the final checkpoint of a block cannot be assumed to be its best.
+
+Naming: the runs were named `btr_ttc_fall{n}` until `fall3` regressed, and `btr_ttc_s{n}` afterwards, because a second driver restarted its counter. The weight lineage is `stage 7 -> fix -> fix2 -> fall -> fall2 -> s1 -> s2 -> s3`; `models/btr_ttc_fall3` and the partial `btr_ttc_fall4` (killed right after it started) are not on it. A later block `btr_ttc_s4` was interrupted after about 47 minutes when the training process disappeared (cause unknown); it is also not on the lineage, and training continued from `s3/final` as `btr_ttc_s5`. Models, videos and these local drivers are not committed.
+
+**Status:** no star has been observed in any probe episode. The best five-episode probes reach 334–338 of 370 waypoints (about 90% of the route length by arc) and appear to stop there.
 
 ### Reproduce training, evaluation and video
 
