@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--episodes", type=int, default=10)
     ap.add_argument("--max-steps", type=int, default=3000)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--deterministic", action="store_true", help="fixed quantile levels: the policy is then a deterministic function of the observation")
     args = ap.parse_args()
 
     from scripts.train_btr import ref_env_kwargs
@@ -46,7 +47,7 @@ def main():
         c0, y0 = env.ram.get_coins(), float(env.ram.get_pos_3d()[1])
         ymax, end, info, t = y0, "horizon", {}, 0
         for t in range(args.max_steps):
-            a = int(agent.act(np.stack(list(dq))[None], noisy=False)[0])
+            a = int(agent.act(np.stack(list(dq))[None], noisy=False, fixed_taus=args.deterministic)[0])
             obs, _, term, _, info = env.step(a)
             dq.append(obs[:, :, 0])
             ymax = max(ymax, float(env.ram.get_pos_3d()[1]))

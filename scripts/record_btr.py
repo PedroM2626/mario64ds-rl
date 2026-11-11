@@ -64,7 +64,8 @@ def main():
     ap.add_argument("--scale", type=int, default=2, help="game-screen scale (the panel is sized to match at 2)")
     ap.add_argument("--fps", type=int, default=15)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--attempts", type=int, default=1, help="retry (the game is not deterministic) until an episode finishes")
+    ap.add_argument("--deterministic", action="store_true", help="fixed quantile levels: the policy is then a deterministic function of the observation")
+    ap.add_argument("--attempts", type=int, default=1, help="retry until an episode finishes (only useful without --deterministic: the sampled quantile levels make episodes differ)")
     args = ap.parse_args()
 
     from scripts.train_btr import ref_env_kwargs
@@ -94,7 +95,7 @@ def main():
         dmin, dist = 1e18, float("nan")
         a, t = -1, 0
         for t in range(args.max_steps):
-            a = int(agent.act(np.stack(list(dq))[None], noisy=False)[0])
+            a = int(agent.act(np.stack(list(dq))[None], noisy=False, fixed_taus=args.deterministic)[0])
             frames.append(render(t + 1, a, list(dq), c0, dist, dmin if dmin < 1e17 else dist))
             obs, _, term, _, info = env.step(a)
             dq.append(obs[:, :, 0])

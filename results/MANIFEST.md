@@ -66,7 +66,7 @@ the stage-seven final weights with `--stall-steps 600` (episode truncated after
 stable (return 200-211, episodes ~1600 decisions instead of ~5000). Ten-episode
 probe (`ttc_probe_btr_ttc_fix.json`): 210-214 waypoints, route 30,184-30,588
 versus 204 / 29,359 for stage seven; no star. The probe does not use the stall
-cutoff. Single run, emulator non-deterministic.
+cutoff. Single run; the probe samples IQN quantile levels, so it is not an exact replay.
 
 Blocks `btr_ttc_fix2`, `btr_ttc_fall`, `btr_ttc_fall2`, `btr_ttc_fall3` and
 `btr_ttc_s1`-`btr_ttc_s3` add a fall truncation (`--fall-drop 1500`) and, from

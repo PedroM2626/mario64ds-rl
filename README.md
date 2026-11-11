@@ -49,7 +49,7 @@ off, from each slide's start savestate, [`scripts/eval_btr.py`](scripts/eval_btr
 
 With 20 episodes per cell the uncertainty on a rate is large (18 of 20 is consistent with true
 rates from roughly 70% to 97%, a 95% Wilson interval), and the same checkpoint gives different
-outcomes from run to run because the game varies and BTR still samples IQN quantile fractions even when noisy layers are off. These greedy episodes are not exact deterministic replays.
+outcomes from run to run because BTR samples 16 random IQN quantile levels at every decision even when the noisy layers are off. These greedy episodes are therefore not exact replays. (An earlier version of this README also blamed the emulator; it is deterministic, see "Deterministic evaluation" under Tick Tock Clock.)
 
 **Perturbed starts** (same checkpoint and procedure, `--start-random 15`:
 [`results/btr_goal20_eval_1M_perturbed15_x20.json`](results/btr_goal20_eval_1M_perturbed15_x20.json)). Before the agent
@@ -165,7 +165,7 @@ What this shows and does not show:
 
   At 420,000 steps the runs are close. By 580,005 steps the first run has jumped on ds1 (from 19.3 to
   54.6 return) and the rerun has not (15.0). Whether the rerun would jump with more steps was not
-  tested; the emulator is not deterministic, so the same seed argument does not give the same run, and
+  tested; training runs are not bit-for-bit reproducible from a seed (the cause was not isolated; the emulator itself replays identical actions identically), and
   one run per setting says little about the setting. A difference in machine load between the runs
   cannot be ruled out.
 - The control reached a smaller closest distance on `ds1` than PPO and `legacy6` (a median of 4063 against 8594 and
@@ -219,7 +219,7 @@ Episodes end on the star-success detector, a fall below the course floor, a dete
 
 ### Eight completed stages
 
-Each row evaluates its own final checkpoint on CPU for 10 episodes with `noisy=False`. IQN still samples 16 random quantile fractions for action selection, and the emulator varies between episodes: **greedy here does not mean an exactly deterministic replay**. A single training lineage and ten probe episodes cannot establish statistical superiority or isolate the cause of an improvement.
+Each row evaluates its own final checkpoint on CPU for 10 episodes with `noisy=False`. IQN still samples 16 random quantile levels for action selection at every decision, so **greedy here does not mean an exactly deterministic replay**; the emulator is not the source (see "Deterministic evaluation" below). A single training lineage and ten probe episodes cannot establish statistical superiority or isolate the cause of an improvement.
 
 | Stage / run | Last logged steps | Last logged minutes | Horizon | Waypoints / 371 | Route arc range | Deaths | Horizon endings | Star successes |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -312,12 +312,28 @@ All blocks below load policy weights from a single parent (optimizer, replay and
 | `btr_ttc_s1` | `fall2` final (`fall3` discarded) | 1,060,005 | 118.9 | best checkpoint: 297-302 | 1/5 | 0 |
 | `btr_ttc_s2` | `s1` step 1,000,005 | 1,140,000 | 118.1 | best checkpoint (250k): 330–337 | 0/5 | 0 |
 | `btr_ttc_s3` | `s2` step 250,005 | 1,140,000 | 119.6 | final: 334–336 | 0/5 | 0 |
+| `btr_ttc_s5` | `s3` final | 1,060,005 | 119.1 | best checkpoint (750k): 336–338; final 299–336 | 1/5 | 0 |
+| `btr_ttc_s6` | `s5` step 750,000 | ~300,000 (aborted) | ~33 | no probe | – | – |
+| `btr_ttc_s7` (`--fall-drop 800`) | `s5` step 750,000 | 1,100,010 | 118.5 | all checkpoints 158–171 (collapsed) | 10/25 over five checkpoints | 0 |
 
 Per-checkpoint probes of `fall3`, `s1`, `s2` and `s3` are in `results/ttc_probe_btr_ttc_<run>_*.json`. Within a block checkpoints vary widely: in `fall3` the 500k checkpoint reached 59–64 waypoints, the 750k one 267–297 and the final one 204; in `s3` the 750k checkpoint reached 98–170 while the final reached 334–336. The cause of this instability is **not identified**, so the final checkpoint of a block cannot be assumed to be its best.
 
-Naming: the runs were named `btr_ttc_fall{n}` until `fall3` regressed, and `btr_ttc_s{n}` afterwards, because a second driver restarted its counter. The weight lineage is `stage 7 -> fix -> fix2 -> fall -> fall2 -> s1 -> s2 -> s3`; `models/btr_ttc_fall3` and the partial `btr_ttc_fall4` (killed right after it started) are not on it. A later block `btr_ttc_s4` was interrupted after about 47 minutes when the training process disappeared (cause unknown); it is also not on the lineage, and training continued from `s3/final` as `btr_ttc_s5`. Models, videos and these local drivers are not committed.
+Naming: the runs were named `btr_ttc_fall{n}` until `fall3` regressed, and `btr_ttc_s{n}` afterwards, because a second driver restarted its counter. The weight lineage is `stage 7 -> fix -> fix2 -> fall -> fall2 -> s1 -> s2 -> s3`; `models/btr_ttc_fall3` and the partial `btr_ttc_fall4` (killed right after it started) are not on it. A later block `btr_ttc_s4` was interrupted after about 47 minutes when the training process disappeared (cause unknown); it is also not on the lineage, and training continued from `s3/final` as `btr_ttc_s5`. `btr_ttc_s6` was stopped by hand at about 33 minutes so that a block could be restarted with a tighter fall cutoff; it is not on the lineage (`models/btr_ttc_s6_aborted`). That block, `btr_ttc_s7`, used `--fall-drop 800` (from `s5` step 750,000): every one of its checkpoints probed at 158–171 waypoints, far below the 336 it started from, and its training episodes fell to about 630 decisions (arc about 22,700, against about 43,000 in `s5`). The cause was not isolated (the single change was the cutoff, but this is one run); the cutoff went back to 1,500 and `btr_ttc_s8` restarts from the same `s5` step 750,000 checkpoint. Models, videos and these local drivers are not committed.
 
-**Status:** no star has been observed in any probe episode. The best five-episode probes reach 334–338 of 370 waypoints (about 90% of the route length by arc) and appear to stop there.
+**Status:** no star has been observed in any probe episode. The best five-episode probes reach 334–338 of 370 waypoints (about 90% of the route length by arc) and appear to stop there. Over `s2`, `s3` and `s5` no probe episode exceeded 338.
+
+### Where the plateau is (trace and videos, 2026-11-11)
+
+`scripts/trace_ttc.py` logged position per decision for three episodes of `btr_ttc_s3/final` (`results/ttc_trace_btr_ttc_s3_final.json`, 334–336 waypoints): the best route progress came at decisions 1,580, 1,610 and 1,656 (waypoints 330, 338 and 336), at heights 5,573–5,857 and 171–206 units from the nearest waypoint (the corridor is 250). Afterwards Mario left the route and fell to heights -2,430, -4,710 (the start floor) and 2,564, then stood still until the 800-decision idle cutoff of the trace. The human route stays near height 5,910 over waypoints 338–345. The agent reaches this point about 1,000 decisions faster than the 2,674-decision human run.
+
+Watching the recordings of `s5/step_750000`, the user reports that Mario reaches the height of the clock hand and falls, and in one episode reaches the hand and falls because he keeps moving on it. The working hypothesis is therefore that the stall is the section where Mario has to stand on the moving hand. The object was not identified from RAM, and a few recorded episodes do not establish it. The recordings and the probe run without the training cutoffs, so the long idling after a fall seen there does not happen in training (stall 600 and fall cutoff 1,500 end the episode).
+
+### Deterministic evaluation (2026-11-11)
+
+Earlier versions of this README said the emulator is not deterministic. That was an assumption and it is wrong for the part that was tested: replaying 500 fixed random actions from the `ds8` savestate three times in the same process gave identical positions at every decision (`scratch/det_test.py`, local; only that 500-decision case was checked). The variation between greedy episodes comes from the policy: `BTRAgent.act` draws 16 random IQN quantile levels at every decision, even with `noisy=False`.
+
+`BTRAgent.act(..., fixed_taus=True)` replaces them by the midpoints (i+0.5)/16, and `probe_ttc.py`, `record_btr.py` and `trace_ttc.py` take `--deterministic` for it. Training is unchanged. Check made: two separate processes, each running `btr_ttc_s5/step_750000` for 2 episodes of 2,200 decisions with `--deterministic`, produced four identical episodes (336 waypoints, max height 5,814.6, final height 3,810.5). The deterministic video `videos/ttc_s5_det.mp4` (local) is that episode. Under the default stochastic evaluation the same checkpoint gave 336, 336, 336, 336, 338 in the five-episode probe. Deterministic evaluation is one trajectory, not a distribution: a deterministic score can be better or worse than the stochastic median, and it does not replace several stochastic episodes when judging a checkpoint.
+
 
 ### Reproduce training, evaluation and video
 
@@ -338,6 +354,12 @@ Use the repository `.venv` interpreter on this machine. The recorded runtime and
 
 # One complete attempt, including the agent's four input frames and chosen action.
 .venv\Scripts\python.exe scripts/record_btr.py --model models/btr_ttc_wp6/final.pt --track ds8 --max-steps 5000 --attempts 1 --out videos/ttc_wp6.mp4
+
+# Same, deterministic (fixed quantile levels): the episode repeats exactly.
+.venv\Scripts\python.exe scripts/record_btr.py --model models/btr_ttc_wp6/final.pt --track ds8 --max-steps 5000 --attempts 1 --deterministic --out videos/ttc_wp6_det.mp4
+
+# Per-decision position trace (see results/ttc_trace_btr_ttc_s3_final.json).
+.venv\Scripts\python.exe scripts/trace_ttc.py --model models/btr_ttc_s3/final.pt --episodes 3 --out results/ttc_trace_btr_ttc_s3_final.json
 
 # Optional compact playback copy (requires FFmpeg).
 ffmpeg -i videos/ttc_wp6.mp4 -c:v libx264 -preset fast -crf 25 -pix_fmt yuv420p -movflags +faststart -an videos/ttc_wp6_small.mp4

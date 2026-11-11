@@ -187,13 +187,19 @@ class BTRAgent:
         self.updates = 0
 
     @torch.no_grad()
-    def act(self, stacks, noisy=True):
-        """Greedy action on the mean of the quantiles; the noisy layers explore unless noisy=False."""
+    def act(self, stacks, noisy=True, fixed_taus=False):
+        """Greedy action on the mean of the quantiles; the noisy layers explore unless noisy=False.
+
+        fixed_taus=True replaces the 16 random quantile levels by their midpoints, so with noisy=False the
+        action is a deterministic function of the observation."""
         self.net.train(noisy)
         if noisy:
             self.net.resample_noise()
         x = torch.as_tensor(stacks, device=self.dev)
-        taus = torch.rand(x.shape[0], 16, device=self.dev)
+        if fixed_taus:
+            taus = ((torch.arange(16, device=self.dev, dtype=torch.float32) + 0.5) / 16).expand(x.shape[0], 16)
+        else:
+            taus = torch.rand(x.shape[0], 16, device=self.dev)
         return self.net(x, taus).mean(1).argmax(-1).cpu().numpy()
 
     def learn(self, b):
