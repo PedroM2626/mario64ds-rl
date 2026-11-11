@@ -107,3 +107,10 @@ def test_route_counts_waypoints_passed():
     r = Route(np.array([[0, 0, 0], [0, 100, 0], [0, 200, 0], [0, 300, 0]], float))   # waypoints at arc 0, 100, 200, 300
     assert r.passed(0.0, 0.0) == 0 and r.passed(0.0, 99.0) == 0
     assert r.passed(0.0, 100.0) == 1 and r.passed(0.0, 250.0) == 2 and r.passed(150.0, 300.0) == 2
+
+
+def test_ttc_fall_drop_and_stall_are_passed_to_the_env():
+    from scripts.train_btr import ref_env_kwargs
+    kw = ref_env_kwargs("ds8", stall_steps=600, fall_drop=1500.0)
+    assert kw["stall_steps"] == 600 and kw["fall_drop"] == 1500.0
+    assert ref_env_kwargs("ds8")["fall_drop"] == 0.0

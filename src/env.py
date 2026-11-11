@@ -78,7 +78,7 @@ class Mario64DSEnv(gym.Env):
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
-                 route_total_reward=500.0, waypoint_reward=1.0, stall_steps=0, start_states=None, full_start_prob=0.25,
+                 route_total_reward=500.0, waypoint_reward=1.0, stall_steps=0, fall_drop=0.0, start_states=None, full_start_prob=0.25,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
                  ram_coin_reward=0.0, black_screen_death=True, goal_override=None,
                  respawn_jump=0.0, fall_speed=0.0, fall_steps=15):
@@ -174,6 +174,8 @@ class Mario64DSEnv(gym.Env):
         # end the episode (truncation) when the ratcheted route progress has not advanced for this many decisions
         self.stall_steps = int(stall_steps)
         self._last_progress_step = 0
+        self.fall_drop = float(fall_drop)
+        self._max_y = None
         self.route_best_s = None
 
         # Start-state curriculum: reset() loads the canonical state_path with
@@ -462,6 +464,19 @@ class Mario64DSEnv(gym.Env):
                 curr_pos = self.ram.get_pos_3d()
                 curr_dist = float(np.linalg.norm(curr_pos - self.target_pos))
                 self.last_dist = curr_dist
+
+                # Fall truncation: ends the episode when Mario drops more than fall_drop below the highest
+                # point reached (the human route's own largest drop is ~516), so a fall restarts the climb
+                # (where progress pays again) instead of idling on a floor the ratchet no longer pays for.
+                if self.fall_drop:
+                    y = float(curr_pos[1])
+                    if self._max_y is None or y > self._max_y:
+                        self._max_y = y
+                    elif y < self._max_y - self.fall_drop:
+                        truncated = True
+                        if self.verbose:
+                            logger.info("fell %.0f below the highest point, episode ends at step %d",
+                                        self._max_y - y, self.episode_steps)
                 
                 # 3D Distance Reward: High-Water Mark ("progress") vs Bidirectional ("potential")
                 # vs ratcheted arc length along a recorded route ("route")
@@ -624,6 +639,7 @@ class Mario64DSEnv(gym.Env):
         self.last_flow_reward = 0.0
         self.route_best_s = None
         self._last_progress_step = 0
+        self._max_y = None
         self.coins = None  # re-read below: a new start may hold fewer coins than the last episode
         self.last_ram_coin_reward = 0.0
         self.reached_goal = False

@@ -33,7 +33,7 @@ TTC_ROUTE = "config/routes/ttc_human_v1.json"
 
 
 def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward=0.0, action_set="ref10",
-                   waypoint_reward=1.0, ttc_star_reward=100.0, stall_steps=0):
+                   waypoint_reward=1.0, ttc_star_reward=100.0, stall_steps=0, fall_drop=0.0):
     """Mario64DSEnv settings of the coin-only agent (everything but the coin counter pays nothing, unless
     goal_reward > 0: a one-time reward when the episode ends in the finish region)."""
     kw = dict(action_set=action_set, death_penalty=0.0, step_penalty=0.0, flow_weight=0.0,
@@ -46,7 +46,7 @@ def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward
         # (the route progress only ratchets forward) and `ttc_star_reward` once for the star; no coins, no height term.
         kw.update(ram_coin_reward=0.0, dist_reward_enabled=True, dist_reward_mode="waypoint",
                   route_path=os.path.join(ROOT_DIR, TTC_ROUTE), waypoint_reward=waypoint_reward, star_reward=ttc_star_reward,
-                  stall_steps=stall_steps)
+                  stall_steps=stall_steps, fall_drop=fall_drop)
     return kw
 
 
@@ -81,6 +81,9 @@ def main():
     ap.add_argument("--max-minutes", type=float, default=0.0, help="stop after this many minutes of training (0 = no limit)")
     ap.add_argument("--stall-steps", type=int, default=0,
                     help="ds8: end the episode when no new waypoint was reached for this many decisions (0 = off)")
+    ap.add_argument("--fall-drop", type=float, default=0.0,
+                    help="ds8: end the episode when Mario falls this many units below the highest point "
+                         "reached (0 = off); the human route's largest drop is about 516")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
@@ -98,7 +101,8 @@ def main():
     np.random.seed(args.seed)
 
     vec = SubprocVecEnv([make_ref_env(t, rank=i, seed=args.seed, max_steps=args.max_steps, goal_reward=args.goal_reward,
-                         action_set=args.action_set, stall_steps=args.stall_steps)
+                         action_set=args.action_set, stall_steps=args.stall_steps,
+                         fall_drop=args.fall_drop)
                          for i, t in enumerate(names)])
     agent = BTRAgent(int(vec.action_space.n), device=args.device, lr=args.lr, gamma=args.gamma,
                      n_step=args.n_step)
