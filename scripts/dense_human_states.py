@@ -31,7 +31,7 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
-    from src.demos import load_demo
+    from src.demos import decision_inputs, load_demo
     from src.env import Mario64DSEnv
     from src.envs import rom_path
     demo = load_demo(os.path.join(ROOT_DIR, args.attempt))
@@ -42,14 +42,20 @@ def main():
                        frameskip=m["frameskip"], flow_weight=0.0, action_set=m["action_set"],
                        track_id=m["track_id"], black_screen_death=False)
     env.reset()
+    err = float(np.max(np.abs(env.ram.get_pos_3d() - demo["positions"][0])))
     index = []
-    for t, a in enumerate(demo["actions"]):
+    # the recorded per-frame inputs when the attempt has them (the TTC run), else the decision actions
+    for t, a in enumerate(decision_inputs(demo)):
         if args.lo <= t <= args.hi and (t - args.lo) % args.every == 0:
             name = f"dense-{t:04d}.dst"
             env.emu.savestate.save_file(os.path.join(out, name))
             index.append({"decision": t, "file": name, "pos": [round(float(v), 1) for v in env.ram.get_pos_3d()]})
-        env.step(int(a))
+        env.step(a)
+        if t + 1 < len(demo["positions"]):
+            err = max(err, float(np.max(np.abs(env.ram.get_pos_3d() - demo["positions"][t + 1]))))
     env.close()
+    if err > 1e-3:
+        raise SystemExit(f"replay diverged from the recording (max position error {err:.3f}); no index written")
     with open(os.path.join(out, "index.json"), "w", encoding="utf-8") as fh:
         json.dump({"attempt": args.attempt, "states": index}, fh, indent=1)
     print(f"{len(index)} savestates -> {args.out}")

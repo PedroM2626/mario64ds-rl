@@ -114,3 +114,11 @@ def test_ttc_fall_drop_and_stall_are_passed_to_the_env():
     kw = ref_env_kwargs("ds8", stall_steps=600, fall_drop=1500.0)
     assert kw["stall_steps"] == 600 and kw["fall_drop"] == 1500.0
     assert ref_env_kwargs("ds8")["fall_drop"] == 0.0
+
+
+def test_ttc_start_states_are_training_only_and_ds8_only():
+    from scripts.train_btr import ref_env_kwargs
+    assert "start_states" not in ref_env_kwargs("ds8")
+    k = ref_env_kwargs("ds8", start_states=["a.dst"], full_start_prob=0.5)
+    assert k["start_states"] == ["a.dst"] and k["full_start_prob"] == 0.5
+    assert "start_states" not in ref_env_kwargs("ds3", start_states=["a.dst"])
