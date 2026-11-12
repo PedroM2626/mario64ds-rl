@@ -192,6 +192,8 @@ feeds the final agent, and stage 2 after about 1.06M of its 6M steps, keeping th
 
 **Status on 2026-11-11:** no star success in the evaluated episodes; the best probed checkpoints reach 334–338 of 370 payable waypoints (about 90% of the route by arc), see [the blocks after the stall fix](#blocks-after-the-stall-fix-fall-truncation-and-checkpoint-selection-2026-11-10-to-2026-11-11). Stage 8 was a regression and is superseded (see [Stage 4 redone](#stage-4-was-redone-with-a-5000-decision-horizon) and [Plateau diagnosis and stall truncation](#plateau-diagnosis-and-stall-truncation)). The slide agent above and the TTC agent below are separate networks. The TTC policy is being trained to ascend from the full `ds8` start, rather than from progressively higher checkpoints.
 
+**Target star:** the star the agent is trained to collect in Tick Tock Clock is **"Stomp on the Thwomp"** (stated by the user, who recorded the human route `config/routes/ttc_human_v1.json` that the waypoints come from). The environment does not check which star it is: success is any increase in the RAM star count (`Mario64DSEnv`, `star_collected`), so the route and the savestate are what select the objective.
+
 ### Reward, observations and episode rules
 
 The active recipe is in [`scripts/train_btr.py`](scripts/train_btr.py), `ref_env_kwargs("ds8")`:
