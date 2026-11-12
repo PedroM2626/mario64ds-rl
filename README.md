@@ -335,6 +335,10 @@ Naming: the runs were named `btr_ttc_fall{n}` until `fall3` regressed, and `btr_
 
 Watching the recordings of `s5/step_750000`, the user reports that Mario reaches the height of the clock hand and falls, and in one episode reaches the hand and falls because he keeps moving on it. The working hypothesis is therefore that the stall is the section where Mario has to stand on the moving hand. The object was not identified from RAM, and a few recorded episodes do not establish it. The recordings and the probe run without the training cutoffs, so the long idling after a fall seen there does not happen in training (stall 600 and fall cutoff 1,500 end the episode).
 
+### Re-evaluation of `btr_ttc_s9/step_750000` (2026-11-12)
+
+After `s10`, `s11` and `s12` failed to beat it, the carried checkpoint was probed again with fresh episodes (horizon 5,000, no training cutoffs; `results/ttc_reeval_s9_750k_*.json`): ten stochastic episodes gave 182, 336, 344, 344, 344, 348, 348, 348, 348, 348 waypoints (median 346; one episode ended by death, nine at the horizon), and one `--deterministic` episode gave 348. So the 344–348 of the selection probe holds up for nine of ten episodes; one episode stayed at 182, which the original five did not show. The five 348-waypoint episodes share the same maximum height (6,154.5), and the 344 ones share 6,113.0, so the agent is repeatedly stopping at the same two places, not at random ones. Their location and cause were not examined; the earlier hypothesis (the moving clock-hand section) is not tested by this data.
+
 ### Deterministic evaluation (2026-11-11)
 
 Earlier versions of this README said the emulator is not deterministic. That was an assumption and it is wrong for the part that was tested: replaying 500 fixed random actions from the `ds8` savestate three times in the same process gave identical positions at every decision (`scratch/det_test.py`, local; only that 500-decision case was checked). The variation between greedy episodes comes from the policy: `BTRAgent.act` draws 16 random IQN quantile levels at every decision, even with `noisy=False`.
