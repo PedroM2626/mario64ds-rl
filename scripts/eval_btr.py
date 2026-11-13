@@ -33,7 +33,7 @@ def main():
                     help="perturbed starts: each episode first plays a random number (0..N) of random actions, one "
                          "decision each; a perturbation that ends the episode is redrawn (up to 5 times)")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--action-set", default="ref10", choices=["ref10", "legacy6", "compound12"])
+    ap.add_argument("--action-set", default="ref10", choices=["ref10", "ref13", "legacy6", "compound12"])
     ap.add_argument("--algo", default="btr", choices=["btr", "ppo"], help="btr: scripts/train_btr.py checkpoint; ppo: scripts/train_ppo_ref.py")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()

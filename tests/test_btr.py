@@ -122,3 +122,30 @@ def test_ttc_start_states_are_training_only_and_ds8_only():
     k = ref_env_kwargs("ds8", start_states=["a.dst"], full_start_prob=0.5)
     assert k["start_states"] == ["a.dst"] and k["full_start_prob"] == 0.5
     assert "start_states" not in ref_env_kwargs("ds3", start_states=["a.dst"])
+
+
+def test_extended_agent_keeps_its_greedy_actions(tmp_path):
+    import numpy as np
+    import torch
+    from src.btr import BTRAgent, checkpoint_actions
+    from src.env import ACTION_SETS, ACTION_SET_EXTENDS
+    torch.manual_seed(0)
+    old = BTRAgent(10, device="cpu")
+    old.save(str(tmp_path / "old.pt"))
+    new = BTRAgent(13, device="cpu")
+    new.load(str(tmp_path / "old.pt"), sources=ACTION_SET_EXTENDS["ref13"][1])
+    new.save(str(tmp_path / "new.pt"))
+    assert checkpoint_actions(str(tmp_path / "old.pt")) == 10 and checkpoint_actions(str(tmp_path / "new.pt")) == 13
+    stacks = np.random.RandomState(1).randint(0, 255, (24, 4, 84, 84)).astype(np.uint8)
+    a_old = old.act(stacks, noisy=False, fixed_taus=True)
+    a_new = new.act(stacks, noisy=False, fixed_taus=True)
+    assert (a_old == a_new).all() and (a_new < 10).all()
+    assert len(ACTION_SETS["ref13"][0]) == 13 and ACTION_SETS["ref13"][1][:10] == ACTION_SETS["ref10"][1]
+
+
+def test_extension_needs_sources(tmp_path):
+    import pytest
+    from src.btr import BTRAgent
+    BTRAgent(10, device="cpu").save(str(tmp_path / "o.pt"))
+    with pytest.raises(ValueError):
+        BTRAgent(13, device="cpu").load(str(tmp_path / "o.pt"))

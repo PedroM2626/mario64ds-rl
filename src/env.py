@@ -33,7 +33,18 @@ ACTION_SETS = {
         ((), ("up",), ("up", "right"), ("right",), ("down", "right"), ("down",), ("down", "left"),
          ("left",), ("up", "left"), ("B",)),
     ),
+    # ref10 plus the three held jump combinations the human used for the hand -> platform transfer of Tick Tock
+    # Clock (up+B, up+left+B, up+right+B). The first ten indices are ref10's, so a ref10 network extends to it
+    # (src/btr.BTRAgent.load); random search from the hand: 149/600 transfers with these vs 2/600 with ref10.
+    "ref13": (
+        ("none", "up", "up-right", "right", "down-right", "down", "down-left", "left", "up-left", "jump",
+         "up+jump", "up-left+jump", "up-right+jump"),
+        ((), ("up",), ("up", "right"), ("right",), ("down", "right"), ("down",), ("down", "left"),
+         ("left",), ("up", "left"), ("B",), ("up", "B"), ("up", "left", "B"), ("up", "right", "B")),
+    ),
 }
+# action set -> (action set it extends, the index of the old action each new action starts as a copy of)
+ACTION_SET_EXTENDS = {"ref13": ("ref10", [1, 8, 2])}
 
 try:
     from desmume.emulator import DeSmuME

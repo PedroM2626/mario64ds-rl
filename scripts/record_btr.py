@@ -69,14 +69,16 @@ def main():
     args = ap.parse_args()
 
     from scripts.train_btr import ref_env_kwargs
-    from src.btr import BTRAgent
+    from src.btr import BTRAgent, checkpoint_actions
     from src.env import Mario64DSEnv
     from src.envs import rom_path, savestate_path
 
-    agent = BTRAgent(10, device="cpu")
+    n_act = checkpoint_actions(os.path.join(ROOT_DIR, args.model))
+    action_set = {10: "ref10", 13: "ref13"}[n_act]
+    agent = BTRAgent(n_act, device="cpu")
     agent.load(os.path.join(ROOT_DIR, args.model))
     env = Mario64DSEnv(rom_path=rom_path(), state_path=savestate_path(args.track), max_steps=args.max_steps,
-                       track_id=args.track, **ref_env_kwargs(args.track))
+                       track_id=args.track, **ref_env_kwargs(args.track, action_set=action_set))
 
     def render(t, a, stack, c0, dist, dmin):
         img = cv2.cvtColor(env.get_screen_rgb(), cv2.COLOR_RGB2BGR)

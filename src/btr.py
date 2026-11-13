@@ -246,7 +246,27 @@ class BTRAgent:
     def save(self, path):
         torch.save({"net": self.net.state_dict(), "n_actions": self.n_actions}, path)
 
-    def load(self, path):
+    def load(self, path, sources=None, gap=0.05):
+        """Load weights. A checkpoint with fewer actions than this agent is extended: `sources[i]` is the old
+        action whose output row the i-th new action starts as a copy of, with its bias lowered by `gap` so that
+        a greedy (noise-free) policy keeps choosing exactly what it chose before (the dueling mean removes the
+        same amount from every old action)."""
         d = torch.load(path, map_location=self.dev)
-        self.net.load_state_dict(d["net"])
-        self.target.load_state_dict(d["net"])
+        net = d["net"]
+        old_n = int(net["adv.2.w_mu"].shape[0])
+        if old_n != self.n_actions:
+            if old_n > self.n_actions or sources is None or len(sources) != self.n_actions - old_n:
+                raise ValueError(f"checkpoint has {old_n} actions, agent {self.n_actions}; pass one source per new action")
+            net = dict(net)
+            for k in ("adv.2.w_mu", "adv.2.w_sigma", "adv.2.b_mu", "adv.2.b_sigma", "adv.2.w_eps", "adv.2.b_eps"):
+                if k in net:
+                    net[k] = torch.cat([net[k], net[k][list(sources)].clone()], dim=0)
+            net["adv.2.b_mu"][old_n:] -= gap
+        self.net.load_state_dict(net)
+        self.target.load_state_dict(net)
+
+
+def checkpoint_actions(path):
+    """Number of actions of a saved agent (its advantage head)."""
+    d = torch.load(path, map_location="cpu")
+    return int(d["net"]["adv.2.w_mu"].shape[0])

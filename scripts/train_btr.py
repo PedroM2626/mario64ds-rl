@@ -83,7 +83,7 @@ def main():
     ap.add_argument("--resume", default=None)
     ap.add_argument("--goal-reward", type=float, default=0.0,
                     help="one-time reward for ending an episode in the finish region (0 = the reference setup)")
-    ap.add_argument("--action-set", default="ref10", choices=["ref10", "legacy6", "compound12"])
+    ap.add_argument("--action-set", default="ref10", choices=["ref10", "ref13", "legacy6", "compound12"])
     ap.add_argument("--max-minutes", type=float, default=0.0, help="stop after this many minutes of training (0 = no limit)")
     ap.add_argument("--stall-steps", type=int, default=0,
                     help="ds8: end the episode when no new waypoint was reached for this many decisions (0 = off)")
@@ -120,7 +120,9 @@ def main():
     agent = BTRAgent(int(vec.action_space.n), device=args.device, lr=args.lr, gamma=args.gamma,
                      n_step=args.n_step)
     if args.resume:
-        agent.load(args.resume)
+        from src.env import ACTION_SET_EXTENDS
+        ext = ACTION_SET_EXTENDS.get(args.action_set)
+        agent.load(args.resume, sources=ext[1] if ext else None)
     buf = PrioritizedStepBuffer(E, args.capacity // E, n_step=args.n_step, gamma=args.gamma)
 
     obs = vec.reset()                                         # (E, 84, 84, 1)
