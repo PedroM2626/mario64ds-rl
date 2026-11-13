@@ -353,6 +353,21 @@ After `s10`, `s11` and `s12` failed to beat it, the carried checkpoint was probe
 
 Result of the block `btr_ttc_s16` (from `s9` step 750,000, lr 5e-5, 120 minutes, 5,000-decision horizon, stall 600, fall cutoff 1,500): the training CSV shows the loss rising from 0.11 to 1.1-2.6 and the mean route arc length of the training episodes (which now includes the end starts) falling from 49,487 to 33,000-42,000; the block was slower (about 380,000 steps in 117 minutes, against about 1.0-1.2 million in the other 2-hour blocks), most likely because the episodes are shorter and every reset reloads a savestate (not measured). Probes from the normal start: `step_250005` reached 161, 161, 164, 165 and 168 waypoints (one death) and `final` 158, 161, 161, 165 and 180 waypoints, far below the 344-348 of the checkpoint it started from. No star. Per the user's instruction the next blocks were not run because the agent got worse. This is a single block with fewer steps than the others, so it shows that this variant (50% end starts, from `s9`) did not help in one block, not that end starts cannot help in general; no cause for the regression to 161-180 was identified.
 
+### Does the action set limit the hand-to-platform jump? (2026-11-13, evaluation only)
+
+The agent plays with `ref10` (None, eight directions, jump = the B button alone), taken from the coin-agent video this project follows. The human run was recorded with `compound12`, which has held combinations; at the transfer the human pressed up+left+B (decision 2,580, two decisions) and then held up+B for 12 decisions (2,582-2,593), a flight that rises from height 5,910 to 6,178 and lands on the next platform at 5,900 (position 1275, 1096). The comment in `src/env.py` records that up+B travels 148.8 units against 62.2 for "up, then B" (40 frames, measured on `ds8`).
+
+Test (`scripts/search_ttc_jump.py`, results in `results/ttc_jump_search_*.json`): from the human savestate on the hand just before the transfer (decision 2,580, and also 2,570), 600 random action sequences of 28 decisions (each random action held 1-8 decisions), the same budget and generator for both action sets. A trial counts as success when the route arc length reached is at least 51,000 (the human is at 50,683 at decision 2,590 and 51,370 at 2,600) and Mario is still above height 5,800 at the end.
+
+| Start | Action set | Success (>= 51,000) | >= 51,300 | >= 51,500 |
+|---|---|---:|---:|---:|
+| decision 2,580 | `ref10` | 2 / 600 | 0 | 0 |
+| decision 2,580 | `compound12` | 149 / 600 | 89 | 55 |
+| decision 2,570 | `ref10` | 1 / 600 | 0 | 0 |
+| decision 2,570 | `compound12` | 37 / 600 | 13 | 2 |
+
+Random sequences with the combined buttons find the transfer about 75 times (decision 2,580) and 37 times (decision 2,570) more often. The two `ref10` successes at 2,580 only just pass the threshold (51,206 and 51,209) and no `ref10` trial passes 51,300. This does **not** prove the transfer is impossible with `ref10`, and a random search is not a trained policy; the success criterion is mine, evaluated after 28 decisions. It is evidence that the missing combined jump is a likely cause of the stall at the hand, independent of the amount of training. It has not been tested by training.
+
 ### Deterministic evaluation (2026-11-11)
 
 Earlier versions of this README said the emulator is not deterministic. That was an assumption and it is wrong for the part that was tested: replaying 500 fixed random actions from the `ds8` savestate three times in the same process gave identical positions at every decision (`scratch/det_test.py`, local; only that 500-decision case was checked). The variation between greedy episodes comes from the policy: `BTRAgent.act` draws 16 random IQN quantile levels at every decision, even with `noisy=False`.
