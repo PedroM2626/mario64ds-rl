@@ -373,6 +373,18 @@ Random sequences with the combined buttons find the transfer about 75 times (dec
 
 **Result of the `ref13` block `btr_ttc_s17` (2026-11-14):** standard recipe (lr 5e-5, 120 minutes, 5,000-decision horizon, stall 600, fall cutoff 1,500, no start states), from `s9` step 750,000 extended to `ref13`. Probes from the normal start: 250k 234-251, 500k 266-297, 750k 265-301, final 170-323 waypoints (medians 236, 296, 300, 300), against 344-348 of the checkpoint it started from; no star. In the training log the share of decisions using one of the three new actions stayed at 0.00-0.14% (about 0 from 140k steps on), so **the agent did not learn to use the combined jumps in this block** and the block does not test whether they would remove the stall; it only shows that this one block, with the new actions at a slightly lower initial value, did not discover them. Its results resemble the other blocks that started from `s9` (297-301 at most checkpoints, as in `s12`, `s13` and `s15`).
 
+**Forced-jump test on the current policy (2026-11-14, evaluation only).** `scripts/ttc_jump_override_test.py`: `btr_ttc_s9/step_750000` (extended to `ref13`, deterministic) plays from the full start; savestates are taken at decisions 1,640-1,700 (every 4, 16 states, around the end of the hand, where it reaches route arc length 50,226). From each state the first K decisions (2, 4, 8 or 12) are forced to one action and the policy then plays 400 more decisions; success = best route arc length >= 51,000 with Mario still above height 5,800 (`results/ttc_jump_override_s9_ref13.json`, 272 trials).
+
+| Forced for K decisions | Trials | Success >= 51,000 | Best arc length |
+|---|---:|---:|---:|
+| `ref10` jump (B alone), K = 2/4/8/12 | 64 | 0 | 50,226.5 |
+| up+jump | 64 | 4 (1 at K=4, 1 at K=8, 2 at K=12) | 52,648.5 |
+| up-left+jump | 64 | 0 | 50,785.3 |
+| up-right+jump | 64 | 0 | 52,002.0 |
+| none (policy only) | 16 | 0 | 50,716.3 |
+
+No star. So handing a constant forced combined jump to the current policy at the end of the hand does not produce the transfer in most states: up+jump gets 4 of 64 over the threshold and none beyond 52,650. This test is crude (one action held for K decisions, taken at fixed intervals, not aimed at the hand's position), unlike the human's sequence (up-left+jump for two decisions, then up+jump for twelve) and unlike the random search from the human state (149/600). It shows that the combined jump alone is not enough with this policy's takeoff positions; it does not show that the combined jump is unnecessary.
+
 ### Deterministic evaluation (2026-11-11)
 
 Earlier versions of this README said the emulator is not deterministic. That was an assumption and it is wrong for the part that was tested: replaying 500 fixed random actions from the `ds8` savestate three times in the same process gave identical positions at every decision (`scratch/det_test.py`, local; only that 500-decision case was checked). The variation between greedy episodes comes from the policy: `BTRAgent.act` draws 16 random IQN quantile levels at every decision, even with `noisy=False`.
