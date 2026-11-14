@@ -1,0 +1,127 @@
+{
+ "wait_test": {
+  "state": "s9/750k policy savestate at decision 1632, then W noop decisions, then 28 random ref13 decisions",
+  "per_W": {
+   "0": {
+    "pos_xz": [
+     1312.9,
+     -462.5
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 49805.4
+   },
+   "20": {
+    "pos_xz": [
+     1384.5,
+     113.1
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50785.3
+   },
+   "40": {
+    "pos_xz": [
+     1212.4,
+     670.5
+    ],
+    "trials": 250,
+    "success_51000": 12,
+    "max_best_s": 51680.1
+   },
+   "60": {
+    "pos_xz": [
+     831.9,
+     1105.0
+    ],
+    "trials": 250,
+    "success_51000": 8,
+    "max_best_s": 51309.2
+   },
+   "80": {
+    "pos_xz": [
+     305.8,
+     1344.1
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 45843.8
+   },
+   "120": {
+    "pos_xz": [
+     -796.6,
+     1121.4
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 44755.1
+   },
+   "160": {
+    "pos_xz": [
+     -1364.3,
+     160.7
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 43196.5
+   },
+   "200": {
+    "pos_xz": [
+     -1040.9,
+     -904.0
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 0.0
+   },
+   "240": {
+    "pos_xz": [
+     -32.2,
+     -1381.4
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 48574.3
+   },
+   "320": {
+    "pos_xz": [
+     1374.8,
+     112.3
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50823.4
+   },
+   "400": {
+    "pos_xz": [
+     -264.8,
+     1341.6
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 45305.2
+   },
+   "600": {
+    "pos_xz": [
+     1304.2,
+     -458.4
+    ],
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 49777.8
+   }
+  }
+ },
+ "ref13_from_human_states": {
+  "2570": {
+   "trials": 600,
+   "success_51000": 10,
+   "success_51500": 0
+  },
+  "2580": {
+   "trials": 600,
+   "success_51000": 90,
+   "success_51500": 12
+  }
+ }
+}
