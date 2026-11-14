@@ -94,6 +94,12 @@ def main():
                     help="ds8: directory of *.dst savestates used as extra episode starts (default: none, full start only)")
     ap.add_argument("--full-start-prob", type=float, default=0.5,
                     help="with --start-states: probability that an episode starts from the full ds8 savestate")
+    ap.add_argument("--burst-prob", type=float, default=0.0,
+                    help="training only, with an extended action set: per decision, the chance that an exploring env starts "
+                         "a burst of one random NEW action (indices >= 10) held for --burst-min..--burst-max decisions")
+    ap.add_argument("--burst-envs", type=int, default=5, help="how many of the envs explore with bursts (the first ones)")
+    ap.add_argument("--burst-min", type=int, default=4)
+    ap.add_argument("--burst-max", type=int, default=12)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
@@ -138,14 +144,25 @@ def main():
     if os.path.getsize(log_path) == 0:
         writer.writerow(["steps", "minutes", "updates", "loss"] + [f"{t}_coins" for t in tracks] +
                         [f"{t}_len" for t in tracks] + [f"{t}_route_s" for t in routed] +
-                        (["new_action_frac"] if n_old_actions < n_actions else []))
+                        (["new_action_frac", "policy_new_action_frac"] if n_old_actions < n_actions else []))
     t0, step, next_log, next_ckpt, loss = time.time(), 0, args.log_every, args.ckpt_every, float("nan")
+    burst_left, burst_act = np.zeros(E, int), np.zeros(E, int)
+    pol_new = 0                                                # new actions chosen by the policy itself (before bursts)
     new_cnt = all_cnt = 0                                      # decisions that used an action beyond ref10's ten
     while step < args.steps:
         if args.max_minutes and time.time() - t0 > args.max_minutes * 60:
             break
         batch_stacks = np.stack([np.stack(list(s)) for s in stacks])           # (E, 4, 84, 84)
         actions = agent.act(batch_stacks, noisy=True)
+        pol_new += int((actions >= n_old_actions).sum())
+        if args.burst_prob > 0 and n_old_actions < n_actions:
+            for i in range(min(E, args.burst_envs)):
+                if burst_left[i] == 0 and np.random.random() < args.burst_prob:
+                    burst_act[i] = np.random.randint(n_old_actions, n_actions)
+                    burst_left[i] = np.random.randint(args.burst_min, args.burst_max + 1)
+                if burst_left[i] > 0:
+                    actions[i] = burst_act[i]
+                    burst_left[i] -= 1
         new_cnt += int((actions >= n_old_actions).sum())
         all_cnt += len(actions)
         obs, rewards, dones, infos = vec.step(actions)
@@ -156,6 +173,7 @@ def main():
             if dones[i]:
                 recent[names[i]].append((ep_ret[i], ep_len[i], infos[i].get("route_progress") or 0.0))
                 ep_ret[i], ep_len[i] = 0.0, 0
+                burst_left[i] = 0
                 stacks[i] = deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[i, :, :, 0]], maxlen=4)
             else:
                 stacks[i].append(obs[i, :, :, 0])
@@ -174,14 +192,15 @@ def main():
             row += [round(float(np.mean([r[2] for r in recent[t]]))) if recent[t] else "" for t in routed]
             if n_old_actions < n_actions:
                 row.append(round(new_cnt / max(all_cnt, 1), 4))
-                new_cnt = all_cnt = 0
+                row.append(round(pol_new / max(all_cnt, 1), 4))
+                new_cnt = all_cnt = pol_new = 0
             writer.writerow(row)
             log.flush()
             print("steps {} | {} min | loss {} | coins {} | decisions {}".format(
                 row[0], row[1], row[3], dict(zip(tracks, row[4:4 + len(tracks)])),
                 dict(zip(tracks, row[4 + len(tracks):4 + 2 * len(tracks)]))) +
                 ("" if not routed else " | route arc length {}".format(row[4 + 2 * len(tracks):4 + 2 * len(tracks) + len(routed)])) +
-                ("" if n_old_actions >= n_actions else " | new-action share {}".format(row[-1])), flush=True)
+                ("" if n_old_actions >= n_actions else " | new-action share {} (policy {})".format(row[-2], row[-1])), flush=True)
         if step >= next_ckpt:
             next_ckpt += args.ckpt_every
             agent.save(os.path.join(out, f"step_{step}.pt"))
