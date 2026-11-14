@@ -1,0 +1,72 @@
+{
+ "states": "savestates of the deterministic s9/750k ref13 policy at decisions 1560-1640 (every 8)",
+ "trials": "70 random decisions, each action held 1-8 decisions, ref13; success = best arc length >= threshold and height > 5800",
+ "per_state": {
+  "d1560": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 48777.2
+  },
+  "d1568": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 48574.3
+  },
+  "d1576": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 48883.7
+  },
+  "d1584": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 48980.9
+  },
+  "d1592": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 49193.3
+  },
+  "d1600": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 50035.2
+  },
+  "d1608": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 50428.4
+  },
+  "d1616": {
+   "trials": 300,
+   "success_51000": 0,
+   "success_52000": 0,
+   "max_best_s": 50790.0
+  },
+  "d1624": {
+   "trials": 300,
+   "success_51000": 1,
+   "success_52000": 0,
+   "max_best_s": 51113.0
+  },
+  "d1632": {
+   "trials": 300,
+   "success_51000": 5,
+   "success_52000": 0,
+   "max_best_s": 51495.7
+  },
+  "d1640": {
+   "trials": 300,
+   "success_51000": 1,
+   "success_52000": 0,
+   "max_best_s": 51352.0
+  }
+ }
+}

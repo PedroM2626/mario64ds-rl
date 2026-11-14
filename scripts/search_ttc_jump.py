@@ -1,6 +1,6 @@
 """Random search for the hand -> next platform transfer of Tick Tock Clock (evaluation only, no learning).
 
-Usage: python scripts/search_ttc_jump.py <savestate.dst> <ref10|compound12> <trials> <seed> <out.json>
+Usage: python scripts/search_ttc_jump.py <savestate.dst> <ref10|ref13|compound12> <trials> <seed> <out.json> [horizon=28]
 Each trial: 28 decisions of random actions, each held 1-8 decisions, from the savestate. Success (as reported in
 the README) = best route arc length >= 51000 and height > 5800 after the 28 decisions."""
 import sys, os, json, random
@@ -12,8 +12,9 @@ from src.env import Mario64DSEnv
 from src.envs import rom_path
 
 state, aset, trials, seed, out = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
+horizon = int(sys.argv[6]) if len(sys.argv) > 6 else 28
 kw = ref_env_kwargs("ds8", action_set=aset)
-env = Mario64DSEnv(rom_path=rom_path(), state_path=state, max_steps=200, track_id="ds8", **kw)
+env = Mario64DSEnv(rom_path=rom_path(), state_path=state, max_steps=horizon + 10, track_id="ds8", **kw)
 n = env.action_space.n
 rng = random.Random(seed)
 res = []
@@ -21,7 +22,7 @@ for k in range(trials):
     env.reset()
     best, a, left, alive, y_end = 0.0, 0, 0, True, 0.0
     seq = []
-    for t in range(28):
+    for t in range(horizon):
         if left == 0:
             a, left = rng.randrange(n), rng.randint(1, 8)
         left -= 1
