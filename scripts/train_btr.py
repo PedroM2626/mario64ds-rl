@@ -117,6 +117,8 @@ def main():
                          action_set=args.action_set, stall_steps=args.stall_steps,
                          fall_drop=args.fall_drop, start_states=start_states, full_start_prob=args.full_start_prob)
                          for i, t in enumerate(names)])
+    n_actions = int(vec.action_space.n)
+    n_old_actions = 10 if n_actions > 10 and args.action_set == "ref13" else n_actions   # ref13 extends ref10
     agent = BTRAgent(int(vec.action_space.n), device=args.device, lr=args.lr, gamma=args.gamma,
                      n_step=args.n_step)
     if args.resume:
@@ -135,13 +137,17 @@ def main():
     writer = csv.writer(log)
     if os.path.getsize(log_path) == 0:
         writer.writerow(["steps", "minutes", "updates", "loss"] + [f"{t}_coins" for t in tracks] +
-                        [f"{t}_len" for t in tracks] + [f"{t}_route_s" for t in routed])
+                        [f"{t}_len" for t in tracks] + [f"{t}_route_s" for t in routed] +
+                        (["new_action_frac"] if n_old_actions < n_actions else []))
     t0, step, next_log, next_ckpt, loss = time.time(), 0, args.log_every, args.ckpt_every, float("nan")
+    new_cnt = all_cnt = 0                                      # decisions that used an action beyond ref10's ten
     while step < args.steps:
         if args.max_minutes and time.time() - t0 > args.max_minutes * 60:
             break
         batch_stacks = np.stack([np.stack(list(s)) for s in stacks])           # (E, 4, 84, 84)
         actions = agent.act(batch_stacks, noisy=True)
+        new_cnt += int((actions >= n_old_actions).sum())
+        all_cnt += len(actions)
         obs, rewards, dones, infos = vec.step(actions)
         buf.add(batch_stacks[:, -1], actions, rewards, dones)
         ep_ret += rewards
@@ -166,12 +172,16 @@ def main():
             row += [round(float(np.mean([r[0] for r in recent[t]])), 2) if recent[t] else "" for t in tracks]
             row += [round(float(np.mean([r[1] for r in recent[t]]))) if recent[t] else "" for t in tracks]
             row += [round(float(np.mean([r[2] for r in recent[t]]))) if recent[t] else "" for t in routed]
+            if n_old_actions < n_actions:
+                row.append(round(new_cnt / max(all_cnt, 1), 4))
+                new_cnt = all_cnt = 0
             writer.writerow(row)
             log.flush()
             print("steps {} | {} min | loss {} | coins {} | decisions {}".format(
                 row[0], row[1], row[3], dict(zip(tracks, row[4:4 + len(tracks)])),
                 dict(zip(tracks, row[4 + len(tracks):4 + 2 * len(tracks)]))) +
-                ("" if not routed else " | route arc length {}".format(row[4 + 2 * len(tracks):])), flush=True)
+                ("" if not routed else " | route arc length {}".format(row[4 + 2 * len(tracks):4 + 2 * len(tracks) + len(routed)])) +
+                ("" if n_old_actions >= n_actions else " | new-action share {}".format(row[-1])), flush=True)
         if step >= next_ckpt:
             next_ckpt += args.ckpt_every
             agent.save(os.path.join(out, f"step_{step}.pt"))
