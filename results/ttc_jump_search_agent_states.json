@@ -1,0 +1,170 @@
+{
+ "states": "savestates of the deterministic s9/750k ref13 policy at decisions 1640-1700 (every 4)",
+ "trials": "28 random decisions, each action held 1-8 decisions; success = best arc length >= 51000 and height > 5800",
+ "ref13_250_per_state_ref10_100_per_state": {
+  "ref10": {
+   "d1640": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50358.6
+   },
+   "d1644": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50161.0
+   },
+   "d1648": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50422.5
+   },
+   "d1652": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50762.0
+   },
+   "d1656": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50787.3
+   },
+   "d1660": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50797.8
+   },
+   "d1664": {
+    "trials": 100,
+    "success_51000": 1,
+    "max_best_s": 51053.3
+   },
+   "d1668": {
+    "trials": 100,
+    "success_51000": 1,
+    "max_best_s": 51136.3
+   },
+   "d1672": {
+    "trials": 100,
+    "success_51000": 4,
+    "max_best_s": 51452.2
+   },
+   "d1676": {
+    "trials": 100,
+    "success_51000": 5,
+    "max_best_s": 51473.7
+   },
+   "d1680": {
+    "trials": 100,
+    "success_51000": 2,
+    "max_best_s": 51505.2
+   },
+   "d1684": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 50767.6
+   },
+   "d1688": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 46115.5
+   },
+   "d1692": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 46416.7
+   },
+   "d1696": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 46406.2
+   },
+   "d1700": {
+    "trials": 100,
+    "success_51000": 0,
+    "max_best_s": 46399.1
+   }
+  },
+  "ref13": {
+   "d1640": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50049.2
+   },
+   "d1644": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50382.9
+   },
+   "d1648": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50520.0
+   },
+   "d1652": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50785.3
+   },
+   "d1656": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50861.1
+   },
+   "d1660": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50930.4
+   },
+   "d1664": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 50930.4
+   },
+   "d1668": {
+    "trials": 250,
+    "success_51000": 5,
+    "max_best_s": 51132.2
+   },
+   "d1672": {
+    "trials": 250,
+    "success_51000": 12,
+    "max_best_s": 51680.1
+   },
+   "d1676": {
+    "trials": 250,
+    "success_51000": 15,
+    "max_best_s": 51717.2
+   },
+   "d1680": {
+    "trials": 250,
+    "success_51000": 13,
+    "max_best_s": 51762.6
+   },
+   "d1684": {
+    "trials": 250,
+    "success_51000": 3,
+    "max_best_s": 51218.5
+   },
+   "d1688": {
+    "trials": 250,
+    "success_51000": 7,
+    "max_best_s": 51341.4
+   },
+   "d1692": {
+    "trials": 250,
+    "success_51000": 11,
+    "max_best_s": 51230.1
+   },
+   "d1696": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 46514.9
+   },
+   "d1700": {
+    "trials": 250,
+    "success_51000": 0,
+    "max_best_s": 46443.7
+   }
+  }
+ }
+}
