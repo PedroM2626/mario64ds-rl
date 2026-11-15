@@ -1,0 +1,81 @@
+{
+ "main": null,
+ "spec": "models/btr_ttc_spec1/final.pt",
+ "handoff_wp": 340,
+ "summary": {
+  "episodes": 6,
+  "stars": 5,
+  "median_wp": 366,
+  "min_wp": 365,
+  "max_wp": 366,
+  "landed": 6
+ },
+ "rows": [
+  {
+   "episode": 0,
+   "start": "c1.dst",
+   "handoff_decision": 0,
+   "wp_at_handoff": 340,
+   "best_wp": 366,
+   "landed": true,
+   "decisions": 321,
+   "end": "star",
+   "star": true
+  },
+  {
+   "episode": 1,
+   "start": "c2.dst",
+   "handoff_decision": 0,
+   "wp_at_handoff": 340,
+   "best_wp": 366,
+   "landed": true,
+   "decisions": 187,
+   "end": "star",
+   "star": true
+  },
+  {
+   "episode": 2,
+   "start": "c3.dst",
+   "handoff_decision": 0,
+   "wp_at_handoff": 340,
+   "best_wp": 366,
+   "landed": true,
+   "decisions": 875,
+   "end": "star",
+   "star": true
+  },
+  {
+   "episode": 3,
+   "start": "c4.dst",
+   "handoff_decision": 0,
+   "wp_at_handoff": 340,
+   "best_wp": 366,
+   "landed": true,
+   "decisions": 315,
+   "end": "star",
+   "star": true
+  },
+  {
+   "episode": 4,
+   "start": "c5.dst",
+   "handoff_decision": 0,
+   "wp_at_handoff": 340,
+   "best_wp": 365,
+   "landed": true,
+   "decisions": 1500,
+   "end": "horizon",
+   "star": false
+  },
+  {
+   "episode": 5,
+   "start": "c6.dst",
+   "handoff_decision": 0,
+   "wp_at_handoff": 340,
+   "best_wp": 366,
+   "landed": true,
+   "decisions": 111,
+   "end": "star",
+   "star": true
+  }
+ ]
+}

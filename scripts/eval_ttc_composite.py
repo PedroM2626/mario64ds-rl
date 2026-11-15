@@ -52,6 +52,7 @@ def main():
     ap.add_argument("--idle", type=int, default=0, help="stop an episode after this many decisions without a new waypoint (0 = never)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--deterministic", action="store_true", help="fixed quantile levels: both policies are then deterministic functions of the observation")
+    ap.add_argument("--shot-dir", default=None, help="save screenshots of the last ~70 decisions of every episode (every 10th) to this directory")
     ap.add_argument("--trace", default=None, help="write the per-decision action, position and route arc length of the specialist's part to this json")
     args = ap.parse_args()
 
@@ -76,6 +77,7 @@ def main():
     rows, traces = [], []
     for ep in range(n_eps):
         trace = []
+        shots = deque(maxlen=8)
         if args.states:
             env.start_states, env.full_start_prob = [files[ep]], 0.0
         obs, _ = env.reset()
@@ -98,6 +100,8 @@ def main():
                 last_sc = sc
             if float(info.get("route_progress") or 0.0) >= 51000 and float(env.ram.get_pos_3d()[1]) > 5800:
                 landed = True
+            if args.shot_dir and (t + 1) % 10 == 0:
+                shots.append((t + 1, np.array(env.emu.display_buffer_as_rgbx(), dtype=np.uint8).reshape(384, 256, 4)[:, :, :3].copy()))
             if args.trace and acting is spec:
                 trace.append([t + 1, a] + [round(float(v), 1) for v in env.ram.get_pos_3d()] + [round(float(info.get("route_progress") or 0.0), 1)])
             if wp > best_wp:
@@ -112,9 +116,16 @@ def main():
                 end = "idle"
                 break
         rows.append({"episode": ep, "start": os.path.basename(files[ep]) if args.states else "full", "handoff_decision": handoff,
-                     "wp_at_handoff": wp_at_handoff, "best_wp": best_wp, "landed": landed, "star_counter_changes": star_log[:40], "decisions": t + 1, "end": end, "star": star})
+                     "wp_at_handoff": wp_at_handoff, "best_wp": best_wp, "landed": landed, "death_source": getattr(env, "death_source", None), "course_id_end": int(env.ram.get_course_id()),
+                     "end_pos": [round(float(v), 1) for v in env.ram.get_pos_3d()], "star_counter_changes": star_log[:40], "decisions": t + 1, "end": end, "star": star})
         print(rows[-1], flush=True)
         traces.append(trace)
+        if args.shot_dir:
+            from PIL import Image
+            os.makedirs(os.path.join(ROOT_DIR, args.shot_dir), exist_ok=True)
+            tag = os.path.splitext(rows[-1]["start"])[0] + f"_{rows[-1]['end']}"
+            for k, (d, img) in enumerate(shots):
+                Image.fromarray(img).save(os.path.join(ROOT_DIR, args.shot_dir, f"{tag}_{k}_d{d:04d}.png"))
     env.close()
     if args.trace:
         with open(os.path.join(ROOT_DIR, args.trace), "w", encoding="utf-8") as fh:

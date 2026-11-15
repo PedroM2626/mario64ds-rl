@@ -192,6 +192,7 @@ class Mario64DSEnv(gym.Env):
         self.route_last_s = None
         self.route_best_s = None
         self._course_id0 = None
+        self.death_source = None
 
         # Start-state curriculum: reset() loads the canonical state_path with
         # probability full_start_prob, otherwise a uniform pick of start_states
@@ -467,6 +468,7 @@ class Mario64DSEnv(gym.Env):
         if is_dead:
             done = True
             self.died = True
+            self.death_source = death_source
             reward -= self.death_penalty
             if self.verbose:
                 logger.info("death detected (%s, penalty=-%g) at step %d",

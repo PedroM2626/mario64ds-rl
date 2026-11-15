@@ -1,0 +1,37 @@
+{
+ "main": "models/btr_ttc_s9/step_750000.pt",
+ "spec": "models/btr_ttc_spec1/final.pt",
+ "handoff_wp": 340,
+ "summary": {
+  "episodes": 2,
+  "stars": 0,
+  "median_wp": 370,
+  "min_wp": 180,
+  "max_wp": 370,
+  "landed": 1
+ },
+ "rows": [
+  {
+   "episode": 0,
+   "start": "full",
+   "handoff_decision": null,
+   "wp_at_handoff": null,
+   "best_wp": 180,
+   "landed": false,
+   "decisions": 5000,
+   "end": "horizon",
+   "star": false
+  },
+  {
+   "episode": 1,
+   "start": "full",
+   "handoff_decision": 1629,
+   "wp_at_handoff": 340,
+   "best_wp": 370,
+   "landed": true,
+   "decisions": 5000,
+   "end": "horizon",
+   "star": false
+  }
+ ]
+}
