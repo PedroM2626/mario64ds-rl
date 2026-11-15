@@ -35,7 +35,7 @@ TTC_ROUTE = "config/routes/ttc_human_v1.json"
 
 def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward=0.0, action_set="ref10",
                    waypoint_reward=1.0, ttc_star_reward=100.0, stall_steps=0, fall_drop=0.0, start_states=None,
-                   full_start_prob=1.0):
+                   full_start_prob=1.0, start_stall_steps=0):
     """Mario64DSEnv settings of the coin-only agent (everything but the coin counter pays nothing, unless
     goal_reward > 0: a one-time reward when the episode ends in the finish region)."""
     kw = dict(action_set=action_set, death_penalty=0.0, step_penalty=0.0, flow_weight=0.0,
@@ -52,7 +52,7 @@ def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward
         if start_states:
             # training only: with probability 1 - full_start_prob an episode starts from one of these savestates
             # (its own place on the route; the route behind it is never paid). Evaluation never passes them.
-            kw.update(start_states=list(start_states), full_start_prob=full_start_prob)
+            kw.update(start_states=list(start_states), full_start_prob=full_start_prob, start_stall_steps=start_stall_steps)
     return kw
 
 
@@ -92,11 +92,15 @@ def main():
                          "reached (0 = off); the human route's largest drop is about 516")
     ap.add_argument("--start-states", default="",
                     help="ds8: directory of *.dst savestates used as extra episode starts (default: none, full start only)")
+    ap.add_argument("--start-stall-steps", type=int, default=0,
+                    help="with --start-states: stall limit (decisions without a new waypoint) of episodes that start from a savestate; 0 = --stall-steps")
     ap.add_argument("--full-start-prob", type=float, default=0.5,
                     help="with --start-states: probability that an episode starts from the full ds8 savestate")
     ap.add_argument("--burst-prob", type=float, default=0.0,
                     help="training only, with an extended action set: per decision, the chance that an exploring env starts "
                          "a burst of one random NEW action (indices >= 10) held for --burst-min..--burst-max decisions")
+    ap.add_argument("--burst-on-start-states", action="store_true",
+                    help="bursts only in episodes that started from a --start-states savestate (instead of the first --burst-envs envs)")
     ap.add_argument("--burst-envs", type=int, default=5, help="how many of the envs explore with bursts (the first ones)")
     ap.add_argument("--burst-min", type=int, default=4)
     ap.add_argument("--burst-max", type=int, default=12)
@@ -121,7 +125,8 @@ def main():
         raise SystemExit(f"no .dst files in {args.start_states}")
     vec = SubprocVecEnv([make_ref_env(t, rank=i, seed=args.seed, max_steps=args.max_steps, goal_reward=args.goal_reward,
                          action_set=args.action_set, stall_steps=args.stall_steps,
-                         fall_drop=args.fall_drop, start_states=start_states, full_start_prob=args.full_start_prob)
+                         fall_drop=args.fall_drop, start_states=start_states, full_start_prob=args.full_start_prob,
+                         start_stall_steps=args.start_stall_steps)
                          for i, t in enumerate(names)])
     n_actions = int(vec.action_space.n)
     n_old_actions = 10 if n_actions > 10 and args.action_set == "ref13" else n_actions   # ref13 extends ref10
@@ -144,9 +149,11 @@ def main():
     if os.path.getsize(log_path) == 0:
         writer.writerow(["steps", "minutes", "updates", "loss"] + [f"{t}_coins" for t in tracks] +
                         [f"{t}_len" for t in tracks] + [f"{t}_route_s" for t in routed] +
-                        (["new_action_frac", "policy_new_action_frac"] if n_old_actions < n_actions else []))
+                        (["new_action_frac", "policy_new_action_frac", "forced_frac"] if n_old_actions < n_actions else []))
     t0, step, next_log, next_ckpt, loss = time.time(), 0, args.log_every, args.ckpt_every, float("nan")
     burst_left, burst_act = np.zeros(E, int), np.zeros(E, int)
+    from_start = np.zeros(E, bool)                             # env i is in an episode that began at a start-state savestate
+    forced_cnt = 0                                             # decisions replaced by a burst action
     pol_new = 0                                                # new actions chosen by the policy itself (before bursts)
     new_cnt = all_cnt = 0                                      # decisions that used an action beyond ref10's ten
     while step < args.steps:
@@ -156,16 +163,22 @@ def main():
         actions = agent.act(batch_stacks, noisy=True)
         pol_new += int((actions >= n_old_actions).sum())
         if args.burst_prob > 0 and n_old_actions < n_actions:
-            for i in range(min(E, args.burst_envs)):
+            for i in (range(E) if args.burst_on_start_states else range(min(E, args.burst_envs))):
+                if args.burst_on_start_states and not from_start[i]:
+                    continue
                 if burst_left[i] == 0 and np.random.random() < args.burst_prob:
                     burst_act[i] = np.random.randint(n_old_actions, n_actions)
                     burst_left[i] = np.random.randint(args.burst_min, args.burst_max + 1)
                 if burst_left[i] > 0:
                     actions[i] = burst_act[i]
+                    forced_cnt += 1
                     burst_left[i] -= 1
         new_cnt += int((actions >= n_old_actions).sum())
         all_cnt += len(actions)
         obs, rewards, dones, infos = vec.step(actions)
+        if args.burst_on_start_states:
+            for i in range(E):
+                from_start[i] = str(infos[i].get("start_state") or "").startswith("dense")
         buf.add(batch_stacks[:, -1], actions, rewards, dones)
         ep_ret += rewards
         ep_len += 1
@@ -193,14 +206,15 @@ def main():
             if n_old_actions < n_actions:
                 row.append(round(new_cnt / max(all_cnt, 1), 4))
                 row.append(round(pol_new / max(all_cnt, 1), 4))
-                new_cnt = all_cnt = pol_new = 0
+                row.append(round(forced_cnt / max(all_cnt, 1), 4))
+                new_cnt = all_cnt = pol_new = forced_cnt = 0
             writer.writerow(row)
             log.flush()
             print("steps {} | {} min | loss {} | coins {} | decisions {}".format(
                 row[0], row[1], row[3], dict(zip(tracks, row[4:4 + len(tracks)])),
                 dict(zip(tracks, row[4 + len(tracks):4 + 2 * len(tracks)]))) +
                 ("" if not routed else " | route arc length {}".format(row[4 + 2 * len(tracks):4 + 2 * len(tracks) + len(routed)])) +
-                ("" if n_old_actions >= n_actions else " | new-action share {} (policy {})".format(row[-2], row[-1])), flush=True)
+                ("" if n_old_actions >= n_actions else " | new-action share {} (policy {}, forced {})".format(row[-3], row[-2], row[-1])), flush=True)
         if step >= next_ckpt:
             next_ckpt += args.ckpt_every
             agent.save(os.path.join(out, f"step_{step}.pt"))

@@ -102,6 +102,19 @@ def test_start_state_curriculum_mixes_full_starts():
     env.emu.savestate.load_file.assert_called_with(env.current_start)
 
 
+def test_start_state_episodes_can_have_a_shorter_stall_limit():
+    env = _make_env(start_states=["a.dst"], full_start_prob=0.5, stall_steps=600, start_stall_steps=150, track_id="ds8")
+    env.ram = MagicMock()
+    env.ram.get_pos_3d.return_value = np.zeros(3)
+    env._get_obs = lambda: np.zeros((84, 84, 1), np.uint8)
+    limits = {}
+    env.reset(seed=0)
+    for _ in range(100):
+        env.reset()
+        limits[env.current_start] = env._stall_limit
+    assert limits["fake.ds8"] == 600 and limits["a.dst"] == 150
+
+
 def test_info_reports_flow_reward():
     env = _make_env(use_ram_death=False)
     env.ram = MagicMock()

@@ -89,7 +89,7 @@ class Mario64DSEnv(gym.Env):
                  goal_reward=200.0, star_reward=500.0, use_ram_death=True,
                  dist_reward_mode="progress",
                  track_id=None, action_set="legacy6", route_path=None,
-                 route_total_reward=500.0, waypoint_reward=1.0, stall_steps=0, fall_drop=0.0, start_states=None, full_start_prob=0.25,
+                 route_total_reward=500.0, waypoint_reward=1.0, stall_steps=0, fall_drop=0.0, start_states=None, full_start_prob=0.25, start_stall_steps=0,
                  death_rule="position", explore_bonus=0.0, explore_cell=400.0,
                  ram_coin_reward=0.0, black_screen_death=True, goal_override=None,
                  respawn_jump=0.0, fall_speed=0.0, fall_steps=15):
@@ -184,6 +184,8 @@ class Mario64DSEnv(gym.Env):
         self.waypoint_reward = float(waypoint_reward)
         # end the episode (truncation) when the ratcheted route progress has not advanced for this many decisions
         self.stall_steps = int(stall_steps)
+        self.start_stall_steps = int(start_stall_steps)   # stall limit of episodes that start from a start state (0 = same as stall_steps)
+        self._stall_limit = self.stall_steps
         self._last_progress_step = 0
         self.fall_drop = float(fall_drop)
         self._max_y = None
@@ -416,10 +418,10 @@ class Mario64DSEnv(gym.Env):
             reward -= self.timeout_penalty
             if self.verbose:
                 logger.info("timeout at step %d", self.episode_steps)
-        elif self.stall_steps and self.episode_steps - self._last_progress_step >= self.stall_steps:
+        elif self._stall_limit and self.episode_steps - self._last_progress_step >= self._stall_limit:
             truncated = True
             if self.verbose:
-                logger.info("no route progress for %d decisions, episode ends at step %d", self.stall_steps, self.episode_steps)
+                logger.info("no route progress for %d decisions, episode ends at step %d", self._stall_limit, self.episode_steps)
 
         # Death Check: RAM kill plane / kill_y first, fallback to black screen
         is_dead = False
@@ -623,6 +625,8 @@ class Mario64DSEnv(gym.Env):
         self.current_start = self.state_path
         if self.start_states and self.np_random.random() >= self.full_start_prob:
             self.current_start = self.start_states[int(self.np_random.integers(len(self.start_states)))]
+        self._stall_limit = (self.start_stall_steps if (self.start_stall_steps and self.current_start != self.state_path)
+                             else self.stall_steps)
         if self.has_emulator:
             self.emu.savestate.load_file(self.current_start)
 
