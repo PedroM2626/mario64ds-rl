@@ -235,3 +235,38 @@ def test_anti_jumping_exploit_progress_mode():
         obs, r4, done, truncated, info = env.step(0)
         assert info["dist_reward"] == 0.0
         assert r4 == -0.02
+
+
+def test_ds8_success_is_leaving_the_course_not_the_star_counter():
+    """On ds8 the RAM star counter is unreliable (it cycles); success is the course id changing with Mario near the star."""
+    with patch("src.env.DeSmuME") as mock_emu_cls:
+        mock_emu = MagicMock()
+        mock_emu_cls.return_value = mock_emu
+        state = {"stars": 25, "course": 14}
+
+        def fake_read(start, end, size, signed):
+            if start == POS_X_ADDR:
+                return int(2262 * 4096)
+            elif start == POS_Y_ADDR:
+                return int(6886 * 4096)
+            elif start == POS_Z_ADDR:
+                return int(2347 * 4096)
+            elif start == STAR_COUNT_ADDR:
+                return state["stars"]
+            elif start == COURSE_ID_ADDR:
+                return state["course"]
+            return 0
+
+        mock_emu.memory.read.side_effect = fake_read
+        mock_emu.display_buffer_as_rgbx.return_value = np.full((384, 256, 4), 128, dtype=np.uint8).flatten().tobytes()
+        env = Mario64DSEnv.__new__(Mario64DSEnv)
+        Mario64DSEnv.__init__(env, rom_path="fake.nds", state_path="data/Super Mario 64 DS (USA) (Rev 1).ds8",
+                              star_reward=100.0, step_penalty=0.0)
+        env.reset()
+        state["stars"] = 90                      # the counter jumps, as it does while playing: no success
+        _, reward, done, _, info = env.step(0)
+        assert not done and not info["star_collected"]
+        state["course"] = 4853                   # the course unloads after the star is picked up: success
+        _, reward, done, _, info = env.step(0)
+        assert done and info["star_collected"] and info["success"]
+        assert reward >= 100.0

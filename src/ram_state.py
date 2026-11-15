@@ -102,6 +102,7 @@ TRACK_GOALS = {
         "course_id": 14,
         "name": "Tick Tock Clock",
         "goal_type": "star",
+        "success_signal": "course_exit",   # the star counter is unreliable on ds8, see Mario64DSEnv.step
         "target_pos": np.array([2350.00, 7145.00, 2350.00], dtype=np.float64),
         "success_dist": 80.0,
         "kill_y": -5500.0,

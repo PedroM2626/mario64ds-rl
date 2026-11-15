@@ -191,6 +191,7 @@ class Mario64DSEnv(gym.Env):
         self._max_y = None
         self.route_last_s = None
         self.route_best_s = None
+        self._course_id0 = None
 
         # Start-state curriculum: reset() loads the canonical state_path with
         # probability full_start_prob, otherwise a uniform pick of start_states
@@ -560,7 +561,16 @@ class Mario64DSEnv(gym.Env):
                     reward += self.goal_reward
                 elif goal_type == "star":
                     curr_stars = self.ram.get_star_count()
-                    if curr_dist <= success_dist or (curr_stars > self.start_star_count and curr_dist <= 500.0):
+                    if self.goal_spec.get("success_signal") == "course_exit":
+                        # the RAM "star counter" is not a reliable star signal on ds8 (it cycles 1..~180 and differs between
+                        # savestates). Collecting the star leaves the course: about 50 decisions after the pickup the course id
+                        # changes while Mario is still where he picked it up (verified on the human run), so success = the
+                        # course id differs from the one at reset with Mario near the star.
+                        hit = (self._course_id0 is not None and self.ram.get_course_id() != self._course_id0
+                               and curr_dist <= 500.0)
+                    else:
+                        hit = curr_dist <= success_dist or (curr_stars > self.start_star_count and curr_dist <= 500.0)
+                    if hit:
                         done = True
                         self.star_collected = True
                         reward += self.star_reward
@@ -697,6 +707,7 @@ class Mario64DSEnv(gym.Env):
                 self.best_dist = self.prev_dist
                 self.last_dist = self.prev_dist
                 self.start_star_count = self.ram.get_star_count()
+                self._course_id0 = self.ram.get_course_id()
                 # A checkpoint start begins at its own place on the route, so
                 # the route already covered before it is never paid.
                 if self.route is not None:
