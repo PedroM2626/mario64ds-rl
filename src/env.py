@@ -175,7 +175,7 @@ class Mario64DSEnv(gym.Env):
         # "route": ratcheted arc length along a recorded human path (src/route.py)
         # replaces the straight-line distance term; star/goal detection is unchanged.
         self.route = None
-        if self.dist_reward_mode in ("route", "waypoint"):
+        if self.dist_reward_mode in ("route", "waypoint", "route_potential"):
             if not route_path:
                 raise ValueError("dist_reward_mode='route' requires route_path")
             from src.route import Route
@@ -189,6 +189,7 @@ class Mario64DSEnv(gym.Env):
         self._last_progress_step = 0
         self.fall_drop = float(fall_drop)
         self._max_y = None
+        self.route_last_s = None
         self.route_best_s = None
 
         # Start-state curriculum: reset() loads the canonical state_path with
@@ -494,7 +495,24 @@ class Mario64DSEnv(gym.Env):
                 # 3D Distance Reward: High-Water Mark ("progress") vs Bidirectional ("potential")
                 # vs ratcheted arc length along a recorded route ("route")
                 if self.dist_reward_enabled:
-                    if self.dist_reward_mode in ("route", "waypoint"):
+                    if self.dist_reward_mode == "route_potential":
+                        # potential-based shaping: the reward of a decision is the change of the arc length of Mario's
+                        # projection onto the route, in waypoint units (+ when he moves forward along the route, - when
+                        # back), so approaching the next waypoint pays before it is reached and any loop sums to zero.
+                        # route_best_s keeps the ratcheted maximum for the stall rule and route_progress in info.
+                        ref = self.route_last_s if self.route_last_s is not None else self.route_best_s
+                        s = self.route.locate(curr_pos) if ref is None else self.route.progress(curr_pos, ref)
+                        if s is not None:
+                            if self.route_last_s is not None:
+                                spacing = self.route.length / max(len(self.route.cum) - 1, 1)
+                                dist_reward = (s - self.route_last_s) / spacing * self.waypoint_reward
+                                self.last_dist_reward = float(dist_reward)
+                                reward += dist_reward
+                            self.route_last_s = s
+                            if self.route_best_s is None or s > self.route_best_s:
+                                self.route_best_s = s
+                                self._last_progress_step = self.episode_steps
+                    elif self.dist_reward_mode in ("route", "waypoint"):
                         s = (self.route.locate(curr_pos) if self.route_best_s is None
                              else self.route.progress(curr_pos, self.route_best_s))
                         if s is not None:
@@ -653,6 +671,7 @@ class Mario64DSEnv(gym.Env):
         self.last_dist_reward = 0.0
         self.last_flow_reward = 0.0
         self.route_best_s = None
+        self.route_last_s = None
         self._last_progress_step = 0
         self._max_y = None
         self.coins = None  # re-read below: a new start may hold fewer coins than the last episode
@@ -676,6 +695,7 @@ class Mario64DSEnv(gym.Env):
                 # the route already covered before it is never paid.
                 if self.route is not None:
                     self.route_best_s = self.route.locate(current_pos)
+                    self.route_last_s = self.route_best_s
             except Exception as exc:
                 if self.strict_errors:
                     raise

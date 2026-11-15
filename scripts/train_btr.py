@@ -35,7 +35,7 @@ TTC_ROUTE = "config/routes/ttc_human_v1.json"
 
 def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward=0.0, action_set="ref10",
                    waypoint_reward=1.0, ttc_star_reward=100.0, stall_steps=0, fall_drop=0.0, start_states=None,
-                   full_start_prob=1.0, start_stall_steps=0):
+                   full_start_prob=1.0, start_stall_steps=0, route_mode="waypoint"):
     """Mario64DSEnv settings of the coin-only agent (everything but the coin counter pays nothing, unless
     goal_reward > 0: a one-time reward when the episode ends in the finish region)."""
     kw = dict(action_set=action_set, death_penalty=0.0, step_penalty=0.0, flow_weight=0.0,
@@ -46,7 +46,7 @@ def ref_env_kwargs(track, respawn_jump=2000.0, ds3_fall_speed=140.0, goal_reward
     if track == "ds8":
         # Tick Tock Clock: +waypoint_reward for every waypoint of the recorded human ascent reached for the first time
         # (the route progress only ratchets forward) and `ttc_star_reward` once for the star; no coins, no height term.
-        kw.update(ram_coin_reward=0.0, dist_reward_enabled=True, dist_reward_mode="waypoint",
+        kw.update(ram_coin_reward=0.0, dist_reward_enabled=True, dist_reward_mode=route_mode,
                   route_path=os.path.join(ROOT_DIR, TTC_ROUTE), waypoint_reward=waypoint_reward, star_reward=ttc_star_reward,
                   stall_steps=stall_steps, fall_drop=fall_drop)
         if start_states:
@@ -90,6 +90,9 @@ def main():
     ap.add_argument("--fall-drop", type=float, default=0.0,
                     help="ds8: end the episode when Mario falls this many units below the highest point "
                          "reached (0 = off); the human route's largest drop is about 516")
+    ap.add_argument("--route-mode", default="waypoint", choices=["waypoint", "route_potential"],
+                    help="ds8 reward: +waypoint_reward when a waypoint is passed for the first time (default), or route_potential: "
+                         "the change of the arc length along the route in waypoint units (pays when approaching, takes back when retreating)")
     ap.add_argument("--start-states", default="",
                     help="ds8: directory of *.dst savestates used as extra episode starts (default: none, full start only)")
     ap.add_argument("--start-stall-steps", type=int, default=0,
@@ -126,7 +129,7 @@ def main():
     vec = SubprocVecEnv([make_ref_env(t, rank=i, seed=args.seed, max_steps=args.max_steps, goal_reward=args.goal_reward,
                          action_set=args.action_set, stall_steps=args.stall_steps,
                          fall_drop=args.fall_drop, start_states=start_states, full_start_prob=args.full_start_prob,
-                         start_stall_steps=args.start_stall_steps)
+                         start_stall_steps=args.start_stall_steps, route_mode=args.route_mode)
                          for i, t in enumerate(names)])
     n_actions = int(vec.action_space.n)
     n_old_actions = 10 if n_actions > 10 and args.action_set == "ref13" else n_actions   # ref13 extends ref10
