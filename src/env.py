@@ -175,7 +175,7 @@ class Mario64DSEnv(gym.Env):
         # "route": ratcheted arc length along a recorded human path (src/route.py)
         # replaces the straight-line distance term; star/goal detection is unchanged.
         self.route = None
-        if self.dist_reward_mode in ("route", "waypoint", "route_potential"):
+        if self.dist_reward_mode in ("route", "waypoint", "route_potential", "route_progress"):
             if not route_path:
                 raise ValueError("dist_reward_mode='route' requires route_path")
             from src.route import Route
@@ -512,7 +512,7 @@ class Mario64DSEnv(gym.Env):
                             if self.route_best_s is None or s > self.route_best_s:
                                 self.route_best_s = s
                                 self._last_progress_step = self.episode_steps
-                    elif self.dist_reward_mode in ("route", "waypoint"):
+                    elif self.dist_reward_mode in ("route", "waypoint", "route_progress"):
                         s = (self.route.locate(curr_pos) if self.route_best_s is None
                              else self.route.progress(curr_pos, self.route_best_s))
                         if s is not None:
@@ -520,6 +520,12 @@ class Mario64DSEnv(gym.Env):
                                 if self.dist_reward_mode == "waypoint":
                                     # a fixed reward per waypoint of the route newly passed (ratcheted)
                                     dist_reward = self.route.passed(self.route_best_s, s) * self.waypoint_reward
+                                elif self.dist_reward_mode == "route_progress":
+                                    # the same ratchet, paid continuously: the new arc length in waypoint units, so approaching
+                                    # the next waypoint pays before it is reached; retreating costs nothing, and the sum over an
+                                    # episode is the best arc length reached (about the waypoint count)
+                                    spacing = self.route.length / max(len(self.route.cum) - 1, 1)
+                                    dist_reward = (s - self.route_best_s) / spacing * self.waypoint_reward
                                 else:
                                     dist_reward = ((s - self.route_best_s) / self.route.length
                                                    * self.route_total_reward)

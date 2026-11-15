@@ -366,3 +366,26 @@ def test_route_potential_reward_pays_forward_and_takes_back(tmp_path):
     assert rewards == pytest.approx([1.0, -1.0, 1.0, 1.0])
     assert env.route_best_s == pytest.approx(600)          # the ratchet still tracks the best arc length
     assert sum(rewards) == pytest.approx((600 - 100) / 250)  # a loop sums to the net progress
+
+
+def test_route_progress_reward_pays_forward_only(tmp_path):
+    route = _route_file(tmp_path, [[0, 0, 0], [250, 0, 0], [500, 0, 0], [750, 0, 0], [1000, 0, 0]],
+                        corridor_radius=100, lookahead=400, lookbehind=300)
+    env = _make_env(dist_reward_mode="route_progress", route_path=route, waypoint_reward=1.0,
+                    flow_weight=0.0, step_penalty=0.0, use_ram_death=False, track_id="ds8")
+    env.ram = MagicMock()
+    env.ram.get_star_count.return_value = 0
+    env._get_obs = lambda: np.full((84, 84, 1), 128, np.uint8)
+    env.ram.get_pos_3d.return_value = np.array([100.0, 0, 0])
+    env.reset()
+    rewards = []
+    for x in (350.0, 100.0, 350.0, 600.0):  # forward 1 waypoint, back 1, back to the best, forward 1
+        env.ram.get_pos_3d.return_value = np.array([x, 0, 0])
+        rewards.append(env.step(0)[1])
+    assert rewards == pytest.approx([1.0, 0.0, 0.0, 1.0])  # nothing for retreating or for re-covering ground
+    assert env.route_best_s == pytest.approx(600)
+    assert sum(rewards) == pytest.approx((600 - 100) / 250)
+    env.ram.get_pos_3d.return_value = np.array([425.0, 0, 0])  # moving back never pays; a partial step pays partially
+    env.step(0)
+    env.ram.get_pos_3d.return_value = np.array([675.0, 0, 0])
+    assert env.step(0)[1] == pytest.approx(0.3)  # 600 -> 675 is 75 units = 0.3 waypoints

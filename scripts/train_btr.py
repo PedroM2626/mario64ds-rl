@@ -90,9 +90,10 @@ def main():
     ap.add_argument("--fall-drop", type=float, default=0.0,
                     help="ds8: end the episode when Mario falls this many units below the highest point "
                          "reached (0 = off); the human route's largest drop is about 516")
-    ap.add_argument("--route-mode", default="waypoint", choices=["waypoint", "route_potential"],
-                    help="ds8 reward: +waypoint_reward when a waypoint is passed for the first time (default), or route_potential: "
-                         "the change of the arc length along the route in waypoint units (pays when approaching, takes back when retreating)")
+    ap.add_argument("--route-mode", default="waypoint", choices=["waypoint", "route_progress", "route_potential"],
+                    help="ds8 reward: +waypoint_reward when a waypoint is passed for the first time (default); route_progress: the "
+                         "same ratchet paid continuously (new arc length in waypoint units, no penalty for retreating); "
+                         "route_potential: the change of the arc length in waypoint units (pays when approaching, takes back when retreating)")
     ap.add_argument("--start-states", default="",
                     help="ds8: directory of *.dst savestates used as extra episode starts (default: none, full start only)")
     ap.add_argument("--start-stall-steps", type=int, default=0,
