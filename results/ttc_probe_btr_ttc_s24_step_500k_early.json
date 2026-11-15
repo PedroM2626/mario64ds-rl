@@ -1,0 +1,36 @@
+{
+ "model": "models/btr_ttc_s24/step_500010.pt",
+ "track": "ds8",
+ "rows": [
+  {
+   "episode": 0,
+   "start_y": -4710.0,
+   "max_y": -598.9,
+   "final_y": -4710.0,
+   "route_s": 22898.5,
+   "coins": 0,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 1,
+   "start_y": -4710.0,
+   "max_y": -581.6,
+   "final_y": -872.8,
+   "route_s": 21958.7,
+   "coins": 2,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 2,
+   "start_y": -4710.0,
+   "max_y": 2850.0,
+   "final_y": 2850.0,
+   "route_s": 24463.5,
+   "coins": 0,
+   "decisions": 1167,
+   "end": "died"
+  }
+ ]
+}
