@@ -1,0 +1,36 @@
+{
+ "model": "models/btr_diag_rp5/final.pt",
+ "track": "ds8",
+ "rows": [
+  {
+   "episode": 0,
+   "start_y": -4710.0,
+   "max_y": 369.3,
+   "final_y": -4710.0,
+   "route_s": 25660.6,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 1,
+   "start_y": -4710.0,
+   "max_y": 398.0,
+   "final_y": -4710.0,
+   "route_s": 25660.6,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  },
+  {
+   "episode": 2,
+   "start_y": -4710.0,
+   "max_y": 398.0,
+   "final_y": 120.5,
+   "route_s": 25492.0,
+   "coins": 1,
+   "decisions": 5000,
+   "end": "horizon"
+  }
+ ]
+}
