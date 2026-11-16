@@ -25,8 +25,10 @@ import numpy as np  # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--main", required=True)
-    ap.add_argument("--spec", required=True)
+    ap.add_argument("--main", default=None)
+    ap.add_argument("--spec", default=None)
+    ap.add_argument("--single", default=None, help="record one single network instead of the main policy + specialist")
+    ap.add_argument("--single-fixed-taus", action="store_true", help="with --single: fixed quantile levels (deterministic)")
     ap.add_argument("--handoff-wp", type=int, default=340)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--episode", type=int, default=0)
@@ -46,8 +48,13 @@ def main():
 
     torch.manual_seed(args.seed)
     route = Route.load(os.path.join(ROOT_DIR, "config/routes/ttc_human_v1.json"))
-    spec, n_spec = load_agent(args.spec)
-    main_agent, n_main = load_agent(args.main)
+    if args.single:
+        main_agent, n_main = load_agent(args.single)
+        spec, n_spec = main_agent, n_main
+        args.handoff_wp = 10 ** 9            # never hand over
+    else:
+        spec, n_spec = load_agent(args.spec)
+        main_agent, n_main = load_agent(args.main)
     action_set = {10: "ref10", 13: "ref13"}[max(n_spec, n_main)]
     env = Mario64DSEnv(rom_path=rom_path(), state_path=savestate_path("ds8"), max_steps=args.max_steps, track_id="ds8",
                        **ref_env_kwargs("ds8", action_set=action_set))
@@ -56,7 +63,7 @@ def main():
         rec = ep == args.episode
         obs, _ = env.reset()
         dq = fresh_stack(obs)
-        acting, handoff, best_wp, name = main_agent, None, 0, "main policy (s9)"
+        acting, handoff, best_wp, name = main_agent, None, 0, ("single network" if args.single else "main policy (s9)")
         for t in range(args.max_steps):
             if rec:
                 img = cv2.cvtColor(env.get_screen_rgb(), cv2.COLOR_RGB2BGR)
@@ -69,7 +76,7 @@ def main():
                 cv2.putText(img, f"{name} | decision {t} | waypoint {best_wp}/370", (6, 16), 0, 0.5,
                             (0, 255, 255) if acting is spec else (255, 255, 255), 1, cv2.LINE_AA)
                 writer.write(img)
-            a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=bool(args.main_fixed_taus and acting is main_agent))[0])
+            a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=bool((args.main_fixed_taus or args.single_fixed_taus) and acting is main_agent))[0])
             obs, _, term, _, info = env.step(a)
             dq.append(obs[:, :, 0])
             best_wp = max(best_wp, route.passed(0, float(info.get("route_progress") or 0.0)))

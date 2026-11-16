@@ -1,0 +1,1 @@
+{"model": "models/btr_ttc_s9/step_750000.pt", "deterministic": true, "rows": [{"k": 4, "end": "died", "decisions": 49, "best_wp": 4}, {"k": 5, "end": "died", "decisions": 289, "best_wp": 3}, {"k": 6, "end": "died", "decisions": 71, "best_wp": 7}, {"k": 8, "end": "died", "decisions": 34, "best_wp": 2}]}

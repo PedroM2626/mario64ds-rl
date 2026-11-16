@@ -1,0 +1,106 @@
+{
+ "model": "models/btr_ttc_merged3/final.pt",
+ "track": "ds8",
+ "rows": [
+  {
+   "episode": 0,
+   "start_y": -4710.0,
+   "max_y": 7139.9,
+   "final_y": 6885.7,
+   "route_s": 53245.8,
+   "coins": 1,
+   "decisions": 1912,
+   "end": "star"
+  },
+  {
+   "episode": 1,
+   "start_y": -4710.0,
+   "max_y": 7296.5,
+   "final_y": 6885.7,
+   "route_s": 53245.8,
+   "coins": 1,
+   "decisions": 1902,
+   "end": "star"
+  },
+  {
+   "episode": 2,
+   "start_y": -4710.0,
+   "max_y": 7234.7,
+   "final_y": 7100.7,
+   "route_s": 53245.8,
+   "coins": 1,
+   "decisions": 3000,
+   "end": "horizon"
+  },
+  {
+   "episode": 3,
+   "start_y": -4710.0,
+   "max_y": 7139.9,
+   "final_y": 6885.7,
+   "route_s": 53245.8,
+   "coins": 1,
+   "decisions": 1911,
+   "end": "star"
+  },
+  {
+   "episode": 4,
+   "start_y": -4710.0,
+   "max_y": 7176.7,
+   "final_y": 6885.7,
+   "route_s": 53209.9,
+   "coins": 1,
+   "decisions": 1900,
+   "end": "star"
+  },
+  {
+   "episode": 5,
+   "start_y": -4710.0,
+   "max_y": 7099.7,
+   "final_y": 6885.7,
+   "route_s": 53191.2,
+   "coins": 1,
+   "decisions": 1899,
+   "end": "star"
+  },
+  {
+   "episode": 6,
+   "start_y": -4710.0,
+   "max_y": 7176.7,
+   "final_y": 6885.7,
+   "route_s": 53209.9,
+   "coins": 1,
+   "decisions": 1900,
+   "end": "star"
+  },
+  {
+   "episode": 7,
+   "start_y": -4710.0,
+   "max_y": 7267.7,
+   "final_y": 6885.7,
+   "route_s": 53245.8,
+   "coins": 1,
+   "decisions": 3000,
+   "end": "horizon"
+  },
+  {
+   "episode": 8,
+   "start_y": -4710.0,
+   "max_y": 7167.2,
+   "final_y": 6885.7,
+   "route_s": 53209.9,
+   "coins": 1,
+   "decisions": 1898,
+   "end": "star"
+  },
+  {
+   "episode": 9,
+   "start_y": -4710.0,
+   "max_y": 7114.9,
+   "final_y": 6885.7,
+   "route_s": 53245.8,
+   "coins": 1,
+   "decisions": 1934,
+   "end": "star"
+  }
+ ]
+}

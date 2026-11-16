@@ -1,0 +1,16 @@
+{
+ "model": "models/btr_ttc_merged3/final.pt",
+ "track": "ds8",
+ "rows": [
+  {
+   "episode": 0,
+   "start_y": -4710.0,
+   "max_y": 7099.7,
+   "final_y": 6885.7,
+   "route_s": 53191.1,
+   "coins": 1,
+   "decisions": 1899,
+   "end": "star"
+  }
+ ]
+}
