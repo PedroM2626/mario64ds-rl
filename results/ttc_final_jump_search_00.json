@@ -1,0 +1,1097 @@
+{
+ "spec": "models/btr_ttc_spec5/final.pt",
+ "rows": [
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 189
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 157
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 213
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 169
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 160
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 227
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 101
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 159
+  },
+  {
+   "state": "stuck-41-02-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 106
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 307
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 177
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 106
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 236
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 125
+  },
+  {
+   "state": "stuck-41-03-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 196
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 192
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 283
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 216
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 167
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 218
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 195
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 83
+  },
+  {
+   "state": "stuck-41-07-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 116
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 238
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 121
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 189
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 422
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 187
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 159
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 318
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-10-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 198
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 410
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 290
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 172
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 383
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 97
+  },
+  {
+   "state": "stuck-41-11-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 153
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 135
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 80
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 208
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 113
+  },
+  {
+   "state": "stuck-41-14-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 233
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "star",
+   "decisions": 153
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "star",
+   "decisions": 148
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 151
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 149
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 238
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 173
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 160
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 151
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 191
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "died",
+   "decisions": 424
+  },
+  {
+   "state": "stuck-41-17-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 162
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 108
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 168
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 173
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 254
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 152
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 219
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 110
+  },
+  {
+   "state": "stuck-42-07-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 237
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 178
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 138
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 409
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 222
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 295
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 297
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 177
+  },
+  {
+   "state": "stuck-42-12-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 84
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "star",
+   "decisions": 132
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 129
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 80
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 214
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 279
+  },
+  {
+   "state": "stuck-42-13-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 118
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 164
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 178
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 166
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 382
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 178
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 161
+  },
+  {
+   "state": "stuck-42-14-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 318
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 129
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 144
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 107
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 103
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-15-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 206
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 0,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 1,
+   "eps": 0.0,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 2,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 3,
+   "eps": 0.03,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 4,
+   "eps": 0.06,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 5,
+   "eps": 0.06,
+   "end": "star",
+   "decisions": 147
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 6,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 247
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 7,
+   "eps": 0.1,
+   "end": "star",
+   "decisions": 100
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 8,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 108
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 9,
+   "eps": 0.15,
+   "end": "star",
+   "decisions": 195
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 10,
+   "eps": 0.2,
+   "end": "horizon",
+   "decisions": 450
+  },
+  {
+   "state": "stuck-42-17-0",
+   "attempt": 11,
+   "eps": 0.2,
+   "end": "star",
+   "decisions": 265
+  }
+ ]
+}

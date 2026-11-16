@@ -38,6 +38,10 @@ def main():
     ap.add_argument("--filter-parts", default="",
                     help="comma-separated numbers of DAgger part files (part_NN.npz): of these, only the episodes in which the specialist "
                          "acted at some point are kept (the main policy is not a reliable teacher in the states where the student got stuck before the hand)")
+    ap.add_argument("--search-dir", default="",
+                    help="demonstrations found by scripts/search_final_jump.py (found-*.npz): extra labelled states, cross-entropy only")
+    ap.add_argument("--search-batch", type=int, default=64, help="search samples added to every training step")
+    ap.add_argument("--search-weight", type=float, default=1.0)
     ap.add_argument("--val-every", type=int, default=6, help="every n-th collected episode is held out for validation")
     ap.add_argument("--minutes", type=float, default=0.0, help="stop after this many minutes (0 = no limit)")
     ap.add_argument("--seed", type=int, default=0)
@@ -72,6 +76,28 @@ def main():
     temp = float(np.median(gap)) / 2.0
     print(f"greedy gap median {np.median(gap):.4f}, mean {gap.mean():.4f}; softmax temperature {temp:.4f}", flush=True)
     target_a = mean_q.argmax(1)
+
+    S_frames = S_label = S_start = S_group = None
+    if args.search_dir:
+        chunks, labels, starts, groups, off = [], [], [], [], 0
+        for f in sorted(glob.glob(os.path.join(ROOT_DIR, args.search_dir, "found-*.npz"))):
+            d = np.load(f)
+            allf = np.concatenate([d["ctx"], d["frames"]])                  # (3 + T, 84, 84): sample i uses rows i..i+3
+            T = len(d["actions"])
+            chunks.append(allf)
+            labels.append(d["actions"].astype(np.int64))
+            starts.append(off + np.arange(T))
+            key = os.path.basename(f).split("-")                             # found-stuck-41-02-0-05.npz
+            groups.append(np.full(T, hash(key[2] + "-" + key[3]) % 5))      # held out by the episode of the stuck state
+            off += len(allf)
+        S_frames = np.concatenate(chunks)
+        S_label, S_start, S_group = np.concatenate(labels), np.concatenate(starts), np.concatenate(groups)
+        s_val = np.where(S_group == 0)[0]
+        s_train = np.where(S_group != 0)[0]
+        print(f"search demonstrations: {len(S_label)} labelled decisions, train {len(s_train)}, validation {len(s_val)}", flush=True)
+
+    def search_stacks(idx):
+        return S_frames[S_start[idx][:, None] + np.arange(4)[None, :]]
 
     episodes = np.unique(ep)
     val_eps = set(episodes[:: args.val_every].tolist())
@@ -112,7 +138,7 @@ def main():
     t0, best = time.time(), -1.0
     for epoch in range(1, args.epochs + 1):
         order = rng.permutation(train_idx)
-        tot_mse = tot_ce = 0.0
+        tot_mse = tot_ce = tot_cs = 0.0
         nb = 0
         for s in range(0, len(order), args.batch):
             b = order[s:s + args.batch]
@@ -122,6 +148,12 @@ def main():
             mse = torch.nn.functional.mse_loss(pred, tgt)
             ce = torch.nn.functional.cross_entropy(pred.mean(1) / temp, torch.as_tensor(target_a[b]))
             loss = mse + args.ce_weight * ce
+            if S_frames is not None:
+                sb = rng.choice(s_train, args.search_batch, replace=False)
+                ps = net(torch.as_tensor(search_stacks(sb)), mid.expand(len(sb), 16))
+                ce_s = torch.nn.functional.cross_entropy(ps.mean(1) / temp, torch.as_tensor(S_label[sb]))
+                loss = loss + args.search_weight * ce_s
+                tot_cs += float(ce_s)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)
@@ -134,8 +166,19 @@ def main():
         tr_acc = evaluate(rng.choice(train_idx, min(4000, len(train_idx)), replace=False))
         va_acc = evaluate(val_idx) if len(val_idx) else {0: float("nan"), 1: float("nan")}
         score = min(va_acc[0], va_acc[1]) if len(val_idx) else min(tr_acc[0], tr_acc[1])
+        search_msg = ""
+        if S_frames is not None:
+            def s_agree(ids):
+                ok = 0
+                with torch.no_grad():
+                    for k in range(0, len(ids), 256):
+                        b2 = ids[k:k + 256]
+                        pr = net(torch.as_tensor(search_stacks(b2)), mid.expand(len(b2), 16)).mean(1).argmax(-1).numpy()
+                        ok += int((pr == S_label[b2]).sum())
+                return ok / max(len(ids), 1)
+            search_msg = f" | search labels agree train {s_agree(rng.choice(s_train, min(3000, len(s_train)), replace=False)):.4f} val {s_agree(s_val):.4f} (ce {tot_cs / nb:.4f})"
         print(f"epoch {epoch}: mse {tot_mse / nb:.5f} ce {tot_ce / nb:.4f} | train agree main {tr_acc[0]:.4f} spec {tr_acc[1]:.4f} | "
-              f"val agree main {va_acc[0]:.4f} spec {va_acc[1]:.4f} | {(time.time() - t0) / 60:.1f} min", flush=True)
+              f"val agree main {va_acc[0]:.4f} spec {va_acc[1]:.4f}{search_msg} | {(time.time() - t0) / 60:.1f} min", flush=True)
         torch.save({"net": net.state_dict(), "n_actions": 13}, os.path.join(ROOT_DIR, args.out, f"epoch_{epoch:02d}.pt"))
         if score > best:
             best = score
