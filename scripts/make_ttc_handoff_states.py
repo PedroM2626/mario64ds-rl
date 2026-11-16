@@ -34,6 +34,9 @@ def main():
     ap.add_argument("--noise", type=float, default=0.0,
                     help="per-decision probability (before the hand-over) of a random action of the main policy's set held 1-3 decisions; "
                          "the main policy alone reaches the hand almost always through the same states")
+    ap.add_argument("--stall-handoff", type=int, default=0,
+                    help="also count as hand-over when the main policy reached --stall-min-wp waypoints and gained none for this many decisions")
+    ap.add_argument("--stall-min-wp", type=int, default=330)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -62,7 +65,7 @@ def main():
         obs, _ = env.reset()
         dq = deque([np.zeros((84, 84), np.uint8)] * 3 + [obs[:, :, 0]], maxlen=4)
         cross, saved, best_wp, end = None, 0, 0, "horizon"
-        rand_left, rand_a = 0, 0
+        rand_left, rand_a, last_gain, top_wp = 0, 0, 0, 0
         for t in range(args.max_steps):
             a = int(agent.act(np.stack(list(dq))[None], noisy=False, fixed_taus=False)[0])
             if cross is None and args.noise > 0:
@@ -73,7 +76,10 @@ def main():
             obs, _, term, _, info = env.step(a)
             dq.append(obs[:, :, 0])
             best_wp = route.passed(0, float(info.get("route_progress") or 0.0))
-            if cross is None and best_wp >= args.handoff_wp:
+            if best_wp > top_wp:
+                top_wp, last_gain = best_wp, t
+            if cross is None and (best_wp >= args.handoff_wp or (
+                    args.stall_handoff and best_wp >= args.stall_min_wp and t - last_gain >= args.stall_handoff)):
                 cross = t
             if cross is not None and saved < len(offsets) and t - cross >= offsets[saved]:
                 name = f"h{args.seed:02d}-{ep:02d}-{offsets[saved]:02d}.dst"

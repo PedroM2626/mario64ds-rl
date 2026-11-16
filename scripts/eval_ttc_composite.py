@@ -49,6 +49,9 @@ def main():
     ap.add_argument("--max-steps", type=int, default=5000)
     ap.add_argument("--states", default=None)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--stall-handoff", type=int, default=0,
+                    help="also hand over when the main policy has reached --stall-min-wp waypoints but gained none for this many decisions (0 = off)")
+    ap.add_argument("--stall-min-wp", type=int, default=330)
     ap.add_argument("--idle", type=int, default=0, help="stop an episode after this many decisions without a new waypoint (0 = never)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--deterministic", action="store_true", help="fixed quantile levels: both policies are then deterministic functions of the observation")
@@ -88,6 +91,7 @@ def main():
             best_wp = route.passed(0, float(env.route_best_s or 0.0))
         wp_at_handoff = best_wp if args.states else None
         star_log, last_sc = [], None       # (decision, value) every time the RAM star counter changes
+        handoff_reason = None
         landed = False          # route arc length >= 51,000 (waypoint ~354) with Mario above height 5,800: on the platform after the hand
         for t in range(args.max_steps):
             a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=args.deterministic)[0])
@@ -106,7 +110,9 @@ def main():
                 trace.append([t + 1, a] + [round(float(v), 1) for v in env.ram.get_pos_3d()] + [round(float(info.get("route_progress") or 0.0), 1)])
             if wp > best_wp:
                 best_wp, last_gain = wp, t
-            if handoff is None and best_wp >= args.handoff_wp:
+            stalled = (args.stall_handoff and best_wp >= args.stall_min_wp and t - last_gain >= args.stall_handoff)
+            if handoff is None and (best_wp >= args.handoff_wp or stalled):
+                handoff_reason = "wp" if best_wp >= args.handoff_wp else "stall"
                 handoff, wp_at_handoff, acting, dq, last_gain = t + 1, best_wp, spec, fresh_stack(obs), t
             if term:
                 end = "star" if info.get("success") else "died"
@@ -115,7 +121,7 @@ def main():
             if args.idle and t - last_gain >= args.idle:
                 end = "idle"
                 break
-        rows.append({"episode": ep, "start": os.path.basename(files[ep]) if args.states else "full", "handoff_decision": handoff,
+        rows.append({"episode": ep, "start": os.path.basename(files[ep]) if args.states else "full", "handoff_decision": handoff, "handoff_reason": handoff_reason,
                      "wp_at_handoff": wp_at_handoff, "best_wp": best_wp, "landed": landed, "death_source": getattr(env, "death_source", None), "course_id_end": int(env.ram.get_course_id()),
                      "end_pos": [round(float(v), 1) for v in env.ram.get_pos_3d()], "star_counter_changes": star_log[:40], "decisions": t + 1, "end": end, "star": star})
         print(rows[-1], flush=True)
