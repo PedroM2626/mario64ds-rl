@@ -31,6 +31,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--episode", type=int, default=0)
     ap.add_argument("--max-steps", type=int, default=3000)
+    ap.add_argument("--main-fixed-taus", action="store_true", help="the main policy uses fixed quantile levels (deterministic)")
     ap.add_argument("--scale", type=float, default=2.0)
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--out", required=True)
@@ -68,7 +69,7 @@ def main():
                 cv2.putText(img, f"{name} | decision {t} | waypoint {best_wp}/370", (6, 16), 0, 0.5,
                             (0, 255, 255) if acting is spec else (255, 255, 255), 1, cv2.LINE_AA)
                 writer.write(img)
-            a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=False)[0])
+            a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=bool(args.main_fixed_taus and acting is main_agent))[0])
             obs, _, term, _, info = env.step(a)
             dq.append(obs[:, :, 0])
             best_wp = max(best_wp, route.passed(0, float(info.get("route_progress") or 0.0)))

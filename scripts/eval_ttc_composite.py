@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--stall-min-wp", type=int, default=330)
     ap.add_argument("--idle", type=int, default=0, help="stop an episode after this many decisions without a new waypoint (0 = never)")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--main-fixed-taus", action="store_true",
+                    help="only the main policy uses fixed quantile levels (a deterministic function of the observation); the specialist keeps random ones")
     ap.add_argument("--deterministic", action="store_true", help="fixed quantile levels: both policies are then deterministic functions of the observation")
     ap.add_argument("--shot-dir", default=None, help="save screenshots of the last ~70 decisions of every episode (every 10th) to this directory")
     ap.add_argument("--trace", default=None, help="write the per-decision action, position and route arc length of the specialist's part to this json")
@@ -94,7 +96,8 @@ def main():
         handoff_reason = None
         landed = False          # route arc length >= 51,000 (waypoint ~354) with Mario above height 5,800: on the platform after the hand
         for t in range(args.max_steps):
-            a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=args.deterministic)[0])
+            fixed = args.deterministic or (args.main_fixed_taus and acting is main_agent)
+            a = int(acting.act(np.stack(list(dq))[None], noisy=False, fixed_taus=fixed)[0])
             obs, _, term, _, info = env.step(a)
             dq.append(obs[:, :, 0])
             wp = route.passed(0, float(info.get("route_progress") or 0.0))
